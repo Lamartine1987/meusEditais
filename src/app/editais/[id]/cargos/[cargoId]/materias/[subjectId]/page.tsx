@@ -76,7 +76,7 @@ export default function SubjectTopicsPage() {
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null;
-    const activeTopicId = activeAccordionItem; // Use the currently active accordion item for timer logic
+    const activeTopicId = activeAccordionItem; 
 
     if (activeTopicId && timerStates[activeTopicId]?.isRunning) {
       intervalId = setInterval(() => {
@@ -111,7 +111,6 @@ export default function SubjectTopicsPage() {
 
   const handleTimerPlayPause = (topicId: string) => {
     if (!timerStates[topicId]) return;
-     // Pause other running timers if any (only one timer active at a time within accordion)
      Object.keys(timerStates).forEach(id => {
         if (id !== topicId && timerStates[id].isRunning) {
             setTimerStates(prev => ({...prev, [id]: {...prev[id], isRunning: false}}));
@@ -211,16 +210,15 @@ export default function SubjectTopicsPage() {
             </CardTitle>
           </CardHeader>
           <Separator className="mb-1" />
-          <CardContent className="pt-0">
+          <CardContent className="pt-6"> {/* Adjusted pt-0 to pt-6 for better spacing with space-y on Accordion */}
             {subject.topics && subject.topics.length > 0 ? (
               <Accordion 
                 type="single" 
                 collapsible 
-                className="w-full"
+                className="w-full space-y-3"
                 onValueChange={(value) => {
                     const currentOpenTopic = activeAccordionItem;
                     const newOpenTopic = value;
-                    // If a timer was running for the previously open topic, pause it
                     if (currentOpenTopic && currentOpenTopic !== newOpenTopic && timerStates[currentOpenTopic]?.isRunning) {
                          setTimerStates(prev => ({
                             ...prev,
@@ -244,11 +242,11 @@ export default function SubjectTopicsPage() {
                         value={topic.id} 
                         key={topic.id} 
                         className={cn(
-                            "border-b border-border last:border-b-0",
-                            isChecked && "bg-accent/20 transition-colors duration-300 rounded-md"
+                            "rounded-lg shadow-sm border overflow-hidden transition-colors duration-300",
+                            isChecked ? "bg-accent/20 border-accent/30" : "bg-card border-border"
                         )}
                     >
-                      <AccordionTrigger className="py-4 px-2 hover:bg-muted/50 rounded-md transition-colors w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1">
+                      <AccordionTrigger className="py-4 px-3 hover:bg-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 w-full text-left">
                         <div className="flex items-center justify-between w-full">
                             <span className="text-base text-foreground/90 font-medium">{topic.name}</span>
                             {totalStudiedTimeDisplay && (
@@ -259,7 +257,7 @@ export default function SubjectTopicsPage() {
                             )}
                         </div>
                       </AccordionTrigger>
-                      <AccordionContent className="pt-2 pb-4 px-2 space-y-4 bg-muted/30 rounded-b-md">
+                      <AccordionContent className="pt-2 pb-4 px-3 space-y-4 bg-muted/20">
                         <div className="flex items-center space-x-2 mb-3 p-3 border rounded-md bg-background/50 shadow-sm">
                             <Checkbox
                                 id={checkboxId}
