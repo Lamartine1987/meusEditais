@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { CalendarDays, Landmark, Link as LinkIcon, Briefcase, Loader2, ArrowLeft, UserCheck, UserPlus, Info } from 'lucide-react';
+import { CalendarDays, Landmark, Link as LinkIcon, Briefcase, Loader2, ArrowLeft, UserCheck, UserPlus, Info, UserMinus } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -229,7 +229,7 @@ export default function EditalDetailPage() {
                   editalId={edital.id}
                   isUserRegisteredForEdital={isUserRegisteredForCurrentEdital}
                   onRegister={handleRegister}
-                  onUnregister={handleUnregister} // This will be handled by the main edital button now
+                  onUnregister={handleUnregister} 
                   isUserLoggedIn={!!user}
                   editalStatus={edital.status}
                 />
