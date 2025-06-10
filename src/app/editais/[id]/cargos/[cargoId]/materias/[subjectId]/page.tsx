@@ -13,12 +13,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks } from 'lucide-react';
+import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 // Helper function to format duration from seconds to MM:SS
 const formatDuration = (totalSeconds: number): string => {
@@ -42,10 +44,8 @@ export default function SubjectTopicsPage() {
   const [subject, setSubject] = useState<SubjectType | null>(null);
   const [loadingData, setLoadingData] = useState(true);
 
-  // Timer states
   const [timerStates, setTimerStates] = useState<Record<string, { time: number; isRunning: boolean }>>({});
   const [activeAccordionItem, setActiveAccordionItem] = useState<string | null>(null);
-
 
   useEffect(() => {
     if (editalId && cargoId && subjectId) {
@@ -57,7 +57,6 @@ export default function SubjectTopicsPage() {
           if (foundCargo) {
             const foundSubject = foundCargo.subjects?.find(s => s.id === subjectId) || null;
             setSubject(foundSubject);
-            // Initialize timer states for each topic
             if (foundSubject?.topics) {
               const initialTimerStates: Record<string, { time: number; isRunning: boolean }> = {};
               foundSubject.topics.forEach(topic => {
@@ -75,16 +74,17 @@ export default function SubjectTopicsPage() {
     }
   }, [editalId, cargoId, subjectId]);
 
-  // Timer effect
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null;
-    if (activeAccordionItem && timerStates[activeAccordionItem]?.isRunning) {
+    const activeTopicId = activeAccordionItem; // Use the currently active accordion item for timer logic
+
+    if (activeTopicId && timerStates[activeTopicId]?.isRunning) {
       intervalId = setInterval(() => {
         setTimerStates(prev => ({
           ...prev,
-          [activeAccordionItem]: {
-            ...prev[activeAccordionItem],
-            time: prev[activeAccordionItem].time + 1,
+          [activeTopicId]: {
+            ...prev[activeTopicId],
+            time: prev[activeTopicId].time + 1,
           },
         }));
       }, 1000);
@@ -109,9 +109,14 @@ export default function SubjectTopicsPage() {
     }
   }, [user, editalId, cargoId, subjectId, toggleTopicStudyStatus, toast]);
 
-
   const handleTimerPlayPause = (topicId: string) => {
     if (!timerStates[topicId]) return;
+     // Pause other running timers if any (only one timer active at a time within accordion)
+     Object.keys(timerStates).forEach(id => {
+        if (id !== topicId && timerStates[id].isRunning) {
+            setTimerStates(prev => ({...prev, [id]: {...prev[id], isRunning: false}}));
+        }
+    });
     setTimerStates(prev => ({
       ...prev,
       [topicId]: { ...prev[topicId], isRunning: !prev[topicId].isRunning },
@@ -135,7 +140,7 @@ export default function SubjectTopicsPage() {
     try {
       await addStudyLog(compositeTopicId, durationToSave);
       toast({ title: "Tempo Salvo!", description: `Registrado ${formatDuration(durationToSave)} para este tópico.`, variant: "default", className:"bg-accent text-accent-foreground" });
-      handleTimerReset(topicId); // Reset timer after saving
+      handleTimerReset(topicId); 
     } catch (error) {
       toast({ title: "Erro ao Salvar Tempo", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
     }
@@ -145,6 +150,14 @@ export default function SubjectTopicsPage() {
     if (!user?.studyLogs) return [];
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
     return user.studyLogs.filter(log => log.compositeTopicId === compositeTopicId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [user, editalId, cargoId, subjectId]);
+
+  const calculateTotalStudiedTimeForTopic = useCallback((topicId: string): number => {
+    if (!user?.studyLogs) return 0;
+    const compositeTopicIdToFilter = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    return user.studyLogs
+      .filter(log => log.compositeTopicId === compositeTopicIdToFilter)
+      .reduce((total, log) => total + log.duration, 0);
   }, [user, editalId, cargoId, subjectId]);
 
 
@@ -204,38 +217,62 @@ export default function SubjectTopicsPage() {
                 type="single" 
                 collapsible 
                 className="w-full"
-                onValueChange={(value) => setActiveAccordionItem(value || null)}
+                onValueChange={(value) => {
+                    const currentOpenTopic = activeAccordionItem;
+                    const newOpenTopic = value;
+                    // If a timer was running for the previously open topic, pause it
+                    if (currentOpenTopic && currentOpenTopic !== newOpenTopic && timerStates[currentOpenTopic]?.isRunning) {
+                         setTimerStates(prev => ({
+                            ...prev,
+                            [currentOpenTopic]: { ...prev[currentOpenTopic], isRunning: false },
+                        }));
+                    }
+                    setActiveAccordionItem(newOpenTopic || null);
+                }}
               >
                 {subject.topics.map((topic: TopicType) => {
                   const compositeTopicId = `${editalId}_${cargoId}_${subject.id}_${topic.id}`;
                   const isChecked = user?.studiedTopicIds?.includes(compositeTopicId) ?? false;
-                  const checkboxId = `topic-${subject.id}-${topic.id}`;
+                  const checkboxId = `topic-studied-${subject.id}-${topic.id}`;
                   const currentTimerState = timerStates[topic.id] || { time: 0, isRunning: false };
                   const topicLogs = getTopicLogs(topic.id);
+                  const totalStudiedSeconds = calculateTotalStudiedTimeForTopic(topic.id);
+                  const totalStudiedTimeDisplay = totalStudiedSeconds > 0 ? formatDuration(totalStudiedSeconds) : null;
 
                   return (
-                    <AccordionItem value={topic.id} key={topic.id} className="border-b border-border last:border-b-0">
+                    <AccordionItem 
+                        value={topic.id} 
+                        key={topic.id} 
+                        className={cn(
+                            "border-b border-border last:border-b-0",
+                            isChecked && "bg-accent/20 transition-colors duration-300 rounded-md"
+                        )}
+                    >
                       <AccordionTrigger className="py-4 px-2 hover:bg-muted/50 rounded-md transition-colors w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1">
                         <div className="flex items-center justify-between w-full">
-                          <div className="flex items-center space-x-3">
-                            <Checkbox
-                              id={checkboxId}
-                              checked={isChecked}
-                              onCheckedChange={(e) => {
-                                e.stopPropagation(); // Prevent accordion from toggling
-                                handleToggleTopicCheckbox(topic.id);
-                              }}
-                              aria-labelledby={`${checkboxId}-label`}
-                              className="h-5 w-5"
-                              onClick={(e) => e.stopPropagation()} // Also here for good measure
-                            />
-                            <Label htmlFor={checkboxId} id={`${checkboxId}-label`} className="text-base text-foreground/90 cursor-pointer flex-grow" onClick={(e) => e.stopPropagation()}>
-                              {topic.name}
-                            </Label>
-                          </div>
+                            <span className="text-base text-foreground/90 font-medium">{topic.name}</span>
+                            {totalStudiedTimeDisplay && (
+                                <Badge variant="outline" className="text-xs font-normal ml-2">
+                                <TimerIcon className="h-3 w-3 mr-1" />
+                                {totalStudiedTimeDisplay}
+                                </Badge>
+                            )}
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="pt-2 pb-4 px-2 space-y-4 bg-muted/30 rounded-b-md">
+                        <div className="flex items-center space-x-2 mb-3 p-3 border rounded-md bg-background/50 shadow-sm">
+                            <Checkbox
+                                id={checkboxId}
+                                checked={isChecked}
+                                onCheckedChange={() => handleToggleTopicCheckbox(topic.id)}
+                                aria-labelledby={`${checkboxId}-label`}
+                                className="h-5 w-5"
+                            />
+                            <Label htmlFor={checkboxId} id={`${checkboxId}-label`} className="text-sm font-medium cursor-pointer text-foreground/80">
+                                Marcar como estudado
+                            </Label>
+                        </div>
+
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border rounded-lg bg-background shadow-sm">
                           <div className="text-3xl font-mono font-semibold text-primary">
                             {formatDuration(currentTimerState.time)}
