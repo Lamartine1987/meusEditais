@@ -12,11 +12,13 @@ import {
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
 import { AppLogo } from './app-logo';
-import { Home } from 'lucide-react';
+import { Home, Briefcase } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar'; 
+import { useAuth } from '@/hooks/use-auth';
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { user } = useAuth();
   const { setOpenMobile, isMobile } = useSidebar(); 
 
   const closeMobileSidebar = () => {
@@ -53,6 +55,21 @@ export function AppSidebar() {
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {user && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === '/meus-editais'}
+                tooltip={{content: "Meus Editais", side:"right", align:"center"}}
+                onClick={closeMobileSidebar}
+              >
+                <Link href="/meus-editais">
+                  <Briefcase />
+                  <span>Meus Editais</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarContent>
     </Sidebar>
