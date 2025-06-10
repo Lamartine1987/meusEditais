@@ -4,20 +4,16 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import type { Edital, Cargo, Subject as SubjectType, Topic as TopicType } from '@/types';
+import type { Edital, Cargo, Subject as SubjectType } from '@/types';
 import { mockEditais } from '@/lib/mock-data';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { Loader2, ArrowLeft, BookOpen, ChevronRight, AlertCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/use-auth';
-import { useToast } from '@/hooks/use-toast';
 
 export default function CargoDetailPage() {
   const params = useParams();
@@ -25,8 +21,7 @@ export default function CargoDetailPage() {
   const editalId = params.id as string;
   const cargoId = params.cargoId as string;
 
-  const { user, toggleTopicStudyStatus, loading: authLoading } = useAuth();
-  const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth();
 
   const [edital, setEdital] = useState<Edital | null>(null);
   const [cargo, setCargo] = useState<Cargo | null>(null);
@@ -48,20 +43,6 @@ export default function CargoDetailPage() {
       return () => clearTimeout(timer);
     }
   }, [editalId, cargoId]);
-
-  const handleToggleTopic = useCallback(async (subjectId: string, topicId: string) => {
-    if (!user || !editalId || !cargoId) return;
-    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
-    try {
-      await toggleTopicStudyStatus(compositeTopicId);
-    } catch (error) {
-      toast({
-        title: "Erro ao atualizar status",
-        description: "Não foi possível salvar o status do tópico.",
-        variant: "destructive",
-      });
-    }
-  }, [user, editalId, cargoId, toggleTopicStudyStatus, toast]);
 
   const calculateProgress = useCallback((subject: SubjectType): number => {
     if (!user || !subject.topics || subject.topics.length === 0) {
@@ -117,75 +98,57 @@ export default function CargoDetailPage() {
           description={`Conteúdo programático do cargo ${cargo.name} no edital ${edital.title}.`}
         />
 
-        <Card className="shadow-lg rounded-xl bg-card">
-          <CardHeader>
-            <CardTitle className="text-xl flex items-center">
-              <BookOpen className="mr-3 h-6 w-6 text-primary" />
-              Conteúdo Programático
-            </CardTitle>
-          </CardHeader>
-          <Separator className="mb-4" />
-          <CardContent>
-            {cargo.subjects && cargo.subjects.length > 0 ? (
-              <Accordion type="multiple" className="w-full space-y-3">
-                {cargo.subjects.map((subject: SubjectType) => {
-                  const progressValue = calculateProgress(subject);
-                  const subjectKey = `${editalId}_${cargoId}_${subject.id}`;
-                  return (
-                    <AccordionItem value={subject.id} key={subjectKey} className="border-b-0 rounded-lg bg-muted/50 shadow-sm">
-                      <AccordionTrigger className="px-4 py-3 text-md font-semibold hover:no-underline hover:bg-muted rounded-t-lg data-[state=open]:rounded-b-none data-[state=open]:bg-muted group">
-                        <div className="flex items-center justify-between w-full">
-                          <div className="flex items-center flex-grow mr-4">
-                            <ChevronRight className="h-5 w-5 mr-2 transition-transform duration-200 group-data-[state=open]:rotate-90" />
-                            <span className="truncate">{subject.name}</span>
-                          </div>
-                          <div className="flex items-center w-1/3 min-w-[100px] max-w-[200px]">
-                            <Progress value={progressValue} className="h-2.5 flex-grow" />
-                            <span className="text-xs font-normal text-muted-foreground ml-2 w-10 text-right">
-                              {Math.round(progressValue)}%
-                            </span>
-                          </div>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="px-4 pb-4 pt-2 bg-background rounded-b-lg border-t border-border">
-                        {subject.topics && subject.topics.length > 0 ? (
-                          <ul className="space-y-3 pt-2">
-                            {subject.topics.map((topic: TopicType) => {
-                              const compositeTopicId = `${editalId}_${cargoId}_${subject.id}_${topic.id}`;
-                              const isChecked = user?.studiedTopicIds?.includes(compositeTopicId) ?? false;
-                              const checkboxId = `topic-${topic.id}`;
-                              return (
-                                <li key={topic.id} className="flex items-center space-x-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
-                                  <Checkbox
-                                    id={checkboxId}
-                                    checked={isChecked}
-                                    onCheckedChange={() => handleToggleTopic(subject.id, topic.id)}
-                                    aria-labelledby={`${checkboxId}-label`}
-                                  />
-                                  <Label htmlFor={checkboxId} id={`${checkboxId}-label`} className="text-sm text-foreground/90 cursor-pointer flex-grow">
-                                    {topic.name}
-                                  </Label>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        ) : (
-                          <p className="text-sm text-muted-foreground italic py-2">Nenhum tópico cadastrado para esta matéria.</p>
-                        )}
-                      </AccordionContent>
-                    </AccordionItem>
-                  );
-                })}
-              </Accordion>
-            ) : (
+        {cargo.subjects && cargo.subjects.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {cargo.subjects.map((subject: SubjectType) => {
+              const progressValue = calculateProgress(subject);
+              const subjectKey = `${editalId}_${cargoId}_${subject.id}`;
+              return (
+                <Link key={subjectKey} href={`/editais/${editalId}/cargos/${cargoId}/materias/${subject.id}`} passHref>
+                  <Card className="shadow-md hover:shadow-lg transition-shadow duration-300 rounded-xl flex flex-col h-full bg-card cursor-pointer group">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg font-semibold text-primary group-hover:underline flex justify-between items-center">
+                        {subject.name}
+                        <ChevronRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-1" />
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex-grow pt-1">
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {subject.topics?.length || 0} tópico(s) no total.
+                      </p>
+                       {/* Placeholder for a brief description if available in future */}
+                    </CardContent>
+                    <CardFooter className="pt-3 border-t">
+                      <div className="flex items-center w-full">
+                        <Progress value={progressValue} className="h-2.5 flex-grow" aria-label={`Progresso em ${subject.name}`} />
+                        <span className="text-xs font-medium text-muted-foreground ml-2 w-10 text-right">
+                          {Math.round(progressValue)}%
+                        </span>
+                      </div>
+                    </CardFooter>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <Card className="shadow-lg rounded-xl bg-card">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center">
+                <BookOpen className="mr-3 h-6 w-6 text-primary" />
+                Conteúdo Programático
+              </CardTitle>
+            </CardHeader>
+            <Separator className="my-4" />
+            <CardContent>
               <div className="text-center py-10">
                 <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-lg text-muted-foreground">Nenhuma matéria cadastrada para este cargo.</p>
                 <p className="text-sm text-muted-foreground mt-1">Verifique o edital completo para mais informações.</p>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </PageWrapper>
   );
