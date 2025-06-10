@@ -7,6 +7,8 @@ export const mockUser: User = {
   email: 'usuario@example.com',
   avatarUrl: 'https://placehold.co/100x100.png',
   registeredCargoIds: ['edital1_cargo1'], 
+  studiedTopicIds: [],
+  studyLogs: [],
 };
 
 const mockAnalistaSubjects: Subject[] = [

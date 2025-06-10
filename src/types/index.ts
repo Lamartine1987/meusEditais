@@ -1,10 +1,18 @@
 
+export interface StudyLogEntry {
+  compositeTopicId: string;
+  date: string; // ISO string date for when the log was saved
+  duration: number; // in seconds
+}
+
 export interface User {
   id: string;
   name: string;
   email: string;
   avatarUrl?: string;
   registeredCargoIds?: string[]; 
+  studiedTopicIds?: string[];
+  studyLogs?: StudyLogEntry[];
 }
 
 export interface Topic {
