@@ -2,14 +2,51 @@
 "use client";
 
 import type { Cargo } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { DollarSign, CheckSquare } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { DollarSign, CheckSquare, UserPlus, UserMinus, Loader2 } from 'lucide-react';
+import { useState } from 'react';
 
 interface CargoCardProps {
   cargo: Cargo;
+  editalId: string;
+  isUserRegisteredForEdital: boolean;
+  onRegister: (editalId: string) => Promise<void>;
+  onUnregister: (editalId: string) => Promise<void>;
+  isUserLoggedIn: boolean;
+  editalStatus: 'open' | 'closed' | 'upcoming';
 }
 
-export function CargoCard({ cargo }: CargoCardProps) {
+export function CargoCard({ cargo, editalId, isUserRegisteredForEdital, onRegister, onUnregister, isUserLoggedIn, editalStatus }: CargoCardProps) {
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleRegister = async () => {
+    setIsSubmitting(true);
+    await onRegister(editalId);
+    setIsSubmitting(false);
+  };
+
+  const handleUnregister = async () => {
+    setIsSubmitting(true);
+    await onUnregister(editalId);
+    setIsSubmitting(false);
+    setIsAlertOpen(false);
+  };
+
+  const canRegister = editalStatus === 'open';
+
   return (
     <Card className="shadow-md hover:shadow-lg transition-shadow duration-300 rounded-xl flex flex-col h-full bg-card">
       <CardHeader className="pb-2">
@@ -44,6 +81,48 @@ export function CargoCard({ cargo }: CargoCardProps) {
           </div>
         )}
       </CardContent>
+      {isUserLoggedIn && canRegister && (
+        <CardFooter className="pt-4 border-t">
+          {isUserRegisteredForEdital ? (
+            <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="w-full" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserMinus className="mr-2 h-4 w-4" />}
+                  Cancelar Inscrição
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Você tem certeza que deseja cancelar sua inscrição neste edital? 
+                    Qualquer progresso salvo relacionado a este edital poderá ser perdido.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isSubmitting}>Não, manter</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleUnregister} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Sim, cancelar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
+            <Button onClick={handleRegister} className="w-full" variant="default" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+              Inscrever-se no Edital
+            </Button>
+          )}
+        </CardFooter>
+      )}
+       {isUserLoggedIn && !canRegister && editalStatus !== 'open' && (
+         <CardFooter className="pt-4 border-t">
+            <Button className="w-full" variant="outline" disabled>
+                {editalStatus === 'closed' ? 'Edital Encerrado' : 'Inscrições em Breve'}
+            </Button>
+         </CardFooter>
+       )}
     </Card>
   );
 }

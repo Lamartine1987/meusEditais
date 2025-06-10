@@ -1,9 +1,9 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { Edital } from '@/types';
-import { mockMyEditais } from '@/lib/mock-data'; 
+import { mockEditais } from '@/lib/mock-data'; 
 import { EditalCard } from '@/components/edital-card';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
@@ -16,25 +16,31 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function MyEditaisPage() {
   const { user, loading: authLoading } = useAuth();
-  const [myEditais, setMyEditais] = useState<Edital[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
+  // const [myEditais, setMyEditais] = useState<Edital[]>([]); // To be derived from user.registeredEditalIds
+  const [loadingData, setLoadingData] = useState(true); // For simulating data fetch for all editais if needed
+
+  // All editais (from mock or future API)
+  const [allEditais, setAllEditais] = useState<Edital[]>([]);
 
   useEffect(() => {
-    if (user) {
-      setLoadingData(true);
-      // Simulate fetching user's registered editais
-      const timer = setTimeout(() => {
-        setMyEditais(mockMyEditais); 
-        setLoadingData(false);
-      }, 700);
-      return () => clearTimeout(timer);
-    } else if (!authLoading) {
-      setMyEditais([]);
+    // Simulate fetching all editais data once
+    setLoadingData(true);
+    const timer = setTimeout(() => {
+      setAllEditais(mockEditais); // In a real app, this might be fetched from an API
       setLoadingData(false);
+    }, 500); // Simulate delay for fetching all editais
+    return () => clearTimeout(timer);
+  }, []);
+  
+  const myEditais = useMemo(() => {
+    if (authLoading || loadingData || !user || !user.registeredEditalIds) {
+      return [];
     }
-  }, [user, authLoading]);
+    return allEditais.filter(edital => user.registeredEditalIds!.includes(edital.id));
+  }, [user, authLoading, allEditais, loadingData]);
 
-  if (authLoading) { 
+
+  if (authLoading || loadingData) { 
     return (
       <PageWrapper>
         <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]">
@@ -65,6 +71,10 @@ export default function MyEditaisPage() {
     );
   }
 
+  // Show skeletons if user is loaded but derived myEditais are still being processed (or if allEditais are loading)
+  const showSkeletons = (authLoading || loadingData) && user;
+
+
   return (
     <PageWrapper>
       <div className="container mx-auto px-0 sm:px-4 py-8">
@@ -80,7 +90,7 @@ export default function MyEditaisPage() {
             </Button>
           }
         />
-        {loadingData ? (
+        {showSkeletons ? (
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(3)].map((_, index) => (
                <Card key={index} className="overflow-hidden shadow-md rounded-xl">
