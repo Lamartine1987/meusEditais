@@ -26,14 +26,14 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar side="left" variant="sidebar" collapsible="icon">
+    <Sidebar side="left" variant="sidebar" collapsible="offcanvas">
       <SidebarHeader className="border-b">
          <div className="flex items-center justify-center p-4 md:hidden"> {/* Ensure logo is visible on mobile */}
           <AppLogo />
         </div>
-         <div className="hidden md:flex items-center justify-start p-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2"> {/* Adjust for collapsed state */}
-          <div className="group-data-[collapsible=icon]:hidden"><AppLogo /></div>
-          <Link href="/" className="hidden group-data-[collapsible=icon]:block">
+         <div className="hidden md:flex items-center justify-start p-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2 group-data-[collapsible=offcanvas]:p-4"> {/* Adjust for collapsed state */}
+          <div className="group-data-[collapsible=icon]:hidden group-data-[collapsible=offcanvas]:block"><AppLogo /></div>
+          <Link href="/" className="hidden group-data-[collapsible=icon]:block group-data-[collapsible=offcanvas]:hidden">
             <Home className="h-6 w-6 text-primary"/>
           </Link>
         </div>
