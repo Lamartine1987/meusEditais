@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { User, StudyLogEntry } from '@/types';
+import type { User, StudyLogEntry, QuestionLogEntry } from '@/types';
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { mockUser } from '@/lib/mock-data';
 
@@ -15,6 +15,7 @@ interface AuthContextType {
   unregisterFromCargo: (editalId: string, cargoId: string) => Promise<void>;
   toggleTopicStudyStatus: (compositeTopicId: string) => Promise<void>;
   addStudyLog: (compositeTopicId: string, duration: number) => Promise<void>;
+  addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'date'>) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,6 +40,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           registeredCargoIds: parsedUser.registeredCargoIds || [], 
           studiedTopicIds: parsedUser.studiedTopicIds || [],
           studyLogs: parsedUser.studyLogs || [],
+          questionLogs: parsedUser.questionLogs || [],
         });
       } else {
         const initialUser = {
@@ -46,6 +48,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             registeredCargoIds: mockUser.registeredCargoIds || [], 
             studiedTopicIds: mockUser.studiedTopicIds || [],
             studyLogs: mockUser.studyLogs || [],
+            questionLogs: mockUser.questionLogs || [],
         };
         setUser(initialUser); 
         localStorage.setItem('currentUser', JSON.stringify(initialUser));
@@ -64,6 +67,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           registeredCargoIds: user?.registeredCargoIds || mockUser.registeredCargoIds || [], 
           studiedTopicIds: user?.studiedTopicIds || mockUser.studiedTopicIds || [],
           studyLogs: user?.studyLogs || mockUser.studyLogs || [],
+          questionLogs: user?.questionLogs || mockUser.questionLogs || [],
       };
       setUser(loggedInUser);
       localStorage.setItem('currentUser', JSON.stringify(loggedInUser));
@@ -92,6 +96,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         registeredCargoIds: updatedInfo.registeredCargoIds || user.registeredCargoIds || [],
         studiedTopicIds: updatedInfo.studiedTopicIds || user.studiedTopicIds || [],
         studyLogs: updatedInfo.studyLogs || user.studyLogs || [],
+        questionLogs: updatedInfo.questionLogs || user.questionLogs || [],
       };
       setUser(newUser);
       localStorage.setItem('currentUser', JSON.stringify(newUser));
@@ -165,8 +170,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const addQuestionLog = async (logEntryData: Omit<QuestionLogEntry, 'date'>) => {
+    if (user) {
+      setLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const newQuestionLog: QuestionLogEntry = {
+        ...logEntryData,
+        date: new Date().toISOString(),
+      };
+      const questionLogs = [...(user.questionLogs || []), newQuestionLog];
+      const updatedUser = { ...user, questionLogs };
+      setUser(updatedUser);
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      setLoading(false);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, updateUser, registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, updateUser, registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, addQuestionLog }}>
       {children}
     </AuthContext.Provider>
   );

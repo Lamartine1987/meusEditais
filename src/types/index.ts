@@ -5,6 +5,15 @@ export interface StudyLogEntry {
   duration: number; // in seconds
 }
 
+export interface QuestionLogEntry {
+  compositeTopicId: string;
+  date: string; // ISO string date for when the log was saved
+  totalQuestions: number;
+  correctQuestions: number;
+  incorrectQuestions: number;
+  targetPercentage: number; // User's target approval percentage (0-100)
+}
+
 export interface User {
   id: string;
   name: string;
@@ -13,6 +22,7 @@ export interface User {
   registeredCargoIds?: string[]; 
   studiedTopicIds?: string[];
   studyLogs?: StudyLogEntry[];
+  questionLogs?: QuestionLogEntry[];
 }
 
 export interface Topic {

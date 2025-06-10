@@ -1,10 +1,10 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, ChangeEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import type { Edital, Cargo, Subject as SubjectType, Topic as TopicType, StudyLogEntry } from '@/types';
+import type { Edital, Cargo, Subject as SubjectType, Topic as TopicType, StudyLogEntry, QuestionLogEntry } from '@/types';
 import { mockEditais } from '@/lib/mock-data';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
@@ -12,8 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon, ClipboardList, CheckCircle, XCircle, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
@@ -22,12 +24,26 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
-// Helper function to format duration from seconds to MM:SS
 const formatDuration = (totalSeconds: number): string => {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
+
+interface QuestionFormData {
+  totalQuestions: string;
+  correctQuestions: string;
+  incorrectQuestions: string;
+  targetPercentage: string;
+}
+
+const initialQuestionFormData: QuestionFormData = {
+  totalQuestions: '',
+  correctQuestions: '',
+  incorrectQuestions: '',
+  targetPercentage: '70', // Default target
+};
+
 
 export default function SubjectTopicsPage() {
   const params = useParams();
@@ -36,7 +52,7 @@ export default function SubjectTopicsPage() {
   const cargoId = params.cargoId as string;
   const subjectId = params.subjectId as string;
 
-  const { user, toggleTopicStudyStatus, addStudyLog, loading: authLoading } = useAuth();
+  const { user, toggleTopicStudyStatus, addStudyLog, addQuestionLog, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [edital, setEdital] = useState<Edital | null>(null);
@@ -46,6 +62,11 @@ export default function SubjectTopicsPage() {
 
   const [timerStates, setTimerStates] = useState<Record<string, { time: number; isRunning: boolean }>>({});
   const [activeAccordionItem, setActiveAccordionItem] = useState<string | null>(null);
+
+  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
+  const [currentTopicIdForModal, setCurrentTopicIdForModal] = useState<string | null>(null);
+  const [questionFormData, setQuestionFormData] = useState<QuestionFormData>(initialQuestionFormData);
+
 
   useEffect(() => {
     if (editalId && cargoId && subjectId) {
@@ -145,7 +166,7 @@ export default function SubjectTopicsPage() {
     }
   };
   
-  const getTopicLogs = useCallback((topicId: string): StudyLogEntry[] => {
+  const getTopicStudyLogs = useCallback((topicId: string): StudyLogEntry[] => {
     if (!user?.studyLogs) return [];
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
     return user.studyLogs.filter(log => log.compositeTopicId === compositeTopicId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -157,6 +178,63 @@ export default function SubjectTopicsPage() {
     return user.studyLogs
       .filter(log => log.compositeTopicId === compositeTopicIdToFilter)
       .reduce((total, log) => total + log.duration, 0);
+  }, [user, editalId, cargoId, subjectId]);
+
+  const handleOpenQuestionModal = (topicId: string) => {
+    setCurrentTopicIdForModal(topicId);
+    setQuestionFormData(initialQuestionFormData);
+    setIsQuestionModalOpen(true);
+  };
+
+  const handleQuestionFormChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setQuestionFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveQuestionLog = async () => {
+    if (!user || !currentTopicIdForModal || !editalId || !cargoId || !subjectId) return;
+
+    const total = parseInt(questionFormData.totalQuestions, 10);
+    const correct = parseInt(questionFormData.correctQuestions, 10);
+    const incorrect = parseInt(questionFormData.incorrectQuestions, 10);
+    const target = parseInt(questionFormData.targetPercentage, 10);
+
+    if (isNaN(total) || total <= 0 ||
+        isNaN(correct) || correct < 0 ||
+        isNaN(incorrect) || incorrect < 0 ||
+        isNaN(target) || target < 0 || target > 100) {
+      toast({ title: "Dados Inválidos", description: "Por favor, preencha todos os campos com números válidos.", variant: "destructive" });
+      return;
+    }
+    if (correct + incorrect > total) {
+      toast({ title: "Dados Inconsistentes", description: "A soma de questões certas e erradas não pode exceder o total.", variant: "destructive" });
+      return;
+    }
+
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${currentTopicIdForModal}`;
+    try {
+      await addQuestionLog({
+        compositeTopicId,
+        totalQuestions: total,
+        correctQuestions: correct,
+        incorrectQuestions: incorrect,
+        targetPercentage: target,
+      });
+      toast({ title: "Desempenho Salvo!", description: "Seu registro de questões foi salvo.", variant: "default", className: "bg-accent text-accent-foreground" });
+      setIsQuestionModalOpen(false);
+      setCurrentTopicIdForModal(null);
+    } catch (error) {
+      toast({ title: "Erro ao Salvar", description: "Não foi possível salvar o registro de questões.", variant: "destructive" });
+    }
+  };
+
+  const getLatestQuestionLogForTopic = useCallback((topicId: string): QuestionLogEntry | null => {
+    if (!user?.questionLogs) return null;
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    const logsForTopic = user.questionLogs
+      .filter(log => log.compositeTopicId === compositeTopicId)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return logsForTopic.length > 0 ? logsForTopic[0] : null;
   }, [user, editalId, cargoId, subjectId]);
 
 
@@ -210,7 +288,7 @@ export default function SubjectTopicsPage() {
             </CardTitle>
           </CardHeader>
           <Separator className="mb-1" />
-          <CardContent className="pt-6"> {/* Adjusted pt-0 to pt-6 for better spacing with space-y on Accordion */}
+          <CardContent className="pt-6">
             {subject.topics && subject.topics.length > 0 ? (
               <Accordion 
                 type="single" 
@@ -233,9 +311,14 @@ export default function SubjectTopicsPage() {
                   const isChecked = user?.studiedTopicIds?.includes(compositeTopicId) ?? false;
                   const checkboxId = `topic-studied-${subject.id}-${topic.id}`;
                   const currentTimerState = timerStates[topic.id] || { time: 0, isRunning: false };
-                  const topicLogs = getTopicLogs(topic.id);
+                  const topicStudyLogs = getTopicStudyLogs(topic.id);
                   const totalStudiedSeconds = calculateTotalStudiedTimeForTopic(topic.id);
                   const totalStudiedTimeDisplay = totalStudiedSeconds > 0 ? formatDuration(totalStudiedSeconds) : null;
+                  const latestQuestionLog = getLatestQuestionLogForTopic(topic.id);
+                  let performancePercentage = 0;
+                  if (latestQuestionLog && latestQuestionLog.totalQuestions > 0) {
+                    performancePercentage = (latestQuestionLog.correctQuestions / latestQuestionLog.totalQuestions) * 100;
+                  }
 
                   return (
                     <AccordionItem 
@@ -258,7 +341,7 @@ export default function SubjectTopicsPage() {
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="pt-2 pb-4 px-3 space-y-4 bg-muted/20">
-                        <div className="flex items-center space-x-2 mb-3 p-3 border rounded-md bg-background/50 shadow-sm">
+                        <div className="flex items-center space-x-2 p-3 border rounded-md bg-background/50 shadow-sm">
                             <Checkbox
                                 id={checkboxId}
                                 checked={isChecked}
@@ -270,6 +353,28 @@ export default function SubjectTopicsPage() {
                                 Marcar como estudado
                             </Label>
                         </div>
+                        
+                        <div className="p-3 border rounded-md bg-background/50 shadow-sm space-y-3">
+                            <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => handleOpenQuestionModal(topic.id)}>
+                                <ClipboardList className="mr-2 h-4 w-4"/>
+                                Registrar Desempenho em Questões
+                            </Button>
+                            {latestQuestionLog && (
+                                <div className="text-xs p-3 border rounded-md bg-background/30 space-y-1.5 shadow-inner">
+                                    <p className="font-semibold text-muted-foreground">Último Registro de Questões ({format(new Date(latestQuestionLog.date), "dd/MM/yy HH:mm", { locale: ptBR })}):</p>
+                                    <p>• Total: {latestQuestionLog.totalQuestions}, Acertos: {latestQuestionLog.correctQuestions} ({performancePercentage.toFixed(1)}%), Erros: {latestQuestionLog.incorrectQuestions}</p>
+                                    <p className="flex items-center">
+                                      • Meta: {latestQuestionLog.targetPercentage}% - Status: 
+                                      {performancePercentage >= latestQuestionLog.targetPercentage ? (
+                                        <span className="ml-1.5 flex items-center text-green-600 font-medium"><CheckCircle className="h-3.5 w-3.5 mr-1"/>Aprovado</span>
+                                      ) : (
+                                        <span className="ml-1.5 flex items-center text-red-600 font-medium"><XCircle className="h-3.5 w-3.5 mr-1"/>Reprovado</span>
+                                      )}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
 
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border rounded-lg bg-background shadow-sm">
                           <div className="text-3xl font-mono font-semibold text-primary">
@@ -288,14 +393,14 @@ export default function SubjectTopicsPage() {
                           </div>
                         </div>
                         
-                        {topicLogs.length > 0 && (
+                        {topicStudyLogs.length > 0 && (
                           <div className="space-y-3 pt-3">
                             <h4 className="text-sm font-semibold text-muted-foreground flex items-center">
                               <ListChecks className="mr-2 h-4 w-4 text-primary" />
                               Registros de Estudo Salvos:
                             </h4>
                             <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
-                              {topicLogs.map((log, index) => (
+                              {topicStudyLogs.map((log, index) => (
                                 <li key={index} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex justify-between items-center">
                                   <span>{format(new Date(log.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
                                   <span className="font-medium">{formatDuration(log.duration)}</span>
@@ -304,7 +409,7 @@ export default function SubjectTopicsPage() {
                             </ul>
                           </div>
                         )}
-                         {topicLogs.length === 0 && activeAccordionItem === topic.id && (
+                         {topicStudyLogs.length === 0 && activeAccordionItem === topic.id && (
                             <p className="text-xs text-center text-muted-foreground py-2">Nenhum tempo de estudo salvo para este tópico ainda.</p>
                         )}
 
@@ -322,6 +427,42 @@ export default function SubjectTopicsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {isQuestionModalOpen && currentTopicIdForModal && (
+        <AlertDialog open={isQuestionModalOpen} onOpenChange={setIsQuestionModalOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Registrar Desempenho em Questões</AlertDialogTitle>
+              <AlertDialogDescription>
+                Para o tópico: {subject?.topics.find(t => t.id === currentTopicIdForModal)?.name || 'Desconhecido'}.
+                 Preencha os campos abaixo.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="space-y-4 py-2">
+              <div>
+                <Label htmlFor="totalQuestions">Total de Questões Respondidas</Label>
+                <Input id="totalQuestions" name="totalQuestions" type="number" value={questionFormData.totalQuestions} onChange={handleQuestionFormChange} placeholder="Ex: 50" className="mt-1"/>
+              </div>
+              <div>
+                <Label htmlFor="correctQuestions">Quantidade de Questões Certas</Label>
+                <Input id="correctQuestions" name="correctQuestions" type="number" value={questionFormData.correctQuestions} onChange={handleQuestionFormChange} placeholder="Ex: 35" className="mt-1"/>
+              </div>
+              <div>
+                <Label htmlFor="incorrectQuestions">Quantidade de Questões Erradas</Label>
+                <Input id="incorrectQuestions" name="incorrectQuestions" type="number" value={questionFormData.incorrectQuestions} onChange={handleQuestionFormChange} placeholder="Ex: 15" className="mt-1"/>
+              </div>
+              <div>
+                <Label htmlFor="targetPercentage">Sua Meta de Aprovação (%)</Label>
+                <Input id="targetPercentage" name="targetPercentage" type="number" min="0" max="100" value={questionFormData.targetPercentage} onChange={handleQuestionFormChange} placeholder="Ex: 70" className="mt-1"/>
+              </div>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setIsQuestionModalOpen(false)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleSaveQuestionLog}>Salvar Registro</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </PageWrapper>
   );
 }
