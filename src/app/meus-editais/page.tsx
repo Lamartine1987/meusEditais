@@ -165,8 +165,8 @@ export default function MyEditaisPage() {
                   <CardContent className="flex-grow pt-3 pb-2">
                      <p className="text-xs text-muted-foreground line-clamp-3">{cargo.description || "Descrição do cargo não disponível."}</p>
                   </CardContent>
-                  <CardFooter className="pt-3 border-t flex flex-col sm:flex-row gap-2 items-stretch">
-                    <Button variant="outline" className="w-full group" asChild>
+                  <CardFooter className="pt-3 border-t flex flex-col sm:flex-row gap-2">
+                    <Button variant="outline" className="w-full sm:flex-1 group" asChild>
                       <Link href={`/editais/${edital.id}/cargos/${cargo.id}`}>
                         <Library className="mr-2 h-4 w-4" />
                         Ver Matérias
@@ -174,7 +174,7 @@ export default function MyEditaisPage() {
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="destructive" className="w-full" disabled={isCurrentCancelling}>
+                        <Button variant="destructive" className="w-full sm:flex-1" disabled={isCurrentCancelling}>
                           {isCurrentCancelling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserMinus className="mr-2 h-4 w-4" />}
                           Cancelar Inscrição
                         </Button>
