@@ -11,7 +11,7 @@ export default {
     extend: {
       fontFamily: {
         body: ['Inter', 'sans-serif'],
-        headline: ['Inter', 'sans-serif'],
+        headline: ['Space Grotesk', 'sans-serif'],
         code: ['monospace'],
       },
       colors: {
@@ -88,10 +88,20 @@ export default {
             height: '0',
           },
         },
+        'subtle-focus': {
+          '0%, 100%': { boxShadow: '0 0 0 0px hsl(var(--ring))' },
+          '50%': { boxShadow: '0 0 0 3px hsl(var(--ring) / 0.3)' },
+        },
+        'fade-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        }
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        'subtle-focus': 'subtle-focus 1s ease-in-out',
+        'fade-in': 'fade-in 0.5s ease-out forwards',
       },
     },
   },
