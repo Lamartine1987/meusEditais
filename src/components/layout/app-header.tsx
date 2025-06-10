@@ -14,12 +14,15 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur md:px-6">
-      <div className="flex items-center gap-2 md:hidden">
+      {/* SidebarTrigger agora visível em todas as telas */}
+      <div className="flex items-center gap-2">
         <SidebarTrigger />
       </div>
+      {/* AppLogo visível apenas em desktop (md e maior) */}
       <div className="hidden md:block">
          <AppLogo />
       </div>
+      
       <div className="ml-auto flex items-center gap-2 sm:gap-4">
         {user && (
           <Button variant="outline" asChild>
