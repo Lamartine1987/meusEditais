@@ -3,7 +3,7 @@ export interface User {
   name: string;
   email: string;
   avatarUrl?: string;
-  registeredEditalIds?: string[];
+  registeredCargoIds?: string[]; // Alterado de registeredEditalIds
 }
 
 export interface Cargo {

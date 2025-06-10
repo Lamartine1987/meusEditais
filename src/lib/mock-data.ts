@@ -5,7 +5,7 @@ export const mockUser: User = {
   name: 'Usuário Exemplo',
   email: 'usuario@example.com',
   avatarUrl: 'https://placehold.co/100x100.png',
-  registeredEditalIds: ['edital1'], // User starts registered in edital1
+  registeredCargoIds: ['edital1_cargo1'], // User starts registered in cargo1 of edital1
 };
 
 export const mockCargos: Cargo[] = [
@@ -59,8 +59,3 @@ export const mockEditais: Edital[] = [
     status: 'upcoming',
   },
 ];
-
-// mockMyEditais is no longer needed as 'Meus Editais' page will filter dynamically
-// export const mockMyEditais: Edital[] = [
-//   mockEditais[0], 
-// ];

@@ -20,27 +20,26 @@ import { useState } from 'react';
 
 interface CargoCardProps {
   cargo: Cargo;
-  editalId: string;
-  isUserRegisteredForEdital: boolean;
-  onRegister: (editalId: string) => Promise<void>;
-  onUnregister: (editalId: string) => Promise<void>;
+  isUserRegisteredForThisCargo: boolean;
+  onRegister: (cargoId: string) => Promise<void>;
+  onUnregister: (cargoId: string) => Promise<void>;
   isUserLoggedIn: boolean;
   editalStatus: 'open' | 'closed' | 'upcoming';
 }
 
-export function CargoCard({ cargo, editalId, isUserRegisteredForEdital, onRegister, onUnregister, isUserLoggedIn, editalStatus }: CargoCardProps) {
+export function CargoCard({ cargo, isUserRegisteredForThisCargo, onRegister, onUnregister, isUserLoggedIn, editalStatus }: CargoCardProps) {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleRegister = async () => {
     setIsSubmitting(true);
-    await onRegister(editalId);
+    await onRegister(cargo.id);
     setIsSubmitting(false);
   };
 
   const handleUnregister = async () => {
     setIsSubmitting(true);
-    await onUnregister(editalId);
+    await onUnregister(cargo.id);
     setIsSubmitting(false);
     setIsAlertOpen(false);
   };
@@ -83,20 +82,20 @@ export function CargoCard({ cargo, editalId, isUserRegisteredForEdital, onRegist
       </CardContent>
       {isUserLoggedIn && canRegister && (
         <CardFooter className="pt-4 border-t">
-          {isUserRegisteredForEdital ? (
+          {isUserRegisteredForThisCargo ? (
             <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserMinus className="mr-2 h-4 w-4" />}
-                  Cancelar Inscrição
+                  Cancelar Inscrição no Cargo
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Você tem certeza que deseja cancelar sua inscrição neste edital? 
-                    Qualquer progresso salvo relacionado a este edital poderá ser perdido.
+                    Você tem certeza que deseja cancelar sua inscrição neste cargo? 
+                    Qualquer progresso salvo relacionado a este cargo poderá ser perdido.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -111,7 +110,7 @@ export function CargoCard({ cargo, editalId, isUserRegisteredForEdital, onRegist
           ) : (
             <Button onClick={handleRegister} className="w-full" variant="default" disabled={isSubmitting}>
               {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-              Inscrever-se no Edital
+              Inscrever-se neste Cargo
             </Button>
           )}
         </CardFooter>

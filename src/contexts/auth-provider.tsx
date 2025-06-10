@@ -11,8 +11,8 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (updatedInfo: Partial<User>) => Promise<void>;
-  registerForEdital: (editalId: string) => Promise<void>;
-  unregisterFromEdital: (editalId: string) => Promise<void>;
+  registerForCargo: (editalId: string, cargoId: string) => Promise<void>;
+  unregisterFromCargo: (editalId: string, cargoId: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,13 +34,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const parsedUser = JSON.parse(storedUser);
         setUser({
           ...parsedUser,
-          registeredEditalIds: parsedUser.registeredEditalIds || [], // Ensure array exists
+          registeredCargoIds: parsedUser.registeredCargoIds || [], 
         });
       } else {
-        // For demo, auto-login mock user with initial registered edital
         const initialUser = {
             ...mockUser,
-            registeredEditalIds: mockUser.registeredEditalIds || ['edital1'], 
+            registeredCargoIds: mockUser.registeredCargoIds || [], 
         };
         setUser(initialUser); 
         localStorage.setItem('currentUser', JSON.stringify(initialUser));
@@ -56,8 +55,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (email === mockUser.email && pass === "password") {
       const loggedInUser = {
           ...mockUser,
-          // Preserve registrations if any, or use default from mockUser
-          registeredEditalIds: user?.registeredEditalIds || mockUser.registeredEditalIds || [], 
+          registeredCargoIds: user?.registeredCargoIds || mockUser.registeredCargoIds || [], 
       };
       setUser(loggedInUser);
       localStorage.setItem('currentUser', JSON.stringify(loggedInUser));
@@ -87,27 +85,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const registerForEdital = async (editalId: string) => {
+  const registerForCargo = async (editalId: string, cargoId: string) => {
     if (user) {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 300)); // Simulate API call
-      const registeredEditalIds = [...(user.registeredEditalIds || [])];
-      if (!registeredEditalIds.includes(editalId)) {
-        registeredEditalIds.push(editalId);
+      await new Promise(resolve => setTimeout(resolve, 300)); 
+      const compositeId = `${editalId}_${cargoId}`;
+      const registeredCargoIds = [...(user.registeredCargoIds || [])];
+      if (!registeredCargoIds.includes(compositeId)) {
+        registeredCargoIds.push(compositeId);
       }
-      const updatedUser = { ...user, registeredEditalIds };
+      const updatedUser = { ...user, registeredCargoIds };
       setUser(updatedUser);
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
       setLoading(false);
     }
   };
 
-  const unregisterFromEdital = async (editalId: string) => {
+  const unregisterFromCargo = async (editalId: string, cargoId: string) => {
     if (user) {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 300)); // Simulate API call
-      const registeredEditalIds = (user.registeredEditalIds || []).filter(id => id !== editalId);
-      const updatedUser = { ...user, registeredEditalIds };
+      await new Promise(resolve => setTimeout(resolve, 300)); 
+      const compositeId = `${editalId}_${cargoId}`;
+      const registeredCargoIds = (user.registeredCargoIds || []).filter(id => id !== compositeId);
+      const updatedUser = { ...user, registeredCargoIds };
       setUser(updatedUser);
       localStorage.setItem('currentUser', JSON.stringify(updatedUser));
       setLoading(false);
@@ -115,7 +115,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, updateUser, registerForEdital, unregisterFromEdital }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, updateUser, registerForCargo, unregisterFromCargo }}>
       {children}
     </AuthContext.Provider>
   );

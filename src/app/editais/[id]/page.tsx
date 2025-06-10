@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
-import type { Edital } from '@/types'; 
+import type { Edital, Cargo } from '@/types'; 
 import { mockEditais } from '@/lib/mock-data';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { CargoCard } from '@/components/cargo-card';
@@ -17,17 +17,6 @@ import { CalendarDays, Landmark, Link as LinkIcon, Briefcase, Loader2, ArrowLeft
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: 'long', year: 'numeric' });
@@ -35,54 +24,55 @@ function formatDate(dateString: string) {
 
 export default function EditalDetailPage() {
   const params = useParams();
-  const id = params.id as string;
+  const editalId = params.id as string; // Renamed to editalId for clarity
   const [edital, setEdital] = useState<Edital | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
-  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  // isAlertOpen is managed inside CargoCard now
 
-  const { user, registerForEdital, unregisterFromEdital, loading: authLoading } = useAuth();
+  const { user, registerForCargo, unregisterFromCargo, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (id) {
+    if (editalId) {
       setLoading(true);
       const timer = setTimeout(() => {
-        const foundEdital = mockEditais.find(e => e.id === id) || null;
+        const foundEdital = mockEditais.find(e => e.id === editalId) || null;
         setEdital(foundEdital);
         setLoading(false);
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [id]);
+  }, [editalId]);
 
-  const isUserRegisteredForCurrentEdital = !!user?.registeredEditalIds?.includes(id);
-  const canRegisterForEdital = edital?.status === 'open';
+  const canRegisterForAnyCargo = edital?.status === 'open';
 
-  const handleRegister = async () => {
+  const handleRegisterCargo = async (cargoId: string) => {
     if (!edital) return;
     setIsSubmittingRegistration(true);
+    const cargo = edital.cargos?.find(c => c.id === cargoId);
     try {
-      await registerForEdital(edital.id);
-      toast({ title: "Inscrição Realizada!", description: `Você se inscreveu no edital: ${edital.title}`, variant: 'default', className: "bg-accent text-accent-foreground" });
+      await registerForCargo(edital.id, cargoId);
+      toast({ title: "Inscrição Realizada!", description: `Você se inscreveu no cargo: ${cargo?.name || 'N/A'} do edital ${edital.title}`, variant: 'default', className: "bg-accent text-accent-foreground" });
     } catch (error) {
-      toast({ title: "Erro na Inscrição", description: "Não foi possível realizar a inscrição.", variant: "destructive" });
+      toast({ title: "Erro na Inscrição", description: "Não foi possível realizar a inscrição no cargo.", variant: "destructive" });
     } finally {
       setIsSubmittingRegistration(false);
     }
   };
 
-  const handleUnregister = async () => {
+  const handleUnregisterCargo = async (cargoId: string) => {
     if (!edital) return;
     setIsSubmittingRegistration(true);
+    const cargo = edital.cargos?.find(c => c.id === cargoId);
     try {
-      await unregisterFromEdital(edital.id);
-      toast({ title: "Inscrição Cancelada", description: `Sua inscrição no edital: ${edital.title} foi cancelada.` });
+      await unregisterFromCargo(edital.id, cargoId);
+      toast({ title: "Inscrição Cancelada", description: `Sua inscrição no cargo: ${cargo?.name || 'N/A'} do edital ${edital.title} foi cancelada.` });
     } catch (error) {
-      toast({ title: "Erro ao Cancelar", description: "Não foi possível cancelar a inscrição.", variant: "destructive" });
+      toast({ title: "Erro ao Cancelar", description: "Não foi possível cancelar a inscrição no cargo.", variant: "destructive" });
     } finally {
       setIsSubmittingRegistration(false);
-      setIsAlertOpen(false);
+      // setIsAlertOpen is managed in CargoCard
     }
   };
 
@@ -129,45 +119,7 @@ export default function EditalDetailPage() {
                     Voltar aos Editais
                 </Link>
             </Button>
-            {user && canRegisterForEdital && (
-              isUserRegisteredForCurrentEdital ? (
-                 <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="outline" className="w-full sm:w-auto" disabled={isSubmittingRegistration}>
-                      {isSubmittingRegistration ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserMinus className="mr-2 h-4 w-4" />}
-                      Cancelar Inscrição no Edital
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Você tem certeza que deseja cancelar sua inscrição neste edital? 
-                        Qualquer progresso salvo relacionado a este edital poderá ser perdido.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel disabled={isSubmittingRegistration}>Não, manter</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleUnregister} disabled={isSubmittingRegistration} className="bg-destructive hover:bg-destructive/90">
-                        {isSubmittingRegistration && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Sim, cancelar
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              ) : (
-                <Button onClick={handleRegister} className="w-full sm:w-auto" variant="default" disabled={isSubmittingRegistration}>
-                  {isSubmittingRegistration ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                  Inscrever-se neste Edital
-                </Button>
-              )
-            )}
-            {user && !canRegisterForEdital && edital.status !== 'open' && (
-                 <Button className="w-full sm:w-auto" variant="outline" disabled>
-                    <Info className="mr-2 h-4 w-4" />
-                    {edital.status === 'closed' ? 'Inscrições Encerradas' : 'Inscrições em Breve'}
-                </Button>
-            )}
+            {/* Top-level edital registration button removed as registration is now per-cargo */}
         </div>
         <PageHeader title={edital.title} />
 
@@ -222,18 +174,20 @@ export default function EditalDetailPage() {
             <h2 className="text-2xl font-bold mb-2 mt-10 flex items-center"><Briefcase className="mr-3 h-7 w-7 text-primary"/> Cargos Disponíveis</h2>
             <Separator className="mb-6" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {edital.cargos.map((cargo) => (
-                <CargoCard 
-                  key={cargo.id} 
-                  cargo={cargo}
-                  editalId={edital.id}
-                  isUserRegisteredForEdital={isUserRegisteredForCurrentEdital}
-                  onRegister={handleRegister}
-                  onUnregister={handleUnregister} 
-                  isUserLoggedIn={!!user}
-                  editalStatus={edital.status}
-                />
-              ))}
+              {edital.cargos.map((cargo) => {
+                const isUserRegisteredForThisCargo = !!user?.registeredCargoIds?.includes(`${editalId}_${cargo.id}`);
+                return (
+                  <CargoCard 
+                    key={cargo.id} 
+                    cargo={cargo}
+                    isUserRegisteredForThisCargo={isUserRegisteredForThisCargo}
+                    onRegister={handleRegisterCargo} // Pass the specific cargoId
+                    onUnregister={handleUnregisterCargo} // Pass the specific cargoId
+                    isUserLoggedIn={!!user}
+                    editalStatus={edital.status}
+                  />
+                );
+              })}
             </div>
           </section>
         )}

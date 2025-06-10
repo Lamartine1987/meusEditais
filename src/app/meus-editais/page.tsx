@@ -16,27 +16,27 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function MyEditaisPage() {
   const { user, loading: authLoading } = useAuth();
-  // const [myEditais, setMyEditais] = useState<Edital[]>([]); // To be derived from user.registeredEditalIds
-  const [loadingData, setLoadingData] = useState(true); // For simulating data fetch for all editais if needed
+  const [loadingData, setLoadingData] = useState(true); 
 
-  // All editais (from mock or future API)
   const [allEditais, setAllEditais] = useState<Edital[]>([]);
 
   useEffect(() => {
-    // Simulate fetching all editais data once
     setLoadingData(true);
     const timer = setTimeout(() => {
-      setAllEditais(mockEditais); // In a real app, this might be fetched from an API
+      setAllEditais(mockEditais); 
       setLoadingData(false);
-    }, 500); // Simulate delay for fetching all editais
+    }, 500); 
     return () => clearTimeout(timer);
   }, []);
   
   const myEditais = useMemo(() => {
-    if (authLoading || loadingData || !user || !user.registeredEditalIds) {
+    if (authLoading || loadingData || !user || !user.registeredCargoIds) {
       return [];
     }
-    return allEditais.filter(edital => user.registeredEditalIds!.includes(edital.id));
+    // An edital is considered "mine" if the user is registered for at least one cargo within that edital.
+    return allEditais.filter(edital => 
+      user.registeredCargoIds!.some(registeredCargoId => registeredCargoId.startsWith(`${edital.id}_`))
+    );
   }, [user, authLoading, allEditais, loadingData]);
 
 
@@ -60,7 +60,7 @@ export default function MyEditaisPage() {
                 <CardTitle className="text-2xl">Acesso Restrito</CardTitle>
             </CardHeader>
             <CardContent>
-                <p className="text-lg text-muted-foreground mb-6">Você precisa estar logado para ver seus editais.</p>
+                <p className="text-lg text-muted-foreground mb-6">Você precisa estar logado para ver seus editais e cargos inscritos.</p>
                 <Button asChild size="lg">
                     <Link href="/login">Fazer Login</Link>
                 </Button>
@@ -71,7 +71,6 @@ export default function MyEditaisPage() {
     );
   }
 
-  // Show skeletons if user is loaded but derived myEditais are still being processed (or if allEditais are loading)
   const showSkeletons = (authLoading || loadingData) && user;
 
 
@@ -79,13 +78,13 @@ export default function MyEditaisPage() {
     <PageWrapper>
       <div className="container mx-auto px-0 sm:px-4 py-8">
         <PageHeader 
-          title="Meus Editais" 
-          description="Acompanhe os editais aos quais você está vinculado."
+          title="Meus Editais Inscritos" 
+          description="Acompanhe os editais onde você possui inscrição em algum cargo."
           actions={
             <Button asChild variant="default">
               <Link href="/">
                 <PlusCircle className="mr-2 h-4 w-4" />
-                Encontrar Novos Editais
+                Encontrar Novos Editais e Cargos
               </Link>
             </Button>
           }
@@ -115,9 +114,9 @@ export default function MyEditaisPage() {
           <Card className="text-center py-16 shadow-lg rounded-xl bg-card">
             <CardContent>
                 <Briefcase className="mx-auto h-16 w-16 text-primary mb-6" />
-                <p className="text-2xl font-semibold text-foreground mb-2">Nenhum Edital Encontrado</p>
-                <p className="text-md text-muted-foreground">Você ainda não está inscrito em nenhum edital.</p>
-                <p className="text-sm text-muted-foreground mt-1 mb-6">Explore os editais disponíveis e encontre sua próxima oportunidade!</p>
+                <p className="text-2xl font-semibold text-foreground mb-2">Nenhuma Inscrição Encontrada</p>
+                <p className="text-md text-muted-foreground">Você ainda não está inscrito em nenhum cargo de edital.</p>
+                <p className="text-sm text-muted-foreground mt-1 mb-6">Explore os cargos disponíveis nos editais e encontre sua próxima oportunidade!</p>
             </CardContent>
           </Card>
         )}
