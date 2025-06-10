@@ -441,19 +441,19 @@ export default function SubjectTopicsPage() {
             <div className="space-y-4 py-2">
               <div>
                 <Label htmlFor="totalQuestions">Total de Questões Respondidas</Label>
-                <Input id="totalQuestions" name="totalQuestions" type="number" value={questionFormData.totalQuestions} onChange={handleQuestionFormChange} placeholder="Ex: 50" className="mt-1"/>
+                <Input id="totalQuestions" name="totalQuestions" type="number" value={questionFormData.totalQuestions} onChange={handleQuestionFormChange} placeholder="Ex: 50" className="mt-1 bg-secondary"/>
               </div>
               <div>
                 <Label htmlFor="correctQuestions">Quantidade de Questões Certas</Label>
-                <Input id="correctQuestions" name="correctQuestions" type="number" value={questionFormData.correctQuestions} onChange={handleQuestionFormChange} placeholder="Ex: 35" className="mt-1"/>
+                <Input id="correctQuestions" name="correctQuestions" type="number" value={questionFormData.correctQuestions} onChange={handleQuestionFormChange} placeholder="Ex: 35" className="mt-1 bg-secondary"/>
               </div>
               <div>
                 <Label htmlFor="incorrectQuestions">Quantidade de Questões Erradas</Label>
-                <Input id="incorrectQuestions" name="incorrectQuestions" type="number" value={questionFormData.incorrectQuestions} onChange={handleQuestionFormChange} placeholder="Ex: 15" className="mt-1"/>
+                <Input id="incorrectQuestions" name="incorrectQuestions" type="number" value={questionFormData.incorrectQuestions} onChange={handleQuestionFormChange} placeholder="Ex: 15" className="mt-1 bg-secondary"/>
               </div>
               <div>
                 <Label htmlFor="targetPercentage">Sua Meta de Aprovação (%)</Label>
-                <Input id="targetPercentage" name="targetPercentage" type="number" min="0" max="100" value={questionFormData.targetPercentage} onChange={handleQuestionFormChange} placeholder="Ex: 70" className="mt-1"/>
+                <Input id="targetPercentage" name="targetPercentage" type="number" min="0" max="100" value={questionFormData.targetPercentage} onChange={handleQuestionFormChange} placeholder="Ex: 70" className="mt-1 bg-secondary"/>
               </div>
             </div>
             <AlertDialogFooter>
@@ -466,3 +466,4 @@ export default function SubjectTopicsPage() {
     </PageWrapper>
   );
 }
+
