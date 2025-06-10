@@ -58,7 +58,7 @@ const SidebarProvider = React.forwardRef<
 >(
   (
     {
-      defaultOpen = false, // Changed default to false
+      defaultOpen = false, 
       open: openProp,
       onOpenChange: setOpenProp,
       className,
@@ -81,7 +81,7 @@ const SidebarProvider = React.forwardRef<
         } else {
           _setOpen(openState)
         }
-        if (!isMobile) { // Only set cookie for desktop state
+        if (!isMobile) { 
             document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
         }
       },
@@ -176,7 +176,7 @@ const Sidebar = React.forwardRef<
     {
       side = "left",
       variant = "sidebar",
-      collapsible = "offcanvas", // Defaulted to offcanvas as it's common for this behavior
+      collapsible = "offcanvas",
       className,
       children,
       ...props
@@ -184,20 +184,19 @@ const Sidebar = React.forwardRef<
     forwardedRef
   ) => {
     const { isMobile, open, setOpen, openMobile, setOpenMobile, state } = useSidebar();
+    const sidebarNodeRef = React.useRef<HTMLDivElement>(null); // Ref interno
 
     React.useEffect(() => {
-      if (!open || isMobile || collapsible === 'none') {
+      if (!open || isMobile || collapsible !== 'offcanvas') {
         return;
       }
 
       const handleClickOutside = (event: MouseEvent) => {
-        const sidebarRefObject = forwardedRef as React.RefObject<HTMLDivElement>;
-        if (sidebarRefObject?.current && !sidebarRefObject.current.contains(event.target as Node)) {
-          // Check if the click was on the trigger button to prevent immediate re-closing
-          const triggerElement = document.querySelector('[data-sidebar="trigger"]');
-          if (triggerElement && triggerElement.contains(event.target as Node)) {
-            return;
-          }
+        const triggerElement = document.querySelector('[data-sidebar="trigger"]');
+        if (triggerElement && triggerElement.contains(event.target as Node)) {
+          return;
+        }
+        if (sidebarNodeRef.current && !sidebarNodeRef.current.contains(event.target as Node)) {
           setOpen(false);
         }
       };
@@ -206,7 +205,7 @@ const Sidebar = React.forwardRef<
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
-    }, [open, setOpen, isMobile, forwardedRef, collapsible]);
+    }, [open, setOpen, isMobile, collapsible]);
 
 
     if (collapsible === "none") {
@@ -237,10 +236,7 @@ const Sidebar = React.forwardRef<
               } as React.CSSProperties
             }
             side={side}
-            // Pass props to SheetContent, not Sheet itself for DOM attributes like className
             {...props} 
-            // className for SheetContent should be merged if props also has className
-            // but for now, this should place DOM attributes on the correct element
           >
             <div className="flex h-full w-full flex-col">{children}</div>
           </SheetContent>
@@ -248,16 +244,15 @@ const Sidebar = React.forwardRef<
       )
     }
     
-    // Desktop view
     return (
-      <div // This outer div is for grouping and applying peer styles, does not need the ref itself.
+      <div 
         className="group peer hidden md:block text-sidebar-foreground"
         data-state={state}
-        data-collapsible={state === "collapsed" ? collapsible : ""} // Use 'collapsible' prop
+        data-collapsible={state === "collapsed" ? collapsible : ""} 
         data-variant={variant}
         data-side={side}
       >
-        <div // Spacer div
+        <div 
           className={cn(
             "duration-200 relative h-0 w-[--sidebar-width] bg-transparent transition-[width] ease-linear",
             "group-data-[collapsible=offcanvas]:w-0",
@@ -267,8 +262,15 @@ const Sidebar = React.forwardRef<
               : "group-data-[collapsible=icon]:w-[--sidebar-width-icon]"
           )}
         />
-        <div // Actual sidebar visual element, this should get the ref and props
-          ref={forwardedRef}
+        <div 
+          ref={(node) => { // Combinar ref interno com o forwardedRef
+            (sidebarNodeRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+            if (typeof forwardedRef === 'function') {
+              forwardedRef(node);
+            } else if (forwardedRef) {
+              (forwardedRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+            }
+          }}
           className={cn(
             "duration-200 fixed inset-y-0 z-10 hidden h-svh w-[--sidebar-width] transition-[left,right,width] ease-linear md:flex",
             side === "left"
@@ -277,9 +279,9 @@ const Sidebar = React.forwardRef<
             variant === "floating" || variant === "inset"
               ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)_+_theme(spacing.4)_+2px)]"
               : "group-data-[collapsible=icon]:w-[--sidebar-width-icon] group-data-[side=left]:border-r group-data-[side=right]:border-l",
-            className // Apply className from props here
+            className 
           )}
-          {...props} // Apply other DOM props here
+          {...props} 
         >
           <div
             data-sidebar="sidebar"
@@ -303,7 +305,7 @@ const SidebarTrigger = React.forwardRef<
   return (
     <Button
       ref={ref}
-      data-sidebar="trigger" // Added data-attribute for easier selection
+      data-sidebar="trigger" 
       variant="ghost"
       size="icon"
       className={cn("h-7 w-7", className)}
@@ -408,9 +410,9 @@ const SidebarHeader = React.forwardRef<
       ref={ref}
       data-sidebar="header"
       className={cn("flex flex-col gap-2 p-2", 
-        "group-data-[collapsible=offcanvas]:group-data-[state=expanded]:p-2", // Ensure padding when expanded in offcanvas
-        "group-data-[collapsible=icon]:group-data-[state=expanded]:p-2", // Standard padding when icon and expanded
-        "group-data-[collapsible=icon]:group-data-[state=collapsed]:p-0", // No padding when icon and collapsed
+        "group-data-[collapsible=offcanvas]:group-data-[state=expanded]:p-2", 
+        "group-data-[collapsible=icon]:group-data-[state=expanded]:p-2", 
+        "group-data-[collapsible=icon]:group-data-[state=collapsed]:p-0", 
        className
       )}
       {...props}
@@ -607,7 +609,7 @@ const SidebarMenuButton = React.forwardRef<
     ref
   ) => {
     const Comp = asChild ? Slot : "button"
-    const { isMobile, state, open: sidebarOpen } = useSidebar() // Added sidebarOpen for clarity
+    const { isMobile, open: sidebarOpen } = useSidebar() 
 
     const button = (
       <Comp
@@ -630,7 +632,6 @@ const SidebarMenuButton = React.forwardRef<
       }
     }
 
-    // Show tooltip only when sidebar is collapsed (icon or offcanvas collapsed) and not mobile
     const tooltipHidden = isMobile || sidebarOpen;
 
 
@@ -816,3 +817,4 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
