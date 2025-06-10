@@ -14,6 +14,13 @@ export interface QuestionLogEntry {
   targetPercentage: number; // User's target approval percentage (0-100)
 }
 
+export interface RevisionScheduleEntry {
+  compositeTopicId: string;
+  scheduledDate: string; // ISO string date for when the revision is scheduled
+  isReviewed: boolean;
+  reviewedDate: string | null; // ISO string date for when it was marked as reviewed
+}
+
 export interface User {
   id: string;
   name: string;
@@ -23,6 +30,7 @@ export interface User {
   studiedTopicIds?: string[];
   studyLogs?: StudyLogEntry[];
   questionLogs?: QuestionLogEntry[];
+  revisionSchedules?: RevisionScheduleEntry[];
 }
 
 export interface Topic {

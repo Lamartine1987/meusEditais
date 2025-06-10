@@ -10,6 +10,7 @@ export const mockUser: User = {
   studiedTopicIds: [],
   studyLogs: [],
   questionLogs: [],
+  revisionSchedules: [],
 };
 
 const mockAnalistaSubjects: Subject[] = [

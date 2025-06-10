@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback, ChangeEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import type { Edital, Cargo, Subject as SubjectType, Topic as TopicType, StudyLogEntry, QuestionLogEntry } from '@/types';
+import type { Edital, Cargo, Subject as SubjectType, Topic as TopicType, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry } from '@/types';
 import { mockEditais } from '@/lib/mock-data';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
@@ -15,11 +15,11 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon, ClipboardList, CheckCircle, XCircle, TrendingUp } from 'lucide-react';
+import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon, ClipboardList, CheckCircle, XCircle, TrendingUp, CalendarClock, Info } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { format } from 'date-fns';
+import { format, isToday, isPast, addDays, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -41,9 +41,8 @@ const initialQuestionFormData: QuestionFormData = {
   totalQuestions: '',
   correctQuestions: '',
   incorrectQuestions: '',
-  targetPercentage: '70', // Default target
+  targetPercentage: '70',
 };
-
 
 export default function SubjectTopicsPage() {
   const params = useParams();
@@ -52,7 +51,7 @@ export default function SubjectTopicsPage() {
   const cargoId = params.cargoId as string;
   const subjectId = params.subjectId as string;
 
-  const { user, toggleTopicStudyStatus, addStudyLog, addQuestionLog, loading: authLoading } = useAuth();
+  const { user, toggleTopicStudyStatus, addStudyLog, addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [edital, setEdital] = useState<Edital | null>(null);
@@ -66,6 +65,10 @@ export default function SubjectTopicsPage() {
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
   const [currentTopicIdForModal, setCurrentTopicIdForModal] = useState<string | null>(null);
   const [questionFormData, setQuestionFormData] = useState<QuestionFormData>(initialQuestionFormData);
+
+  const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
+  const [currentTopicIdForRevisionModal, setCurrentTopicIdForRevisionModal] = useState<string | null>(null);
+  const [daysToReviewInput, setDaysToReviewInput] = useState<string>('');
 
 
   useEffect(() => {
@@ -237,6 +240,51 @@ export default function SubjectTopicsPage() {
     return logsForTopic.length > 0 ? logsForTopic[0] : null;
   }, [user, editalId, cargoId, subjectId]);
 
+  const handleOpenRevisionModal = (topicId: string) => {
+    setCurrentTopicIdForRevisionModal(topicId);
+    setDaysToReviewInput('');
+    setIsRevisionModalOpen(true);
+  };
+
+  const handleSaveRevisionSchedule = async () => {
+    if (!user || !currentTopicIdForRevisionModal || !editalId || !cargoId || !subjectId) return;
+    const days = parseInt(daysToReviewInput, 10);
+    if (isNaN(days) || days <= 0) {
+      toast({ title: "Número de Dias Inválido", description: "Por favor, insira um número de dias válido para a revisão.", variant: "destructive" });
+      return;
+    }
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${currentTopicIdForRevisionModal}`;
+    try {
+      await addRevisionSchedule(compositeTopicId, days);
+      toast({ title: "Revisão Agendada!", description: `Revisão para este tópico agendada para daqui a ${days} dia(s).`, variant: "default", className: "bg-accent text-accent-foreground" });
+      setIsRevisionModalOpen(false);
+      setCurrentTopicIdForRevisionModal(null);
+    } catch (error) {
+      toast({ title: "Erro ao Agendar", description: "Não foi possível agendar a revisão.", variant: "destructive" });
+    }
+  };
+  
+  const handleToggleRevisionReviewed = async (topicId: string) => {
+    if (!user || !editalId || !cargoId || !subjectId) return;
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    try {
+      await toggleRevisionReviewedStatus(compositeTopicId);
+      const revision = getRevisionScheduleForTopic(topicId);
+      toast({
+        title: `Revisão ${revision?.isReviewed ? 'Marcada' : 'Desmarcada'}!`,
+        variant: "default",
+      });
+    } catch (error) {
+      toast({ title: "Erro ao atualizar status da revisão", variant: "destructive" });
+    }
+  };
+
+  const getRevisionScheduleForTopic = useCallback((topicId: string): RevisionScheduleEntry | null => {
+    if (!user?.revisionSchedules) return null;
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    return user.revisionSchedules.find(rs => rs.compositeTopicId === compositeTopicId) || null;
+  }, [user, editalId, cargoId, subjectId]);
+
 
   if (loadingData || authLoading) {
     return (
@@ -308,7 +356,7 @@ export default function SubjectTopicsPage() {
               >
                 {subject.topics.map((topic: TopicType) => {
                   const compositeTopicId = `${editalId}_${cargoId}_${subject.id}_${topic.id}`;
-                  const isChecked = user?.studiedTopicIds?.includes(compositeTopicId) ?? false;
+                  const isStudiedChecked = user?.studiedTopicIds?.includes(compositeTopicId) ?? false;
                   const checkboxId = `topic-studied-${subject.id}-${topic.id}`;
                   const currentTimerState = timerStates[topic.id] || { time: 0, isRunning: false };
                   const topicStudyLogs = getTopicStudyLogs(topic.id);
@@ -319,6 +367,8 @@ export default function SubjectTopicsPage() {
                   if (latestQuestionLog && latestQuestionLog.totalQuestions > 0) {
                     performancePercentage = (latestQuestionLog.correctQuestions / latestQuestionLog.totalQuestions) * 100;
                   }
+                  const revisionSchedule = getRevisionScheduleForTopic(topic.id);
+                  const isRevisionDue = revisionSchedule && !revisionSchedule.isReviewed && (isToday(parseISO(revisionSchedule.scheduledDate)) || isPast(parseISO(revisionSchedule.scheduledDate)));
 
                   return (
                     <AccordionItem 
@@ -326,33 +376,71 @@ export default function SubjectTopicsPage() {
                         key={topic.id} 
                         className={cn(
                             "rounded-lg shadow-sm border overflow-hidden transition-colors duration-300",
-                            isChecked ? "bg-accent/20 border-accent/30" : "bg-card border-border"
+                            isRevisionDue ? "bg-yellow-100 dark:bg-yellow-800/20 border-yellow-500/50" :
+                            isStudiedChecked ? "bg-accent/20 border-accent/30" : "bg-card border-border"
                         )}
                     >
                       <AccordionTrigger className="py-4 px-3 hover:bg-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 w-full text-left">
                         <div className="flex items-center justify-between w-full">
                             <span className="text-base text-foreground/90 font-medium">{topic.name}</span>
-                            {totalStudiedTimeDisplay && (
-                                <Badge variant="outline" className="text-xs font-normal ml-2">
-                                <TimerIcon className="h-3 w-3 mr-1" />
-                                {totalStudiedTimeDisplay}
-                                </Badge>
-                            )}
+                            <div className="flex items-center">
+                                {isRevisionDue && <Badge variant="outline" className="text-xs font-normal ml-2 border-yellow-600 text-yellow-700 bg-yellow-50 dark:bg-yellow-900/50 dark:text-yellow-300 dark:border-yellow-700"><Info className="h-3 w-3 mr-1"/>Revisão Pendente</Badge>}
+                                {totalStudiedTimeDisplay && (
+                                    <Badge variant="outline" className="text-xs font-normal ml-2">
+                                    <TimerIcon className="h-3 w-3 mr-1" />
+                                    {totalStudiedTimeDisplay}
+                                    </Badge>
+                                )}
+                            </div>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="pt-2 pb-4 px-3 space-y-4 bg-muted/20">
-                        <div className="flex items-center space-x-2 p-3 border rounded-md bg-background/50 shadow-sm">
-                            <Checkbox
-                                id={checkboxId}
-                                checked={isChecked}
-                                onCheckedChange={() => handleToggleTopicCheckbox(topic.id)}
-                                aria-labelledby={`${checkboxId}-label`}
-                                className="h-5 w-5"
-                            />
-                            <Label htmlFor={checkboxId} id={`${checkboxId}-label`} className="text-sm font-medium cursor-pointer text-foreground/80">
-                                Marcar como estudado
-                            </Label>
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 border rounded-md bg-background/50 shadow-sm">
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id={checkboxId}
+                                    checked={isStudiedChecked}
+                                    onCheckedChange={() => handleToggleTopicCheckbox(topic.id)}
+                                    aria-labelledby={`${checkboxId}-label`}
+                                    className="h-5 w-5"
+                                />
+                                <Label htmlFor={checkboxId} id={`${checkboxId}-label`} className="text-sm font-medium cursor-pointer text-foreground/80">
+                                    Marcar como estudado
+                                </Label>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={() => handleOpenRevisionModal(topic.id)} className="w-full sm:w-auto">
+                                <CalendarClock className="mr-2 h-4 w-4"/>
+                                {revisionSchedule ? "Reagendar Revisão" : "Agendar Revisão"}
+                            </Button>
                         </div>
+
+                        {revisionSchedule && (
+                            <div className="p-3 border rounded-md bg-background/50 shadow-sm space-y-2">
+                                <p className="text-sm font-medium text-muted-foreground">
+                                    Status da Revisão:
+                                    {revisionSchedule.isReviewed && revisionSchedule.reviewedDate ? (
+                                        <span className="ml-1 text-green-600 font-semibold">Revisado em {format(parseISO(revisionSchedule.reviewedDate), "dd/MM/yyyy", { locale: ptBR })}</span>
+                                    ) : isRevisionDue ? (
+                                        <span className="ml-1 text-yellow-600 font-semibold">Pendente (Agendado para {format(parseISO(revisionSchedule.scheduledDate), "dd/MM/yyyy", { locale: ptBR })})</span>
+                                    ) : (
+                                        <span className="ml-1 text-foreground/80">Agendado para {format(parseISO(revisionSchedule.scheduledDate), "dd/MM/yyyy", { locale: ptBR })}</span>
+                                    )}
+                                </p>
+                                {(isRevisionDue || revisionSchedule.isReviewed) && (
+                                     <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id={`revision-checked-${topic.id}`}
+                                            checked={revisionSchedule.isReviewed}
+                                            onCheckedChange={() => handleToggleRevisionReviewed(topic.id)}
+                                            className="h-5 w-5"
+                                        />
+                                        <Label htmlFor={`revision-checked-${topic.id}`} className="text-sm font-medium cursor-pointer text-foreground/80">
+                                            Marcar como revisado
+                                        </Label>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         
                         <div className="p-3 border rounded-md bg-background/50 shadow-sm space-y-3">
                             <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => handleOpenQuestionModal(topic.id)}>
@@ -361,7 +449,7 @@ export default function SubjectTopicsPage() {
                             </Button>
                             {latestQuestionLog && (
                                 <div className="text-xs p-3 border rounded-md bg-background/30 space-y-1.5 shadow-inner">
-                                    <p className="font-semibold text-muted-foreground">Último Registro de Questões ({format(new Date(latestQuestionLog.date), "dd/MM/yy HH:mm", { locale: ptBR })}):</p>
+                                    <p className="font-semibold text-muted-foreground">Último Registro de Questões ({format(parseISO(latestQuestionLog.date), "dd/MM/yy HH:mm", { locale: ptBR })}):</p>
                                     <p>• Total: {latestQuestionLog.totalQuestions}, Acertos: {latestQuestionLog.correctQuestions} ({performancePercentage.toFixed(1)}%), Erros: {latestQuestionLog.incorrectQuestions}</p>
                                     <p className="flex items-center">
                                       • Meta: {latestQuestionLog.targetPercentage}% - Status: 
@@ -374,7 +462,6 @@ export default function SubjectTopicsPage() {
                                 </div>
                             )}
                         </div>
-
 
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border rounded-lg bg-background shadow-sm">
                           <div className="text-3xl font-mono font-semibold text-primary">
@@ -402,7 +489,7 @@ export default function SubjectTopicsPage() {
                             <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
                               {topicStudyLogs.map((log, index) => (
                                 <li key={index} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex justify-between items-center">
-                                  <span>{format(new Date(log.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                                  <span>{format(parseISO(log.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
                                   <span className="font-medium">{formatDuration(log.duration)}</span>
                                 </li>
                               ))}
@@ -463,7 +550,39 @@ export default function SubjectTopicsPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      {isRevisionModalOpen && currentTopicIdForRevisionModal && (
+        <AlertDialog open={isRevisionModalOpen} onOpenChange={setIsRevisionModalOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Agendar Revisão</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Para o tópico: {subject?.topics.find(t => t.id === currentTopicIdForRevisionModal)?.name || 'Desconhecido'}.
+                        Informe em quantos dias você deseja revisar este assunto.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-4 py-2">
+                    <div>
+                        <Label htmlFor="daysToReview">Revisar em (dias)</Label>
+                        <Input 
+                            id="daysToReview" 
+                            name="daysToReview" 
+                            type="number" 
+                            value={daysToReviewInput} 
+                            onChange={(e) => setDaysToReviewInput(e.target.value)} 
+                            placeholder="Ex: 7" 
+                            className="mt-1 bg-secondary"
+                            min="1"
+                        />
+                    </div>
+                </div>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setIsRevisionModalOpen(false)}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleSaveRevisionSchedule}>Salvar Agendamento</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+      )}
     </PageWrapper>
   );
 }
-

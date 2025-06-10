@@ -1,9 +1,10 @@
 
 "use client";
 
-import type { User, StudyLogEntry, QuestionLogEntry } from '@/types';
+import type { User, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry } from '@/types';
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { mockUser } from '@/lib/mock-data';
+import { addDays, formatISO } from 'date-fns';
 
 interface AuthContextType {
   user: User | null;
@@ -16,6 +17,8 @@ interface AuthContextType {
   toggleTopicStudyStatus: (compositeTopicId: string) => Promise<void>;
   addStudyLog: (compositeTopicId: string, duration: number) => Promise<void>;
   addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'date'>) => Promise<void>;
+  addRevisionSchedule: (compositeTopicId: string, daysToReview: number) => Promise<void>;
+  toggleRevisionReviewedStatus: (compositeTopicId: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,6 +44,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           studiedTopicIds: parsedUser.studiedTopicIds || [],
           studyLogs: parsedUser.studyLogs || [],
           questionLogs: parsedUser.questionLogs || [],
+          revisionSchedules: parsedUser.revisionSchedules || [],
         });
       } else {
         const initialUser = {
@@ -49,6 +53,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             studiedTopicIds: mockUser.studiedTopicIds || [],
             studyLogs: mockUser.studyLogs || [],
             questionLogs: mockUser.questionLogs || [],
+            revisionSchedules: mockUser.revisionSchedules || [],
         };
         setUser(initialUser); 
         localStorage.setItem('currentUser', JSON.stringify(initialUser));
@@ -68,6 +73,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           studiedTopicIds: user?.studiedTopicIds || mockUser.studiedTopicIds || [],
           studyLogs: user?.studyLogs || mockUser.studyLogs || [],
           questionLogs: user?.questionLogs || mockUser.questionLogs || [],
+          revisionSchedules: user?.revisionSchedules || mockUser.revisionSchedules || [],
       };
       setUser(loggedInUser);
       localStorage.setItem('currentUser', JSON.stringify(loggedInUser));
@@ -97,6 +103,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         studiedTopicIds: updatedInfo.studiedTopicIds || user.studiedTopicIds || [],
         studyLogs: updatedInfo.studyLogs || user.studyLogs || [],
         questionLogs: updatedInfo.questionLogs || user.questionLogs || [],
+        revisionSchedules: updatedInfo.revisionSchedules || user.revisionSchedules || [],
       };
       setUser(newUser);
       localStorage.setItem('currentUser', JSON.stringify(newUser));
@@ -186,8 +193,74 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const addRevisionSchedule = async (compositeTopicId: string, daysToReview: number) => {
+    if (user) {
+      setLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const scheduledDate = formatISO(addDays(new Date(), daysToReview));
+      let revisionSchedules = [...(user.revisionSchedules || [])];
+      const existingScheduleIndex = revisionSchedules.findIndex(rs => rs.compositeTopicId === compositeTopicId);
+
+      if (existingScheduleIndex > -1) {
+        revisionSchedules[existingScheduleIndex] = {
+          ...revisionSchedules[existingScheduleIndex],
+          scheduledDate,
+          isReviewed: false,
+          reviewedDate: null,
+        };
+      } else {
+        revisionSchedules.push({
+          compositeTopicId,
+          scheduledDate,
+          isReviewed: false,
+          reviewedDate: null,
+        });
+      }
+      const updatedUser = { ...user, revisionSchedules };
+      setUser(updatedUser);
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      setLoading(false);
+    }
+  };
+
+  const toggleRevisionReviewedStatus = async (compositeTopicId: string) => {
+     if (user) {
+      setLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      let revisionSchedules = [...(user.revisionSchedules || [])];
+      const scheduleIndex = revisionSchedules.findIndex(rs => rs.compositeTopicId === compositeTopicId);
+
+      if (scheduleIndex > -1) {
+        const currentStatus = revisionSchedules[scheduleIndex].isReviewed;
+        revisionSchedules[scheduleIndex] = {
+          ...revisionSchedules[scheduleIndex],
+          isReviewed: !currentStatus,
+          reviewedDate: !currentStatus ? new Date().toISOString() : null,
+        };
+        const updatedUser = { ...user, revisionSchedules };
+        setUser(updatedUser);
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      }
+      setLoading(false);
+    }
+  };
+
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, updateUser, registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, addQuestionLog }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      loading, 
+      login, 
+      logout, 
+      updateUser, 
+      registerForCargo, 
+      unregisterFromCargo, 
+      toggleTopicStudyStatus, 
+      addStudyLog, 
+      addQuestionLog,
+      addRevisionSchedule,
+      toggleRevisionReviewedStatus
+    }}>
       {children}
     </AuthContext.Provider>
   );
