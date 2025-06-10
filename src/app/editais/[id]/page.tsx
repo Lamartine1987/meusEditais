@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { CalendarDays, Landmark, Link as LinkIcon, Briefcase, Loader2, ArrowLeft, UserCheck, UserPlus, Info, UserMinus } from 'lucide-react';
+import { CalendarDays, Landmark, Link as LinkIcon, Briefcase, Loader2, ArrowLeft } from 'lucide-react'; // Removido UserCheck, UserPlus, Info, UserMinus
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -24,11 +24,10 @@ function formatDate(dateString: string) {
 
 export default function EditalDetailPage() {
   const params = useParams();
-  const editalId = params.id as string; // Renamed to editalId for clarity
+  const editalId = params.id as string; 
   const [edital, setEdital] = useState<Edital | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
-  // isAlertOpen is managed inside CargoCard now
 
   const { user, registerForCargo, unregisterFromCargo, loading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -44,8 +43,6 @@ export default function EditalDetailPage() {
       return () => clearTimeout(timer);
     }
   }, [editalId]);
-
-  const canRegisterForAnyCargo = edital?.status === 'open';
 
   const handleRegisterCargo = async (cargoId: string) => {
     if (!edital) return;
@@ -72,7 +69,6 @@ export default function EditalDetailPage() {
       toast({ title: "Erro ao Cancelar", description: "Não foi possível cancelar a inscrição no cargo.", variant: "destructive" });
     } finally {
       setIsSubmittingRegistration(false);
-      // setIsAlertOpen is managed in CargoCard
     }
   };
 
@@ -119,7 +115,6 @@ export default function EditalDetailPage() {
                     Voltar aos Editais
                 </Link>
             </Button>
-            {/* Top-level edital registration button removed as registration is now per-cargo */}
         </div>
         <PageHeader title={edital.title} />
 
@@ -179,10 +174,11 @@ export default function EditalDetailPage() {
                 return (
                   <CargoCard 
                     key={cargo.id} 
+                    editalId={editalId} // Pass editalId here
                     cargo={cargo}
                     isUserRegisteredForThisCargo={isUserRegisteredForThisCargo}
-                    onRegister={handleRegisterCargo} // Pass the specific cargoId
-                    onUnregister={handleUnregisterCargo} // Pass the specific cargoId
+                    onRegister={handleRegisterCargo} 
+                    onUnregister={handleUnregisterCargo} 
                     isUserLoggedIn={!!user}
                     editalStatus={edital.status}
                   />

@@ -1,6 +1,7 @@
 
 "use client";
 
+import Link from 'next/link';
 import type { Cargo } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,10 +16,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { DollarSign, CheckSquare, UserPlus, UserMinus, Loader2 } from 'lucide-react';
+import { DollarSign, CheckSquare, UserPlus, UserMinus, Loader2, Library } from 'lucide-react';
 import { useState } from 'react';
 
 interface CargoCardProps {
+  editalId: string; // Adicionado para construir o link
   cargo: Cargo;
   isUserRegisteredForThisCargo: boolean;
   onRegister: (cargoId: string) => Promise<void>;
@@ -27,7 +29,7 @@ interface CargoCardProps {
   editalStatus: 'open' | 'closed' | 'upcoming';
 }
 
-export function CargoCard({ cargo, isUserRegisteredForThisCargo, onRegister, onUnregister, isUserLoggedIn, editalStatus }: CargoCardProps) {
+export function CargoCard({ editalId, cargo, isUserRegisteredForThisCargo, onRegister, onUnregister, isUserLoggedIn, editalStatus }: CargoCardProps) {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -49,7 +51,11 @@ export function CargoCard({ cargo, isUserRegisteredForThisCargo, onRegister, onU
   return (
     <Card className="shadow-md hover:shadow-lg transition-shadow duration-300 rounded-xl flex flex-col h-full bg-card">
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg font-semibold text-primary">{cargo.name}</CardTitle>
+        <CardTitle className="text-lg font-semibold text-primary hover:underline">
+          <Link href={`/editais/${editalId}/cargos/${cargo.id}`}>
+            {cargo.name}
+          </Link>
+        </CardTitle>
         {cargo.salary && (
           <div className="flex items-center text-sm text-accent font-medium mt-1">
             <DollarSign className="h-4 w-4 mr-1" />
@@ -80,48 +86,66 @@ export function CargoCard({ cargo, isUserRegisteredForThisCargo, onRegister, onU
           </div>
         )}
       </CardContent>
-      {isUserLoggedIn && canRegister && (
-        <CardFooter className="pt-4 border-t">
-          {isUserRegisteredForThisCargo ? (
-            <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserMinus className="mr-2 h-4 w-4" />}
-                  Cancelar Inscrição no Cargo
+      {isUserLoggedIn && (
+        <CardFooter className="pt-4 border-t flex flex-col gap-2">
+           <Button variant="outline" className="w-full group" asChild>
+            <Link href={`/editais/${editalId}/cargos/${cargo.id}`}>
+              <Library className="mr-2 h-4 w-4" />
+              Ver Matérias do Cargo
+            </Link>
+          </Button>
+          {canRegister && (
+            <>
+              {isUserRegisteredForThisCargo ? (
+                <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="w-full" disabled={isSubmitting}>
+                      {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserMinus className="mr-2 h-4 w-4" />}
+                      Cancelar Inscrição no Cargo
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Você tem certeza que deseja cancelar sua inscrição neste cargo? 
+                        Qualquer progresso salvo relacionado a este cargo poderá ser perdido.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isSubmitting}>Não, manter</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleUnregister} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Sim, cancelar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : (
+                <Button onClick={handleRegister} className="w-full" variant="default" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                  Inscrever-se neste Cargo
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Você tem certeza que deseja cancelar sua inscrição neste cargo? 
-                    Qualquer progresso salvo relacionado a este cargo poderá ser perdido.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={isSubmitting}>Não, manter</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleUnregister} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Sim, cancelar
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          ) : (
-            <Button onClick={handleRegister} className="w-full" variant="default" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
-              Inscrever-se neste Cargo
+              )}
+            </>
+          )}
+          {!canRegister && editalStatus !== 'open' && (
+            <Button className="w-full" variant="outline" disabled>
+              {editalStatus === 'closed' ? 'Edital Encerrado' : 'Inscrições em Breve'}
             </Button>
           )}
         </CardFooter>
       )}
-       {isUserLoggedIn && !canRegister && editalStatus !== 'open' && (
+      {!isUserLoggedIn && (
          <CardFooter className="pt-4 border-t">
-            <Button className="w-full" variant="outline" disabled>
-                {editalStatus === 'closed' ? 'Edital Encerrado' : 'Inscrições em Breve'}
+             <Button variant="outline" className="w-full group" asChild>
+                <Link href={`/editais/${editalId}/cargos/${cargo.id}`}>
+                  <Library className="mr-2 h-4 w-4" />
+                  Ver Matérias do Cargo
+                </Link>
             </Button>
          </CardFooter>
-       )}
+      )}
     </Card>
   );
 }

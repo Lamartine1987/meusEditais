@@ -1,9 +1,21 @@
+
 export interface User {
   id: string;
   name: string;
   email: string;
   avatarUrl?: string;
-  registeredCargoIds?: string[]; // Alterado de registeredEditalIds
+  registeredCargoIds?: string[]; 
+}
+
+export interface Topic {
+  id: string;
+  name: string;
+}
+
+export interface Subject {
+  id: string;
+  name: string;
+  topics: Topic[];
 }
 
 export interface Cargo {
@@ -12,6 +24,7 @@ export interface Cargo {
   description: string;
   requirements: string[];
   salary?: number;
+  subjects?: Subject[]; // Novo campo para matérias
 }
 
 export interface Edital {
@@ -22,7 +35,7 @@ export interface Edital {
   closingDate: string; // ISO date string
   summary: string;
   fullTextUrl?: string;
-  imageUrl?: string; // For a representative image
-  cargos?: Cargo[]; // Cargos can be part of the edital or fetched separately
+  imageUrl?: string; 
+  cargos?: Cargo[]; 
   status: 'open' | 'closed' | 'upcoming';
 }
