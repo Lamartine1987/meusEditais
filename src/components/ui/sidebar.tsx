@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -224,7 +225,7 @@ const Sidebar = React.forwardRef<
         {/* This is what handles the sidebar gap on desktop */}
         <div
           className={cn(
-            "duration-200 relative h-svh w-[--sidebar-width] bg-transparent transition-[width] ease-linear",
+            "duration-200 relative h-0 w-[--sidebar-width] bg-transparent transition-[width] ease-linear", // Changed h-svh to h-0
             "group-data-[collapsible=offcanvas]:w-0",
             "group-data-[side=right]:rotate-180",
             variant === "floating" || variant === "inset"
@@ -322,8 +323,34 @@ const SidebarInset = React.forwardRef<
     <main
       ref={ref}
       className={cn(
-        "relative flex min-h-svh flex-1 flex-col bg-background",
-        "peer-data-[variant=inset]:min-h-[calc(100svh-theme(spacing.4))] md:peer-data-[variant=inset]:m-2 md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow",
+        "relative flex min-h-svh flex-1 flex-col bg-background transition-all duration-200 ease-linear md:transition-[margin-left,margin-right]",
+
+        // For variant="sidebar" (used by AppSidebar)
+        "md:peer-data-[side=left]:peer-data-[state=expanded]:peer-data-[variant=sidebar]:ml-[--sidebar-width]",
+        "md:peer-data-[side=left]:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[variant=sidebar]:ml-[--sidebar-width-icon]",
+        // For right side, if ever used
+        "md:peer-data-[side=right]:peer-data-[state=expanded]:peer-data-[variant=sidebar]:mr-[--sidebar-width]",
+        "md:peer-data-[side=right]:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[variant=sidebar]:mr-[--sidebar-width-icon]",
+
+        // --- Original 'inset' variant styles ---
+        // These styles are for when the sidebar itself has a variant="inset" prop
+        "peer-data-[variant=inset]:min-h-[calc(100svh-theme(spacing.4))]", // Overall container height for inset
+        "md:peer-data-[variant=inset]:m-2", // Margin around the SidebarInset when sidebar is inset
+        // If inset and collapsed, specific margin logic
+        "md:peer-data-[variant=inset]:peer-data-[state=collapsed]:peer-data-[side=left]:ml-0", // Default for collapsed inset after m-2 on left
+        "md:peer-data-[variant=inset]:peer-data-[state=collapsed]:peer-data-[side=right]:mr-0", // Default for collapsed inset after m-2 on right
+        // Margin for icon when sidebar is inset, collapsed, and icon type
+        "md:peer-data-[variant=inset]:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[side=left]:ml-[var(--sidebar-width-icon)]",
+        "md:peer-data-[variant=inset]:peer-data-[state=collapsed]:peer-data-[collapsible=icon]:peer-data-[side=right]:mr-[var(--sidebar-width-icon)]",
+        // Margin for expanded when sidebar is inset
+        "md:peer-data-[variant=inset]:peer-data-[state=expanded]:peer-data-[side=left]:ml-[var(--sidebar-width)]",
+        "md:peer-data-[variant=inset]:peer-data-[state=expanded]:peer-data-[side=right]:mr-[var(--sidebar-width)]",
+        // Visual styling for SidebarInset when sidebar is inset
+        "md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow",
+        
+        // If collapsible is 'offcanvas', the sidebar is visually off-screen, so no margin needed for main content.
+        "md:peer-data-[collapsible=offcanvas]:ml-0 md:peer-data-[collapsible=offcanvas]:mr-0",
+        
         className
       )}
       {...props}
@@ -331,6 +358,7 @@ const SidebarInset = React.forwardRef<
   )
 })
 SidebarInset.displayName = "SidebarInset"
+
 
 const SidebarInput = React.forwardRef<
   React.ElementRef<typeof Input>,
