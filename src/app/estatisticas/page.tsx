@@ -305,11 +305,11 @@ export default function EstatisticasPage() {
             <CardContent>
                 {stats.performanceGeralQuestoes.total > 0 ? (
                     <>
-                        <div className="text-2xl font-bold mb-1">{stats.performanceGeralQuestoes.aproveitamento.toFixed(1)}% de Acerto</div>
-                        <p className="text-xs text-muted-foreground">
+                        <div className="text-2xl font-bold mb-2">{stats.performanceGeralQuestoes.aproveitamento.toFixed(1)}% de Acerto</div>
+                        <p className="text-sm text-muted-foreground mb-1"> 
                             Total: {stats.performanceGeralQuestoes.total} questões | Certas: {stats.performanceGeralQuestoes.certas} | Erradas: {stats.performanceGeralQuestoes.erradas}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-sm text-muted-foreground">
                             Filtrado para {filterScope !== 'all' ? 'este cargo' : 'todos os cargos'} ({filterPeriod === 'all_time' ? 'todo o período' : 
                                                                                                         filterPeriod === 'today' ? 'hoje' :
                                                                                                         filterPeriod === 'this_week' ? 'esta semana' : 'este mês'}).
@@ -326,6 +326,8 @@ export default function EstatisticasPage() {
     </PageWrapper>
   );
 }
+
+    
 
     
 
