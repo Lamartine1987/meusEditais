@@ -27,6 +27,18 @@ interface RegisteredCargoInfo {
   name: string;
 }
 
+// Helper functions for date boundaries (moved outside the component)
+const startOfDay = (date: Date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d;
+};
+const endOfDay = (date: Date) => {
+    const d = new Date(date);
+    d.setHours(23, 59, 59, 999);
+    return d;
+};
+
 export default function EstatisticasPage() {
   const { user, loading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
@@ -141,19 +153,6 @@ export default function EstatisticasPage() {
       performanceGeralQuestoes,
     };
   }, [user, filterScope, filterPeriod, allEditaisData]);
-
-
-  // Helper functions for date boundaries (to avoid issues with timezones if not careful with date-fns defaults)
-    const startOfDay = (date: Date) => {
-        const d = new Date(date);
-        d.setHours(0, 0, 0, 0);
-        return d;
-    };
-    const endOfDay = (date: Date) => {
-        const d = new Date(date);
-        d.setHours(23, 59, 59, 999);
-        return d;
-    };
 
 
   if (isLoading || authLoading) {
@@ -327,5 +326,7 @@ export default function EstatisticasPage() {
     </PageWrapper>
   );
 }
+
+    
 
     
