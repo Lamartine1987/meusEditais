@@ -172,37 +172,39 @@ export default function MyEditaisPage() {
                         Ver Matérias
                       </Link>
                     </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="destructive" className="w-full" disabled={isCurrentCancelling}>
-                          {isCurrentCancelling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserMinus className="mr-2 h-4 w-4" />}
-                          Cancelar Inscrição
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                           <AlertDialogTitle className="flex items-center">
-                             <AlertTriangle className="mr-2 h-5 w-5 text-destructive" />
-                             Confirmar Cancelamento
-                           </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Você tem certeza que deseja cancelar sua inscrição no cargo "{cargo.name}" do edital "{edital.title}"? 
-                            Qualquer progresso de estudo salvo relacionado a este cargo (status de tópicos, logs de tempo, questões, etc.) será mantido, mas a inscrição será removida.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel disabled={isCurrentCancelling}>Manter Inscrição</AlertDialogCancel>
-                          <AlertDialogAction 
-                            onClick={() => handleUnregisterCargo(edital.id, cargo.id)} 
-                            disabled={isCurrentCancelling}
-                            className="bg-destructive hover:bg-destructive/90"
-                          >
-                            {isCurrentCancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Sim, Cancelar
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <div className="w-full"> {/* Wrapper div for AlertDialog */}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" className="w-full" disabled={isCurrentCancelling}>
+                            {isCurrentCancelling ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserMinus className="mr-2 h-4 w-4" />}
+                            Cancelar Inscrição
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                             <AlertDialogTitle className="flex items-center">
+                               <AlertTriangle className="mr-2 h-5 w-5 text-destructive" />
+                               Confirmar Cancelamento
+                             </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Você tem certeza que deseja cancelar sua inscrição no cargo "{cargo.name}" do edital "{edital.title}"? 
+                              Qualquer progresso de estudo salvo relacionado a este cargo (status de tópicos, logs de tempo, questões, etc.) será mantido, mas a inscrição será removida.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel disabled={isCurrentCancelling}>Manter Inscrição</AlertDialogCancel>
+                            <AlertDialogAction 
+                              onClick={() => handleUnregisterCargo(edital.id, cargo.id)} 
+                              disabled={isCurrentCancelling}
+                              className="bg-destructive hover:bg-destructive/90"
+                            >
+                              {isCurrentCancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              Sim, Cancelar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </CardFooter>
                 </Card>
               );
