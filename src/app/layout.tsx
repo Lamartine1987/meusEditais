@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
@@ -5,7 +6,7 @@ import { AuthProvider } from '@/contexts/auth-provider';
 import { SidebarProvider } from '@/components/ui/sidebar';
 
 export const metadata: Metadata = {
-  title: 'Edital Finder',
+  title: 'Meus Editais',
   description: 'Encontre editais de forma fácil e rápida.',
 };
 
