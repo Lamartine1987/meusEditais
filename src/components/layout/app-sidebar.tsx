@@ -12,7 +12,7 @@ import {
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
 import { AppLogo } from './app-logo';
-import { Home, Briefcase } from 'lucide-react';
+import { Home, Briefcase, BarChart3 } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar'; 
 import { useAuth } from '@/hooks/use-auth';
 
@@ -56,19 +56,34 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           {user && (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname === '/meus-editais'}
-                tooltip={{content: "Meus Editais", side:"right", align:"center"}}
-                onClick={closeMobileSidebar}
-              >
-                <Link href="/meus-editais">
-                  <Briefcase />
-                  <span>Meus Editais</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            <>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === '/meus-editais'}
+                  tooltip={{content: "Meus Editais", side:"right", align:"center"}}
+                  onClick={closeMobileSidebar}
+                >
+                  <Link href="/meus-editais">
+                    <Briefcase />
+                    <span>Meus Editais</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === '/estatisticas'}
+                  tooltip={{content: "Estatísticas", side:"right", align:"center"}}
+                  onClick={closeMobileSidebar}
+                >
+                  <Link href="/estatisticas">
+                    <BarChart3 />
+                    <span>Estatísticas</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </>
           )}
         </SidebarMenu>
       </SidebarContent>
