@@ -6,13 +6,13 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Library, CheckCircle, Clock, CalendarCheck, AlertTriangle, BarChart3, TrendingUp, FilterIcon, Target, BookOpen } from 'lucide-react';
+import { Loader2, Library, CheckCircle, Clock, CalendarCheck, AlertTriangle, FilterIcon, Target, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { RevisionScheduleEntry, StudyLogEntry, QuestionLogEntry, Edital, Cargo, Subject as SubjectType } from '@/types';
 import { mockEditais } from '@/lib/mock-data';
-import { parseISO, isToday, isPast, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, format } from 'date-fns';
+import { parseISO, isToday, isPast, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const formatTotalDuration = (totalSeconds: number): string => {
@@ -93,34 +93,60 @@ export default function EstatisticasPage() {
   const stats = useMemo(() => {
     if (!user) return null;
 
-    const { startDate, endDate } = (() => {
-      const now = new Date();
-      switch (filterPeriod) {
-        case 'today':
-          return { startDate: startOfDay(now), endDate: endOfDay(now) };
-        case 'this_week':
-          return { startDate: startOfWeek(now, { locale: ptBR }), endDate: endOfWeek(now, { locale: ptBR }) };
-        case 'this_month':
-          return { startDate: startOfMonth(now), endDate: endOfMonth(now) };
-        case 'all_time':
-        default:
-          return { startDate: null, endDate: null };
-      }
-    })();
-
     const filterByScopeAndSubjectAndPeriod = <T extends { compositeTopicId: string; date?: string }>(items: T[] | undefined): T[] => {
-      if (!items) return [];
+      if (!items || items.length === 0) return [];
+
+      const { startDate, endDate } = (() => {
+        const now = new Date();
+        switch (filterPeriod) {
+          case 'today':
+            return { startDate: startOfDay(now), endDate: endOfDay(now) };
+          case 'this_week':
+            return { startDate: startOfWeek(now, { locale: ptBR }), endDate: endOfWeek(now, { locale: ptBR }) };
+          case 'this_month':
+            return { startDate: startOfMonth(now), endDate: endOfMonth(now) };
+          case 'all_time':
+          default:
+            return { startDate: null, endDate: null };
+        }
+      })();
+
       return items.filter(item => {
-        const belongsToScope = filterScope === 'all' || item.compositeTopicId.startsWith(filterScope + '_');
-        if (!belongsToScope) return false;
+        if (!item.compositeTopicId || typeof item.compositeTopicId !== 'string') {
+          return false; 
+        }
 
-        const itemSubjectId = item.compositeTopicId.split('_')[2];
-        const belongsToSubject = selectedSubjectId === 'all_subjects_in_cargo' || itemSubjectId === selectedSubjectId;
-        if (filterScope !== 'all' && !belongsToSubject) return false;
+        const parts = item.compositeTopicId.split('_');
+        if (parts.length < 3) { // Precisa de editalId, cargoId, subjectId para a maioria dos filtros. StudyLogs terão 4.
+            return false;
+        }
 
+        const itemEditalId = parts[0];
+        const itemCargoId = parts[1];
+        const itemSubjectId = parts[2];
 
-        if (filterPeriod === 'all_time' || !item.date) return true;
-        if (!startDate || !endDate) return true;
+        // 1. Filtrar por Escopo (Cargo)
+        let passesScopeFilter = filterScope === 'all';
+        if (!passesScopeFilter) { 
+          const [filterEditalId, filterCargoId] = filterScope.split('_');
+          passesScopeFilter = itemEditalId === filterEditalId && itemCargoId === filterCargoId;
+        }
+        if (!passesScopeFilter) return false;
+
+        // 2. Filtrar por Matéria
+        let passesSubjectFilter = true; 
+        if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo') {
+          passesSubjectFilter = itemSubjectId === selectedSubjectId;
+        }
+        if (!passesSubjectFilter) return false;
+
+        // 3. Filtrar por Período
+        if (filterPeriod === 'all_time') return true;
+        if (!item.date) return false; 
+
+        if (!startDate || !endDate) {
+           return false; // Se período específico mas datas não estão ok, não deve passar.
+        }
 
         const itemDate = parseISO(item.date);
         return isWithinInterval(itemDate, { start: startDate, end: endDate });
@@ -128,24 +154,46 @@ export default function EstatisticasPage() {
     };
 
     const filterTopicsByScopeAndSubject = (topicIds: string[] | undefined): string[] => {
-        if(!topicIds) return [];
+        if(!topicIds || topicIds.length === 0) return [];
         let filtered = topicIds;
         if(filterScope !== 'all') {
-            filtered = filtered.filter(id => id.startsWith(filterScope + '_'));
+            filtered = filtered.filter(id => {
+                if (!id || typeof id !== 'string') return false;
+                const parts = id.split('_');
+                if (parts.length < 4) return false; // edital_cargo_materia_topico
+                const [filterEditalId, filterCargoId] = filterScope.split('_');
+                return parts[0] === filterEditalId && parts[1] === filterCargoId;
+            });
             if(selectedSubjectId !== 'all_subjects_in_cargo'){
-                filtered = filtered.filter(id => id.startsWith(`${filterScope}_${selectedSubjectId}_`))
+                filtered = filtered.filter(id => {
+                     if (!id || typeof id !== 'string') return false;
+                     const parts = id.split('_');
+                     if (parts.length < 4) return false;
+                     return parts[2] === selectedSubjectId;
+                });
             }
         }
         return filtered;
     };
 
     const filterRevisionsByScopeAndSubject = (revisions: RevisionScheduleEntry[] | undefined): RevisionScheduleEntry[] => {
-        if(!revisions) return [];
+        if(!revisions || revisions.length === 0) return [];
         let filtered = revisions;
         if(filterScope !== 'all'){
-            filtered = filtered.filter(rs => rs.compositeTopicId.startsWith(filterScope + '_'));
+            filtered = filtered.filter(rs => {
+                if (!rs.compositeTopicId || typeof rs.compositeTopicId !== 'string') return false;
+                const parts = rs.compositeTopicId.split('_');
+                if (parts.length < 4) return false; // edital_cargo_materia_topico
+                const [filterEditalId, filterCargoId] = filterScope.split('_');
+                return parts[0] === filterEditalId && parts[1] === filterCargoId;
+            });
             if(selectedSubjectId !== 'all_subjects_in_cargo'){
-                 filtered = filtered.filter(rs => rs.compositeTopicId.startsWith(`${filterScope}_${selectedSubjectId}_`))
+                 filtered = filtered.filter(rs => {
+                    if (!rs.compositeTopicId || typeof rs.compositeTopicId !== 'string') return false;
+                    const parts = rs.compositeTopicId.split('_');
+                    if (parts.length < 4) return false;
+                    return parts[2] === selectedSubjectId;
+                 });
             }
         }
         return filtered;
@@ -164,7 +212,7 @@ export default function EstatisticasPage() {
     const tempoTotalEstudoFormatado = formatTotalDuration(tempoTotalEstudoSegundos);
 
     const revisoesPendentes = filteredRevisionSchedules.filter(
-      (rs: RevisionScheduleEntry) => !rs.isReviewed && (isToday(parseISO(rs.scheduledDate)) || isPast(parseISO(rs.scheduledDate)))
+      (rs: RevisionScheduleEntry) => !rs.isReviewed && rs.scheduledDate && (isToday(parseISO(rs.scheduledDate)) || isPast(parseISO(rs.scheduledDate)))
     ).length;
 
     const totalQuestoesRespondidas = filteredQuestionLogs.reduce((acc, log) => acc + log.totalQuestions, 0);
@@ -193,7 +241,7 @@ export default function EstatisticasPage() {
     let scopeDesc = "todos os cargos";
     if (filterScope !== 'all') {
         const cargoInfo = registeredCargosList.find(c => c.id === filterScope);
-        scopeDesc = cargoInfo ? cargoInfo.name.replace(/\s\(.*\)/, '') : "este cargo"; // Remove (Edital XXX)
+        scopeDesc = cargoInfo ? cargoInfo.name.replace(/\s\(.*\)/, '') : "este cargo"; 
     }
 
     let subjectDesc = "";
@@ -210,7 +258,11 @@ export default function EstatisticasPage() {
         case 'all_time': periodDesc = "todo o período"; break;
     }
 
-    return `Filtrado para ${scopeDesc}${subjectDesc} (${periodDesc}).`;
+    if (filterScope === 'all' && selectedSubjectId === 'all_subjects_in_cargo' && filterPeriod === 'all_time') {
+      return "geral";
+    }
+
+    return `para ${scopeDesc}${subjectDesc} (${periodDesc})`;
   }, [filterScope, selectedSubjectId, filterPeriod, registeredCargosList, subjectsForFilter]);
 
 
@@ -344,7 +396,7 @@ export default function EstatisticasPage() {
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalTopicosEstudados}</div>
               <p className="text-xs text-muted-foreground">
-                Tópicos marcados como estudados.
+                Tópicos marcados como estudados {getFilterDescription()}.
               </p>
             </CardContent>
           </Card>
@@ -357,7 +409,7 @@ export default function EstatisticasPage() {
             <CardContent>
               <div className="text-2xl font-bold">{stats.tempoTotalEstudoFormatado}</div>
               <p className="text-xs text-muted-foreground">
-                Soma dos registros de estudo.
+                Soma dos registros de estudo {getFilterDescription()}.
               </p>
             </CardContent>
           </Card>
@@ -370,7 +422,7 @@ export default function EstatisticasPage() {
             <CardContent>
               <div className="text-2xl font-bold">{stats.revisoesPendentes}</div>
               <p className="text-xs text-muted-foreground">
-                Tópicos para revisão (hoje ou em datas passadas).
+                Tópicos para revisão {getFilterDescription()}.
               </p>
             </CardContent>
           </Card>
