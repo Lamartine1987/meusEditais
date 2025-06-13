@@ -124,10 +124,15 @@ export default function EstatisticasPage() {
       })();
     
       return items.filter(item => {
-        if (!item.compositeTopicId || typeof item.compositeTopicId !== 'string') return false;
+        if (!item.compositeTopicId || typeof item.compositeTopicId !== 'string') {
+          return false;
+        }
         
         const parts = item.compositeTopicId.split('_');
-        if (parts.length < 4) return false; // edital_cargo_subject_topic
+        // Needs at least 4 parts: edital, cargo, subject, topic
+        if (parts.length < 4) {
+          return false;
+        }
     
         const itemEditalId = parts[0];
         const itemCargoId = parts[1];
@@ -136,29 +141,38 @@ export default function EstatisticasPage() {
     
         // 1. Filter by Scope (Cargo)
         if (filterScope !== 'all') {
-          const [filterEditalId, filterCargoId] = filterScope.split('_');
-          if (!(itemEditalId === filterEditalId && itemCargoId === filterCargoId)) {
+          const scopeParts = filterScope.split('_');
+          // filterScope must be editalId_cargoId (2 parts)
+          if (scopeParts.length < 2) return false; 
+          const filterEditalId = scopeParts[0];
+          const filterCargoId = scopeParts[1];
+
+          if (itemEditalId !== filterEditalId || itemCargoId !== filterCargoId) {
             return false;
           }
         }
     
         // 2. Filter by Subject (Only applies if a specific cargo is selected)
         if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo') {
-          if (itemSubjectId !== selectedSubjectId) {
+          // itemSubjectId must exist and match
+          if (!itemSubjectId || itemSubjectId !== selectedSubjectId) { 
             return false;
           }
         }
     
         // 3. Filter by Topic (Only applies if a specific cargo AND subject are selected)
         if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo' && selectedTopicId !== 'all_topics_in_subject') {
-          if (itemTopicId !== selectedTopicId) {
+          // itemTopicId must exist and match
+          if (!itemTopicId || itemTopicId !== selectedTopicId) {
             return false;
           }
         }
     
         // 4. Filter by Period
         if (filterPeriod !== 'all_time') {
-          if (!item.date || !startDate || !endDate) return false; 
+          if (!item.date || !startDate || !endDate) { // item.date must exist, startDate and endDate must be valid for period filtering
+            return false; 
+          }
           const itemDate = parseISO(item.date);
           if (!isWithinInterval(itemDate, { start: startDate, end: endDate })) {
             return false;
@@ -180,23 +194,26 @@ export default function EstatisticasPage() {
             const itemEditalId = parts[0];
             const itemCargoId = parts[1];
             const itemSubjectId = parts[2];
-            const itemTopicId = parts[3];
+            const itemTopicId = parts[3]; // Not strictly needed for this function's current use, but good for consistency
     
             if (filterScope !== 'all') {
-              const [filterEditalId, filterCargoId] = filterScope.split('_');
-              if (!(itemEditalId === filterEditalId && itemCargoId === filterCargoId)) {
+              const scopeParts = filterScope.split('_');
+              if (scopeParts.length < 2) return false;
+              const filterEditalId = scopeParts[0];
+              const filterCargoId = scopeParts[1];
+              if (itemEditalId !== filterEditalId || itemCargoId !== filterCargoId) {
                 return false;
               }
             }
         
             if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo') {
-              if (itemSubjectId !== selectedSubjectId) {
+              if (!itemSubjectId || itemSubjectId !== selectedSubjectId) {
                 return false;
               }
             }
         
             if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo' && selectedTopicId !== 'all_topics_in_subject') {
-              if (itemTopicId !== selectedTopicId) {
+              if (!itemTopicId || itemTopicId !== selectedTopicId) {
                 return false;
               }
             }
@@ -255,11 +272,11 @@ export default function EstatisticasPage() {
     let subjectDesc = "";
     if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo') {
         const subjectInfo = subjectsForFilter.find(s => s.id === selectedSubjectId);
-        subjectDesc = subjectInfo ? ` na matéria ${subjectInfo.name}` : "";
+        subjectDesc = subjectInfo ? ` na matéria "${subjectInfo.name}"` : "";
     }
 
     let topicDesc = "";
-    if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo' && selectedTopicId !== 'all_topics_in_subject') {
+    if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in-cargo' && selectedTopicId !== 'all_topics_in_subject') {
         const topicInfo = topicsForFilter.find(t => t.id === selectedTopicId);
         topicDesc = topicInfo ? ` no assunto "${topicInfo.name}"` : "";
     }
@@ -276,7 +293,7 @@ export default function EstatisticasPage() {
       return "Visão geral completa.";
     }
 
-    return `${scopeDesc}${subjectDesc}${topicDesc}${periodDesc}.`;
+    return `Exibindo estatísticas ${scopeDesc}${subjectDesc}${topicDesc}${periodDesc}.`;
   }, [filterScope, selectedSubjectId, selectedTopicId, filterPeriod, registeredCargosList, subjectsForFilter, topicsForFilter]);
 
 
@@ -407,7 +424,7 @@ export default function EstatisticasPage() {
             </CardContent>
         </Card>
         
-        <p className="text-sm text-muted-foreground mb-6 italic text-center">Exibindo estatísticas {getFilterDescription()}</p>
+        <p className="text-sm text-muted-foreground mb-6 italic text-center">{getFilterDescription()}</p>
 
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
@@ -492,3 +509,4 @@ export default function EstatisticasPage() {
   );
 }
     
+
