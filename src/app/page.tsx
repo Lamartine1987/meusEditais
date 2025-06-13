@@ -7,15 +7,25 @@ import { mockEditais } from '@/lib/mock-data';
 import { Input } from '@/components/ui/input';
 import { EditalCard } from '@/components/edital-card';
 import { PageWrapper } from '@/components/layout/page-wrapper';
-import { Search, Filter, NewspaperIcon } from 'lucide-react';
+import { Search, Filter, NewspaperIcon, MapPin } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+
+const brazilStatesAbbreviations = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 
+  'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 
+  'SP', 'SE', 'TO'
+];
+const specialFilters = ['Todos', 'Nacional'];
 
 export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [allEditais, setAllEditais] = useState<Edital[]>([]);
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed' | 'upcoming'>('all');
+  const [stateFilter, setStateFilter] = useState<string>(specialFilters[0]); // Default to 'Todos'
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,8 +48,13 @@ export default function HomePage() {
       .filter(edital => {
         if (statusFilter === 'all') return true;
         return edital.status === statusFilter;
+      })
+      .filter(edital => {
+        if (stateFilter === specialFilters[0]) return true; // 'Todos'
+        if (stateFilter === specialFilters[1]) return edital.state === specialFilters[1]; // 'Nacional'
+        return edital.state === stateFilter;
       });
-  }, [allEditais, searchTerm, statusFilter]);
+  }, [allEditais, searchTerm, statusFilter, stateFilter]);
 
   return (
     <PageWrapper>
@@ -48,8 +63,8 @@ export default function HomePage() {
           <CardHeader>
             <CardTitle className="text-2xl md:text-3xl font-bold text-center text-primary">Encontre seu Próximo Edital</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row gap-4 mb-2">
+          <CardContent className="space-y-6">
+            <div className="flex flex-col sm:flex-row gap-4">
               <div className="relative flex-grow">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
@@ -73,6 +88,29 @@ export default function HomePage() {
                   <SelectItem value="upcoming">Próximos</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-2 flex items-center">
+                <MapPin className="h-4 w-4 mr-2 text-primary" />
+                Filtrar por Estado/Região
+              </label>
+              <ScrollArea className="w-full whitespace-nowrap rounded-md pb-2.5">
+                <div className="flex space-x-2">
+                  {[...specialFilters, ...brazilStatesAbbreviations].map((stateAbbr) => (
+                    <Button
+                      key={stateAbbr}
+                      variant={stateFilter === stateAbbr ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setStateFilter(stateAbbr)}
+                      className="h-9 px-3 text-xs sm:text-sm"
+                    >
+                      {stateAbbr}
+                    </Button>
+                  ))}
+                </div>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
             </div>
           </CardContent>
         </Card>
@@ -111,3 +149,4 @@ export default function HomePage() {
     </PageWrapper>
   );
 }
+

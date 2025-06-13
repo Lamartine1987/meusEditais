@@ -78,4 +78,6 @@ export interface Edital {
   imageUrl?: string; 
   cargos?: Cargo[]; 
   status: 'open' | 'closed' | 'upcoming';
+  state?: string; // e.g., 'SP', 'RJ', 'Nacional'
 }
+

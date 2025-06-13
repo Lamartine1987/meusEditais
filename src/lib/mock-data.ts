@@ -112,6 +112,7 @@ export const mockEditais: Edital[] = [
     imageUrl: 'https://placehold.co/600x400.png',
     cargos: [mockCargos[0], mockCargos[1]],
     status: 'open',
+    state: 'SP',
   },
   {
     id: 'edital2',
@@ -123,6 +124,7 @@ export const mockEditais: Edital[] = [
     imageUrl: 'https://placehold.co/600x400.png',
     cargos: [mockCargos[0]], // Analista de Sistemas também neste edital
     status: 'open',
+    state: 'RJ',
   },
   {
     id: 'edital3',
@@ -134,6 +136,7 @@ export const mockEditais: Edital[] = [
     imageUrl: 'https://placehold.co/600x400.png',
     cargos: [mockCargos[2]],
     status: 'closed',
+    state: 'RS',
   },
   {
     id: 'edital4',
@@ -144,5 +147,29 @@ export const mockEditais: Edital[] = [
     summary: 'Vagas para analista e técnico do Banco Central.',
     imageUrl: 'https://placehold.co/600x400.png',
     status: 'upcoming',
+    state: 'Nacional',
+  },
+  {
+    id: 'edital5',
+    title: 'Concurso Estadual de Saúde de Minas Gerais',
+    organization: 'Secretaria de Saúde de MG',
+    publicationDate: '2024-08-01',
+    closingDate: '2024-09-20',
+    summary: 'Vagas para diversas áreas da saúde em Minas Gerais.',
+    imageUrl: 'https://placehold.co/600x400.png',
+    status: 'open',
+    state: 'MG',
+  },
+  {
+    id: 'edital6',
+    title: 'Edital Nacional para Auditores Fiscais',
+    organization: 'Receita Federal',
+    publicationDate: '2024-07-10',
+    closingDate: '2024-08-30',
+    summary: 'Grande concurso nacional para o cargo de Auditor Fiscal.',
+    imageUrl: 'https://placehold.co/600x400.png',
+    status: 'open',
+    state: 'Nacional',
   },
 ];
+
