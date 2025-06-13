@@ -15,11 +15,11 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, loading: authLoading } = useAuth(); // Renomeado loading para authLoading para evitar conflito
+  const { login, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false); // Estado local para o carregamento do formulário
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,12 +46,12 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-md shadow-2xl rounded-xl bg-card">
-        <CardHeader className="space-y-2 text-center border-b pb-6">
-          <div className="inline-block mb-4 pt-2">
+        <CardHeader className="space-y-2 border-b pb-6 pt-8">
+          <div className="flex justify-center mb-4">
             <AppLogo />
           </div>
-          <CardTitle className="text-2xl font-bold">Bem-vindo de Volta!</CardTitle>
-          <CardDescription>Entre com seu email e senha para continuar.</CardDescription>
+          <CardTitle className="text-2xl font-bold text-center">Bem-vindo de Volta!</CardTitle>
+          <CardDescription className="text-center">Entre com seu email e senha para continuar.</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-6 pt-6">
