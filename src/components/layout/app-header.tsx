@@ -28,7 +28,7 @@ export function AppHeader() {
           <Button variant="outline" asChild>
             <Link href="/meus-editais">
               <Briefcase className="mr-2 h-4 w-4" />
-              Meus Cargos
+              Meus Editais
             </Link>
           </Button>
         )}

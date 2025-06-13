@@ -61,12 +61,12 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   asChild
                   isActive={pathname === '/meus-editais'}
-                  tooltip={{content: "Meus Cargos", side:"right", align:"center"}}
+                  tooltip={{content: "Meus Editais", side:"right", align:"center"}}
                   onClick={closeMobileSidebar}
                 >
                   <Link href="/meus-editais">
                     <Briefcase />
-                    <span>Meus Cargos</span>
+                    <span>Meus Editais</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
