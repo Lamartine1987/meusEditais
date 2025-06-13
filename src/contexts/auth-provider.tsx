@@ -35,8 +35,8 @@ interface AuthContextType {
   addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'date'>) => Promise<void>;
   addRevisionSchedule: (compositeTopicId: string, daysToReview: number) => Promise<void>;
   toggleRevisionReviewedStatus: (compositeTopicId: string) => Promise<void>;
-  // TODO: Add functions to manage plans later
-  // setActiveUserPlan: (planId: PlanId, details: PlanDetails) => Promise<void>;
+  subscribeToPlan: (planId: PlanId, specificDetails?: { selectedCargoCompositeId?: string; selectedEditalId?: string }) => Promise<void>;
+  cancelSubscription: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -208,8 +208,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } catch (error) {
         console.error("Error updating user profile:", error);
         toast({ title: "Erro ao Atualizar", description: "Não foi possível salvar suas informações.", variant: "destructive" });
-        // Re-fetch from DB to ensure consistency on error? Or rely on onAuthStateChanged if it re-triggers.
-        // For now, let's keep it simple. The local state update is optimistic.
       } finally {
         setLoading(false);
       }
@@ -371,6 +369,77 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const subscribeToPlan = async (planId: PlanId, specificDetails?: { selectedCargoCompositeId?: string; selectedEditalId?: string }) => {
+    if (!user) {
+      toast({ title: "Usuário não logado", description: "Você precisa estar logado para assinar um plano.", variant: "destructive" });
+      router.push('/login');
+      return;
+    }
+    setLoading(true);
+    const now = new Date();
+    const startDate = formatISO(now);
+    let expiryDate = '';
+    
+    switch (planId) {
+      case 'plano_cargo':
+      case 'plano_edital':
+        expiryDate = formatISO(addDays(now, 30)); // Monthly
+        break;
+      case 'plano_anual':
+        expiryDate = formatISO(addDays(now, 365)); // Annual
+        break;
+      default:
+        toast({ title: "Plano Inválido", description: "O plano selecionado não é reconhecido.", variant: "destructive" });
+        setLoading(false);
+        return;
+    }
+
+    const newPlanDetails: PlanDetails = {
+      planId,
+      startDate,
+      expiryDate,
+      ...specificDetails,
+    };
+
+    try {
+      await update(ref(db, `users/${user.id}`), { 
+        activePlan: planId,
+        planDetails: newPlanDetails 
+      });
+      setUser(prevUser => prevUser ? { ...prevUser, activePlan: planId, planDetails: newPlanDetails } : null);
+      toast({ title: "Assinatura Realizada!", description: `Você assinou o ${planId}.`, variant: "default", className: "bg-accent text-accent-foreground" });
+      router.push('/perfil'); // Redirect to profile to see the new plan
+    } catch (error) {
+      console.error("Error subscribing to plan:", error);
+      toast({ title: "Erro na Assinatura", description: "Não foi possível concluir a assinatura do plano.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelSubscription = async () => {
+    if (!user || !user.activePlan) {
+      toast({ title: "Nenhuma Assinatura Ativa", description: "Você não possui um plano ativo para cancelar.", variant: "default" });
+      return;
+    }
+    setLoading(true);
+    // In a real app, this would involve more logic, possibly refunds, backend calls, etc.
+    // For this prototype, we'll just clear the plan details.
+    try {
+      await update(ref(db, `users/${user.id}`), { 
+        activePlan: null,
+        planDetails: null 
+      });
+      setUser(prevUser => prevUser ? { ...prevUser, activePlan: null, planDetails: null } : null);
+      toast({ title: "Assinatura Cancelada", description: "Seu plano foi cancelado.", variant: "default" });
+    } catch (error) {
+      console.error("Error cancelling subscription:", error);
+      toast({ title: "Erro ao Cancelar", description: "Não foi possível cancelar sua assinatura.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -386,9 +455,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       addStudyLog, 
       addQuestionLog,
       addRevisionSchedule,
-      toggleRevisionReviewedStatus
+      toggleRevisionReviewedStatus,
+      subscribeToPlan,
+      cancelSubscription
     }}>
       {children}
     </AuthContext.Provider>
   );
 };
+

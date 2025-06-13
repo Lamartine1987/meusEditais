@@ -14,11 +14,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { mockEditais } from '@/lib/mock-data'; // Para buscar nomes de editais/cargos
 import type { PlanId } from '@/types';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: "O nome deve ter pelo menos 2 caracteres." }),
@@ -27,9 +38,10 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export default function ProfilePage() {
-  const { user, updateUser, sendPasswordReset, loading: authLoading } = useAuth();
+  const { user, updateUser, sendPasswordReset, cancelSubscription, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isPasswordResetting, setIsPasswordResetting] = useState(false);
+  const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
   
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -88,6 +100,18 @@ export default function ProfilePage() {
       toast({ title: "Falha ao Enviar E-mail", description: errorMessage, variant: "destructive" });
     } finally {
       setIsPasswordResetting(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    setIsCancellingSubscription(true);
+    try {
+      await cancelSubscription();
+      // Toast de sucesso/erro já é tratado dentro de cancelSubscription no AuthProvider
+    } catch (error) {
+        // Erro já tratado no AuthProvider
+    } finally {
+      setIsCancellingSubscription(false);
     }
   };
   
@@ -275,13 +299,47 @@ export default function ProfilePage() {
               </p>
             )}
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex flex-col sm:flex-row gap-2 items-center justify-start">
             <Button asChild variant="default" className="w-full sm:w-auto h-11 text-base">
               <Link href="/planos">
                 {user.activePlan ? "Gerenciar Plano" : "Ver Planos Disponíveis"}
                 <ExternalLink className="ml-2 h-4 w-4"/>
               </Link>
             </Button>
+            {user.activePlan && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant="destructive" 
+                      className="w-full sm:w-auto h-11 text-base"
+                      disabled={isCancellingSubscription || authLoading}
+                    >
+                      {isCancellingSubscription ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <XCircle className="mr-2 h-5 w-5" />}
+                      Cancelar Assinatura
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Você tem certeza que deseja cancelar sua assinatura do {getPlanDisplayName(user.activePlan)}? 
+                        Você perderá o acesso aos benefícios do plano ao final do período de cobrança atual (simulado aqui como imediato).
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={isCancellingSubscription}>Manter Plano</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={handleCancelSubscription} 
+                        disabled={isCancellingSubscription || authLoading}
+                        className="bg-destructive hover:bg-destructive/90"
+                      >
+                        {isCancellingSubscription && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Sim, Cancelar Assinatura
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+            )}
           </CardFooter>
         </Card>
 
