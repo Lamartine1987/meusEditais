@@ -60,11 +60,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const snapshot = await get(userRef);
           const dbData = snapshot.exists() ? snapshot.val() : {};
 
+          // Construct AppUser, ensuring avatarUrl is string or undefined for the type, but will be null for DB
           const appUser: AppUser = {
             id: firebaseUser.uid,
             name: firebaseUser.displayName || dbData.name || 'Usuário',
             email: firebaseUser.email || dbData.email || '',
-            avatarUrl: firebaseUser.photoURL || dbData.avatarUrl || undefined,
+            avatarUrl: firebaseUser.photoURL || dbData.avatarUrl, // Can be undefined here
             registeredCargoIds: dbData.registeredCargoIds || [],
             studiedTopicIds: dbData.studiedTopicIds || [],
             studyLogs: dbData.studyLogs || [],
@@ -75,10 +76,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           };
           setUser(appUser);
 
-          const initialDbSave = {
+          const dataToSaveToDb = {
             name: appUser.name,
             email: appUser.email,
-            avatarUrl: appUser.avatarUrl || null,
+            avatarUrl: appUser.avatarUrl || null, // Ensure null for DB if undefined
             registeredCargoIds: appUser.registeredCargoIds,
             studiedTopicIds: appUser.studiedTopicIds,
             studyLogs: appUser.studyLogs,
@@ -89,20 +90,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           };
 
           if (!snapshot.exists()) {
-             await set(ref(db, `users/${firebaseUser.uid}`), initialDbSave);
+             await set(ref(db, `users/${firebaseUser.uid}`), dataToSaveToDb);
           } else {
              const updates: Partial<AppUser> = {};
-             if (dbData.name !== appUser.name) updates.name = appUser.name;
-             if (dbData.email !== appUser.email) updates.email = appUser.email;
-             if (dbData.avatarUrl !== (appUser.avatarUrl || null)) updates.avatarUrl = appUser.avatarUrl || undefined;
-             // Ensure all fields are present or initialized if missing from DB
-             if (!dbData.hasOwnProperty('registeredCargoIds')) updates.registeredCargoIds = [];
-             if (!dbData.hasOwnProperty('studiedTopicIds')) updates.studiedTopicIds = [];
-             if (!dbData.hasOwnProperty('studyLogs')) updates.studyLogs = [];
-             if (!dbData.hasOwnProperty('questionLogs')) updates.questionLogs = [];
-             if (!dbData.hasOwnProperty('revisionSchedules')) updates.revisionSchedules = [];
-             if (!dbData.hasOwnProperty('activePlan')) updates.activePlan = null;
-             if (!dbData.hasOwnProperty('planDetails')) updates.planDetails = null;
+             if (dbData.name !== appUser.name) {
+                updates.name = appUser.name;
+             }
+             if (dbData.email !== appUser.email) {
+                updates.email = appUser.email;
+             }
+             // Ensure avatarUrl is null for DB if undefined or different
+             if ((dbData.avatarUrl || null) !== (appUser.avatarUrl || null)) {
+                 updates.avatarUrl = appUser.avatarUrl || null;
+             }
+             
+             // Ensure all other fields from AppUser are initialized in RTDB if missing
+             if (!dbData.hasOwnProperty('registeredCargoIds')) updates.registeredCargoIds = dataToSaveToDb.registeredCargoIds;
+             if (!dbData.hasOwnProperty('studiedTopicIds')) updates.studiedTopicIds = dataToSaveToDb.studiedTopicIds;
+             if (!dbData.hasOwnProperty('studyLogs')) updates.studyLogs = dataToSaveToDb.studyLogs;
+             if (!dbData.hasOwnProperty('questionLogs')) updates.questionLogs = dataToSaveToDb.questionLogs;
+             if (!dbData.hasOwnProperty('revisionSchedules')) updates.revisionSchedules = dataToSaveToDb.revisionSchedules;
+             if (!dbData.hasOwnProperty('activePlan')) updates.activePlan = dataToSaveToDb.activePlan;
+             if (!dbData.hasOwnProperty('planDetails')) updates.planDetails = dataToSaveToDb.planDetails;
+             
+             // Explicitly set avatarUrl to null if it was missing and not part of the diff update
+             if (!dbData.hasOwnProperty('avatarUrl') && !updates.hasOwnProperty('avatarUrl')) {
+                updates.avatarUrl = dataToSaveToDb.avatarUrl; // which is appUser.avatarUrl || null
+             }
 
              if (Object.keys(updates).length > 0) {
                 await update(ref(db, `users/${firebaseUser.uid}`), updates);
@@ -112,11 +126,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } catch (error) {
           console.error("Error fetching/updating user data from RTDB:", error);
           toast({ title: "Erro ao carregar dados", description: "Não foi possível buscar seus dados salvos.", variant: "destructive" });
+          // Fallback to FirebaseUser data if RTDB fails, ensuring AppUser structure
           setUser({
             id: firebaseUser.uid,
             name: firebaseUser.displayName || 'Usuário',
             email: firebaseUser.email || '',
-            avatarUrl: firebaseUser.photoURL || undefined,
+            avatarUrl: firebaseUser.photoURL || undefined, // Type allows undefined
             registeredCargoIds: [],
             studiedTopicIds: [],
             studyLogs: [],
@@ -146,11 +161,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const userCredential = await createUserWithEmailAndPassword(firebaseAuthService, email, pass);
     await updateProfile(userCredential.user, { displayName: name });
     
-    // Save initial user data to Realtime Database, including new plan fields
     await set(ref(db, `users/${userCredential.user.uid}`), {
       name: name,
       email: email,
-      avatarUrl: null,
+      avatarUrl: null, // Explicitly null for new users
       registeredCargoIds: [],
       studiedTopicIds: [],
       studyLogs: [],
@@ -159,7 +173,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       activePlan: null, 
       planDetails: null,
     });
-    // User data will be fully loaded by onAuthStateChanged after this
   };
   
   const sendPasswordReset = async (email: string) => {
@@ -169,7 +182,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async () => {
     setLoading(true);
     await signOut(firebaseAuthService);
-    // onAuthStateChanged will set user to null
     router.push('/login'); 
   };
   
@@ -179,29 +191,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       try {
         const authUpdates: { displayName?: string; photoURL?: string | null } = {};
-        if (updatedInfo.name) authUpdates.displayName = updatedInfo.name;
-        if (updatedInfo.avatarUrl) authUpdates.photoURL = updatedInfo.avatarUrl;
+        if (updatedInfo.hasOwnProperty('name')) authUpdates.displayName = updatedInfo.name;
+        // If avatarUrl is provided (even if it's an empty string intending to clear), use it.
+        // If it's undefined, it means "don't update avatar", so photoURL will not be in authUpdates.
+        // If it's a string (URL or empty string for clear), set it (or null for empty string).
+        if (updatedInfo.hasOwnProperty('avatarUrl')) {
+            authUpdates.photoURL = updatedInfo.avatarUrl || null;
+        }
         
         if (Object.keys(authUpdates).length > 0) {
           await updateProfile(firebaseCurrentUser, authUpdates);
         }
         
         const dbUpdates: Partial<Pick<AppUser, 'name' | 'avatarUrl'>> = {};
-        if (updatedInfo.name) dbUpdates.name = updatedInfo.name;
-        if (updatedInfo.avatarUrl) dbUpdates.avatarUrl = updatedInfo.avatarUrl;
-
+        if (updatedInfo.hasOwnProperty('name') && typeof updatedInfo.name === 'string') {
+          dbUpdates.name = updatedInfo.name;
+        }
+        if (updatedInfo.hasOwnProperty('avatarUrl')) {
+          dbUpdates.avatarUrl = updatedInfo.avatarUrl || null; 
+        }
 
         if (Object.keys(dbUpdates).length > 0) {
           await update(ref(db, `users/${user.id}`), dbUpdates);
         }
         
-
         setUser(prevUser => {
           if (!prevUser) return null;
           return {
             ...prevUser,
-            name: updatedInfo.name || prevUser.name,
-            avatarUrl: updatedInfo.avatarUrl || prevUser.avatarUrl || undefined,
+            name: updatedInfo.hasOwnProperty('name') ? updatedInfo.name || prevUser.name : prevUser.name,
+            avatarUrl: updatedInfo.hasOwnProperty('avatarUrl') ? updatedInfo.avatarUrl || undefined : prevUser.avatarUrl,
           };
         });
         toast({ title: "Perfil Atualizado!", description: "Suas informações foram salvas.", variant: "default", className: "bg-accent text-accent-foreground" });
@@ -408,7 +427,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       setUser(prevUser => prevUser ? { ...prevUser, activePlan: planId, planDetails: newPlanDetails } : null);
       toast({ title: "Assinatura Realizada!", description: `Você assinou o ${planId}.`, variant: "default", className: "bg-accent text-accent-foreground" });
-      router.push('/perfil'); // Redirect to profile to see the new plan
+      router.push('/perfil'); 
     } catch (error) {
       console.error("Error subscribing to plan:", error);
       toast({ title: "Erro na Assinatura", description: "Não foi possível concluir a assinatura do plano.", variant: "destructive" });
@@ -423,8 +442,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return;
     }
     setLoading(true);
-    // In a real app, this would involve more logic, possibly refunds, backend calls, etc.
-    // For this prototype, we'll just clear the plan details.
     try {
       await update(ref(db, `users/${user.id}`), { 
         activePlan: null,
@@ -463,4 +480,3 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
