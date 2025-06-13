@@ -40,6 +40,48 @@ const endOfDay = (date: Date) => {
     return d;
 };
 
+interface ParsedIds {
+  editalId: string;
+  cargoId: string;
+  subjectId?: string;
+  topicId?: string;
+}
+
+const parseCompositeIdForStats = (compositeId: string): ParsedIds | null => {
+  if (!compositeId || typeof compositeId !== 'string') return null;
+  const parts = compositeId.split('_');
+
+  if (parts.length < 2) return null; // Minimum: editalId_cargoId
+
+  const editalId = parts[0];
+  const cargoId = parts[1];
+  let subjectId: string | undefined = undefined;
+  let topicId: string | undefined = undefined;
+
+  // Mock data structure implies:
+  // Edital ID: 1 part (e.g., "edital1")
+  // Cargo ID: 1 part (e.g., "cargo1")
+  // Subject ID: 2 parts (e.g., "subj1_1")
+  // Topic ID: 3 parts (e.g., "topic1_1_1")
+  // Total expected parts = 1 (edital) + 1 (cargo) + 2 (subject) + 3 (topic) = 7
+  if (parts.length === 7) {
+    subjectId = `${parts[2]}_${parts[3]}`; // e.g., "subj1_1"
+    topicId = `${parts[4]}_${parts[5]}_${parts[6]}`; // e.g., "topic1_1_1"
+  }
+  // Add other `else if` blocks here if other ID structures in mockData need specific parsing rules.
+  // For example, if a subjectId was "math" (1 part) and topicId "algebra" (1 part), parts.length would be 4.
+  // else if (parts.length === 4) {
+  //   subjectId = parts[2];
+  //   topicId = parts[3];
+  // }
+  // For now, we only explicitly parse the 7-part structure for subject/topic.
+  // If not 7 parts, subjectId and topicId will remain undefined, and items will
+  // not match specific subject/topic filters.
+
+  return { editalId, cargoId, subjectId, topicId };
+};
+
+
 export default function EstatisticasPage() {
   const { user, loading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
@@ -124,21 +166,11 @@ export default function EstatisticasPage() {
       })();
     
       return items.filter(item => {
-        if (!item.compositeTopicId || typeof item.compositeTopicId !== 'string') {
-          return false;
-        }
+        const parsed = parseCompositeIdForStats(item.compositeTopicId);
+        if (!parsed) return false;
+    
+        const { editalId: itemEditalId, cargoId: itemCargoId, subjectId: itemSubjectId, topicId: itemTopicId } = parsed;
         
-        const parts = item.compositeTopicId.split('_');
-        // Needs at least 4 parts: edital, cargo, subject, topic
-        if (parts.length < 4) {
-          return false;
-        }
-    
-        const itemEditalId = parts[0];
-        const itemCargoId = parts[1];
-        const itemSubjectId = parts[2];
-        const itemTopicId = parts[3];
-    
         // 1. Filter by Scope (Cargo)
         if (filterScope !== 'all') {
           const scopeParts = filterScope.split('_');
@@ -152,17 +184,15 @@ export default function EstatisticasPage() {
           }
         }
     
-        // 2. Filter by Subject (Only applies if a specific cargo is selected)
+        // 2. Filter by Subject
         if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo') {
-          // itemSubjectId must exist and match
           if (!itemSubjectId || itemSubjectId !== selectedSubjectId) { 
             return false;
           }
         }
     
-        // 3. Filter by Topic (Only applies if a specific cargo AND subject are selected)
+        // 3. Filter by Topic
         if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo' && selectedTopicId !== 'all_topics_in_subject') {
-          // itemTopicId must exist and match
           if (!itemTopicId || itemTopicId !== selectedTopicId) {
             return false;
           }
@@ -170,7 +200,7 @@ export default function EstatisticasPage() {
     
         // 4. Filter by Period
         if (filterPeriod !== 'all_time') {
-          if (!item.date || !startDate || !endDate) { // item.date must exist, startDate and endDate must be valid for period filtering
+          if (!item.date || !startDate || !endDate) { 
             return false; 
           }
           const itemDate = parseISO(item.date);
@@ -179,7 +209,7 @@ export default function EstatisticasPage() {
           }
         }
         
-        return true; // All applicable filters passed
+        return true; 
       });
     };
         
@@ -187,14 +217,9 @@ export default function EstatisticasPage() {
         if (!compositeIds || compositeIds.length === 0) return [];
     
         return compositeIds.filter(id => {
-            if (!id || typeof id !== 'string') return false;
-            const parts = id.split('_');
-            if (parts.length < 4) return false; 
-    
-            const itemEditalId = parts[0];
-            const itemCargoId = parts[1];
-            const itemSubjectId = parts[2];
-            const itemTopicId = parts[3]; // Not strictly needed for this function's current use, but good for consistency
+            const parsed = parseCompositeIdForStats(id);
+            if (!parsed) return false;
+            const { editalId: itemEditalId, cargoId: itemCargoId, subjectId: itemSubjectId, topicId: itemTopicId } = parsed;
     
             if (filterScope !== 'all') {
               const scopeParts = filterScope.split('_');
@@ -226,6 +251,9 @@ export default function EstatisticasPage() {
     const filteredStudiedTopicIds = filterCompositeIdsByScopeSubjectAndTopic(user.studiedTopicIds);
     
     const allUserRevisions = user.revisionSchedules || [];
+    // For revisions, we filter based on the compositeTopicId and then check the date properties separately if needed,
+    // as filterByScopeSubjectTopicAndPeriod is for items that *have* a standard 'date' property for period filtering.
+    // Here we just want to get the *relevant* revision objects first based on scope/subject/topic.
     const relevantRevisionCompositeIds = filterCompositeIdsByScopeSubjectAndTopic(allUserRevisions.map(rs => rs.compositeTopicId));
     const filteredRevisionSchedulesObjects = allUserRevisions.filter(rs => relevantRevisionCompositeIds.includes(rs.compositeTopicId));
 
@@ -236,8 +264,30 @@ export default function EstatisticasPage() {
     const tempoTotalEstudoSegundos = filteredStudyLogs.reduce((acc, log) => acc + log.duration, 0);
     const tempoTotalEstudoFormatado = formatTotalDuration(tempoTotalEstudoSegundos);
 
+    // Filter revisions by period after getting the relevant objects
+    const { startDate: periodStartDate, endDate: periodEndDate } = (() => {
+        const now = new Date();
+        switch (filterPeriod) {
+            case 'today': return { startDate: startOfDay(now), endDate: endOfDay(now) };
+            case 'this_week': return { startDate: startOfWeek(now, { locale: ptBR }), endDate: endOfWeek(now, { locale: ptBR }) };
+            case 'this_month': return { startDate: startOfMonth(now), endDate: endOfMonth(now) };
+            case 'all_time': default: return { startDate: null, endDate: null };
+        }
+    })();
+
     const revisoesPendentes = filteredRevisionSchedulesObjects.filter(
-      (rs: RevisionScheduleEntry) => !rs.isReviewed && rs.scheduledDate && (isToday(parseISO(rs.scheduledDate)) || isPast(parseISO(rs.scheduledDate)))
+      (rs: RevisionScheduleEntry) => {
+        if (!rs.scheduledDate || rs.isReviewed) return false;
+        const scheduledDateObj = parseISO(rs.scheduledDate);
+        const isDue = isToday(scheduledDateObj) || isPast(scheduledDateObj);
+        if (!isDue) return false;
+
+        if (filterPeriod !== 'all_time' && periodStartDate && periodEndDate) {
+            // Check if the scheduledDate falls within the selected period
+            return isWithinInterval(scheduledDateObj, { start: periodStartDate, end: periodEndDate });
+        }
+        return true; // If 'all_time' or period dates are not set, just consider if it's due
+      }
     ).length;
 
     const totalQuestoesRespondidas = filteredQuestionLogs.reduce((acc, log) => acc + log.totalQuestions, 0);
@@ -276,7 +326,7 @@ export default function EstatisticasPage() {
     }
 
     let topicDesc = "";
-    if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in-cargo' && selectedTopicId !== 'all_topics_in_subject') {
+    if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo' && selectedTopicId !== 'all_topics_in_subject') {
         const topicInfo = topicsForFilter.find(t => t.id === selectedTopicId);
         topicDesc = topicInfo ? ` no assunto "${topicInfo.name}"` : "";
     }
@@ -451,7 +501,7 @@ export default function EstatisticasPage() {
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalTopicosEstudados}</div>
               <p className="text-xs text-muted-foreground">
-                Tópicos marcados como estudados.
+                Tópicos marcados como estudados nos filtros atuais.
               </p>
             </CardContent>
           </Card>
@@ -464,7 +514,7 @@ export default function EstatisticasPage() {
             <CardContent>
               <div className="text-2xl font-bold">{stats.tempoTotalEstudoFormatado}</div>
               <p className="text-xs text-muted-foreground">
-                Soma dos registros de estudo.
+                Soma dos registros de estudo nos filtros atuais.
               </p>
             </CardContent>
           </Card>
@@ -477,7 +527,7 @@ export default function EstatisticasPage() {
             <CardContent>
               <div className="text-2xl font-bold">{stats.revisoesPendentes}</div>
               <p className="text-xs text-muted-foreground">
-                Tópicos agendados para revisão.
+                Tópicos para revisão nos filtros atuais.
               </p>
             </CardContent>
           </Card>
@@ -494,6 +544,7 @@ export default function EstatisticasPage() {
                         <p className="text-sm text-muted-foreground mb-1">
                             Total: {stats.performanceGeralQuestoes.total} questões | Certas: {stats.performanceGeralQuestoes.certas} | Erradas: {stats.performanceGeralQuestoes.erradas}
                         </p>
+                        <p className="text-xs text-muted-foreground">Desempenho nos filtros atuais.</p>
                     </>
                 ) : (
                   <>
@@ -510,3 +561,4 @@ export default function EstatisticasPage() {
 }
     
 
+    
