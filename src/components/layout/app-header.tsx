@@ -8,6 +8,7 @@ import { UserNav } from './user-nav';
 import { AppLogo } from './app-logo';
 import { useAuth } from '@/hooks/use-auth';
 import { Briefcase, Gem } from 'lucide-react';
+import { ThemeToggle } from './theme-toggle'; // Import the new component
 
 export function AppHeader() {
   const { user } = useAuth();
@@ -38,6 +39,7 @@ export function AppHeader() {
             Ver Planos
           </Link>
         </Button>
+        <ThemeToggle /> {/* Add the ThemeToggle component here */}
         <UserNav />
       </div>
     </header>
