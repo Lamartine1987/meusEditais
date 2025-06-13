@@ -6,13 +6,13 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Library, CheckCircle, Clock, CalendarCheck, AlertTriangle, BarChart3, TrendingUp, FilterIcon, Target } from 'lucide-react';
+import { Loader2, Library, CheckCircle, Clock, CalendarCheck, AlertTriangle, BarChart3, TrendingUp, FilterIcon, Target, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { RevisionScheduleEntry, StudyLogEntry, QuestionLogEntry, Edital, Cargo } from '@/types';
-import { mockEditais } from '@/lib/mock-data'; 
-import { parseISO, isToday, isPast, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from 'date-fns';
+import type { RevisionScheduleEntry, StudyLogEntry, QuestionLogEntry, Edital, Cargo, Subject as SubjectType } from '@/types';
+import { mockEditais } from '@/lib/mock-data';
+import { parseISO, isToday, isPast, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const formatTotalDuration = (totalSeconds: number): string => {
@@ -25,9 +25,10 @@ const formatTotalDuration = (totalSeconds: number): string => {
 interface RegisteredCargoInfo {
   id: string; // compositeId: editalId_cargoId
   name: string;
+  editalId: string;
+  cargoId: string;
 }
 
-// Helper functions for date boundaries (moved outside the component)
 const startOfDay = (date: Date) => {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
@@ -44,13 +45,15 @@ export default function EstatisticasPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [allEditaisData, setAllEditaisData] = useState<Edital[]>([]);
-  
+
   const [filterScope, setFilterScope] = useState<'all' | string>('all'); // 'all' or 'editalId_cargoId'
   const [filterPeriod, setFilterPeriod] = useState<'all_time' | 'today' | 'this_week' | 'this_month'>('all_time');
+  const [selectedSubjectId, setSelectedSubjectId] = useState<'all_subjects_in_cargo' | string>('all_subjects_in_cargo');
+  const [subjectsForFilter, setSubjectsForFilter] = useState<SubjectType[]>([]);
+
 
   useEffect(() => {
-    // Simulate fetching all editais data if needed for cargo names
-    setAllEditaisData(mockEditais); 
+    setAllEditaisData(mockEditais);
   }, []);
 
   useEffect(() => {
@@ -67,10 +70,24 @@ export default function EstatisticasPage() {
       const cargo = edital?.cargos?.find(c => c.id === cargoId);
       return {
         id: compositeId,
-        name: cargo ? `${cargo.name} (${edital?.title || 'Edital Desconhecido'})` : `Cargo ${compositeId}`
+        name: cargo ? `${cargo.name} (${edital?.title || 'Edital Desconhecido'})` : `Cargo ${compositeId}`,
+        editalId,
+        cargoId
       };
     }).sort((a,b) => a.name.localeCompare(b.name));
   }, [user?.registeredCargoIds, allEditaisData]);
+
+  useEffect(() => {
+    if (filterScope !== 'all') {
+      const [editalId, cargoId] = filterScope.split('_');
+      const edital = allEditaisData.find(e => e.id === editalId);
+      const cargo = edital?.cargos?.find(c => c.id === cargoId);
+      setSubjectsForFilter(cargo?.subjects || []);
+    } else {
+      setSubjectsForFilter([]);
+    }
+    setSelectedSubjectId('all_subjects_in_cargo'); // Reset subject when scope changes
+  }, [filterScope, allEditaisData]);
 
 
   const stats = useMemo(() => {
@@ -91,41 +108,58 @@ export default function EstatisticasPage() {
       }
     })();
 
-    const filterByScopeAndPeriod = <T extends { compositeTopicId: string; date?: string }>(items: T[] | undefined): T[] => {
+    const filterByScopeAndSubjectAndPeriod = <T extends { compositeTopicId: string; date?: string }>(items: T[] | undefined): T[] => {
       if (!items) return [];
       return items.filter(item => {
         const belongsToScope = filterScope === 'all' || item.compositeTopicId.startsWith(filterScope + '_');
         if (!belongsToScope) return false;
-        
-        if (filterPeriod === 'all_time' || !item.date) return true; // No date filter or item has no date
-        if (!startDate || !endDate) return true; // Should not happen if period is not all_time
+
+        const itemSubjectId = item.compositeTopicId.split('_')[2];
+        const belongsToSubject = selectedSubjectId === 'all_subjects_in_cargo' || itemSubjectId === selectedSubjectId;
+        if (filterScope !== 'all' && !belongsToSubject) return false;
+
+
+        if (filterPeriod === 'all_time' || !item.date) return true;
+        if (!startDate || !endDate) return true;
 
         const itemDate = parseISO(item.date);
         return isWithinInterval(itemDate, { start: startDate, end: endDate });
       });
     };
-    
-    const filterTopicsByScope = (topicIds: string[] | undefined): string[] => {
+
+    const filterTopicsByScopeAndSubject = (topicIds: string[] | undefined): string[] => {
         if(!topicIds) return [];
-        if(filterScope === 'all') return topicIds;
-        return topicIds.filter(id => id.startsWith(filterScope + '_'));
+        let filtered = topicIds;
+        if(filterScope !== 'all') {
+            filtered = filtered.filter(id => id.startsWith(filterScope + '_'));
+            if(selectedSubjectId !== 'all_subjects_in_cargo'){
+                filtered = filtered.filter(id => id.startsWith(`${filterScope}_${selectedSubjectId}_`))
+            }
+        }
+        return filtered;
     };
 
-    const filterRevisionsByScope = (revisions: RevisionScheduleEntry[] | undefined): RevisionScheduleEntry[] => {
+    const filterRevisionsByScopeAndSubject = (revisions: RevisionScheduleEntry[] | undefined): RevisionScheduleEntry[] => {
         if(!revisions) return [];
-        if(filterScope === 'all') return revisions;
-        return revisions.filter(rs => rs.compositeTopicId.startsWith(filterScope + '_'));
+        let filtered = revisions;
+        if(filterScope !== 'all'){
+            filtered = filtered.filter(rs => rs.compositeTopicId.startsWith(filterScope + '_'));
+            if(selectedSubjectId !== 'all_subjects_in_cargo'){
+                 filtered = filtered.filter(rs => rs.compositeTopicId.startsWith(`${filterScope}_${selectedSubjectId}_`))
+            }
+        }
+        return filtered;
     }
 
-    const filteredStudyLogs = filterByScopeAndPeriod(user.studyLogs);
-    const filteredQuestionLogs = filterByScopeAndPeriod(user.questionLogs);
-    const filteredStudiedTopicIds = filterTopicsByScope(user.studiedTopicIds);
-    const filteredRevisionSchedules = filterRevisionsByScope(user.revisionSchedules);
+    const filteredStudyLogs = filterByScopeAndSubjectAndPeriod(user.studyLogs);
+    const filteredQuestionLogs = filterByScopeAndSubjectAndPeriod(user.questionLogs);
+    const filteredStudiedTopicIds = filterTopicsByScopeAndSubject(user.studiedTopicIds);
+    const filteredRevisionSchedules = filterRevisionsByScopeAndSubject(user.revisionSchedules);
 
 
     const totalCargosInscritos = user.registeredCargoIds?.length || 0;
     const totalTopicosEstudados = filteredStudiedTopicIds.length;
-    
+
     const tempoTotalEstudoSegundos = filteredStudyLogs.reduce((acc, log) => acc + log.duration, 0);
     const tempoTotalEstudoFormatado = formatTotalDuration(tempoTotalEstudoSegundos);
 
@@ -152,7 +186,32 @@ export default function EstatisticasPage() {
       revisoesPendentes,
       performanceGeralQuestoes,
     };
-  }, [user, filterScope, filterPeriod, allEditaisData]);
+  }, [user, filterScope, filterPeriod, selectedSubjectId, allEditaisData]);
+
+
+  const getFilterDescription = useCallback(() => {
+    let scopeDesc = "todos os cargos";
+    if (filterScope !== 'all') {
+        const cargoInfo = registeredCargosList.find(c => c.id === filterScope);
+        scopeDesc = cargoInfo ? cargoInfo.name.replace(/\s\(.*\)/, '') : "este cargo"; // Remove (Edital XXX)
+    }
+
+    let subjectDesc = "";
+    if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo') {
+        const subjectInfo = subjectsForFilter.find(s => s.id === selectedSubjectId);
+        subjectDesc = subjectInfo ? ` na matéria ${subjectInfo.name}` : "";
+    }
+    
+    let periodDesc = "";
+    switch(filterPeriod) {
+        case 'today': periodDesc = "hoje"; break;
+        case 'this_week': periodDesc = "esta semana"; break;
+        case 'this_month': periodDesc = "este mês"; break;
+        case 'all_time': periodDesc = "todo o período"; break;
+    }
+
+    return `Filtrado para ${scopeDesc}${subjectDesc} (${periodDesc}).`;
+  }, [filterScope, selectedSubjectId, filterPeriod, registeredCargosList, subjectsForFilter]);
 
 
   if (isLoading || authLoading) {
@@ -187,7 +246,7 @@ export default function EstatisticasPage() {
   }
 
   if (!stats) {
-     return ( 
+     return (
       <PageWrapper>
         <div className="container mx-auto px-4 py-8 text-center">
           <p>Não foi possível carregar as estatísticas.</p>
@@ -199,8 +258,8 @@ export default function EstatisticasPage() {
   return (
     <PageWrapper>
       <div className="container mx-auto px-0 sm:px-4 py-8">
-        <PageHeader 
-          title="Minhas Estatísticas" 
+        <PageHeader
+          title="Minhas Estatísticas"
           description="Acompanhe seu progresso geral nos estudos."
         />
 
@@ -208,9 +267,9 @@ export default function EstatisticasPage() {
             <CardHeader>
                 <CardTitle className="text-lg flex items-center"><FilterIcon className="mr-2 h-5 w-5 text-primary"/>Filtros</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <label htmlFor="filterScope" className="block text-sm font-medium text-muted-foreground mb-1">Escopo</label>
+                    <label htmlFor="filterScope" className="block text-sm font-medium text-muted-foreground mb-1">Escopo (Cargo)</label>
                     <Select value={filterScope} onValueChange={setFilterScope}>
                         <SelectTrigger id="filterScope">
                             <SelectValue placeholder="Selecionar escopo..." />
@@ -222,6 +281,27 @@ export default function EstatisticasPage() {
                             ))}
                         </SelectContent>
                     </Select>
+                </div>
+                 <div>
+                    <label htmlFor="selectedSubjectId" className="block text-sm font-medium text-muted-foreground mb-1">Matéria</label>
+                    <Select
+                        value={selectedSubjectId}
+                        onValueChange={setSelectedSubjectId}
+                        disabled={filterScope === 'all' || subjectsForFilter.length === 0}
+                    >
+                        <SelectTrigger id="selectedSubjectId">
+                            <SelectValue placeholder="Selecionar matéria..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all_subjects_in_cargo">Todas as Matérias deste Cargo</SelectItem>
+                            {subjectsForFilter.map(subject => (
+                                <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                     {filterScope !== 'all' && subjectsForFilter.length === 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">Nenhuma matéria encontrada para este cargo.</p>
+                    )}
                 </div>
                 <div>
                     <label htmlFor="filterPeriod" className="block text-sm font-medium text-muted-foreground mb-1">Período</label>
@@ -241,7 +321,7 @@ export default function EstatisticasPage() {
         </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-          {filterScope === 'all' && (
+          {filterScope === 'all' && selectedSubjectId === 'all_subjects_in_cargo' && (
             <Card className="shadow-md rounded-xl bg-card">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Cargos Inscritos</CardTitle>
@@ -264,7 +344,7 @@ export default function EstatisticasPage() {
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalTopicosEstudados}</div>
               <p className="text-xs text-muted-foreground">
-                Tópicos marcados como estudados {filterScope !== 'all' ? 'neste cargo' : 'em todos os cargos'}.
+                Tópicos marcados como estudados.
               </p>
             </CardContent>
           </Card>
@@ -277,9 +357,7 @@ export default function EstatisticasPage() {
             <CardContent>
               <div className="text-2xl font-bold">{stats.tempoTotalEstudoFormatado}</div>
               <p className="text-xs text-muted-foreground">
-                Soma dos registros de estudo ({filterPeriod === 'all_time' ? 'todo o período' : 
-                                              filterPeriod === 'today' ? 'hoje' :
-                                              filterPeriod === 'this_week' ? 'esta semana' : 'este mês'}).
+                Soma dos registros de estudo.
               </p>
             </CardContent>
           </Card>
@@ -292,7 +370,7 @@ export default function EstatisticasPage() {
             <CardContent>
               <div className="text-2xl font-bold">{stats.revisoesPendentes}</div>
               <p className="text-xs text-muted-foreground">
-                Tópicos para revisão hoje ou em datas passadas {filterScope !== 'all' ? 'neste cargo' : 'em todos os cargos'}.
+                Tópicos para revisão (hoje ou em datas passadas).
               </p>
             </CardContent>
           </Card>
@@ -306,17 +384,20 @@ export default function EstatisticasPage() {
                 {stats.performanceGeralQuestoes.total > 0 ? (
                     <>
                         <div className="text-2xl font-bold mb-2">{stats.performanceGeralQuestoes.aproveitamento.toFixed(1)}% de Acerto</div>
-                        <p className="text-sm text-muted-foreground mb-1"> 
+                        <p className="text-sm text-muted-foreground mb-1">
                             Total: {stats.performanceGeralQuestoes.total} questões | Certas: {stats.performanceGeralQuestoes.certas} | Erradas: {stats.performanceGeralQuestoes.erradas}
                         </p>
-                        <p className="text-sm text-muted-foreground">
-                            Filtrado para {filterScope !== 'all' ? 'este cargo' : 'todos os cargos'} ({filterPeriod === 'all_time' ? 'todo o período' : 
-                                                                                                        filterPeriod === 'today' ? 'hoje' :
-                                                                                                        filterPeriod === 'this_week' ? 'esta semana' : 'este mês'}).
+                        <p className="text-xs text-muted-foreground">
+                            {getFilterDescription()}
                         </p>
                     </>
                 ) : (
+                  <>
                     <p className="text-muted-foreground">Nenhum registro de questões encontrado para os filtros selecionados.</p>
+                     <p className="text-xs text-muted-foreground mt-1">
+                        {getFilterDescription()}
+                    </p>
+                  </>
                 )}
             </CardContent>
           </Card>
@@ -326,9 +407,5 @@ export default function EstatisticasPage() {
     </PageWrapper>
   );
 }
-
-    
-
-    
 
     
