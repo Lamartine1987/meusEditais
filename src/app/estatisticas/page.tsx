@@ -127,9 +127,7 @@ export default function EstatisticasPage() {
         if (!item.compositeTopicId || typeof item.compositeTopicId !== 'string') return false;
         
         const parts = item.compositeTopicId.split('_');
-        // Logs (study, question) and revision schedules have topicId, so 4 parts: edital_cargo_subject_topic
-        // studiedTopicIds also have 4 parts.
-        if (parts.length < 4) return false; 
+        if (parts.length < 4) return false; // edital_cargo_subject_topic
     
         const itemEditalId = parts[0];
         const itemCargoId = parts[1];
@@ -137,84 +135,82 @@ export default function EstatisticasPage() {
         const itemTopicId = parts[3];
     
         // 1. Filter by Scope (Cargo)
-        let passesScopeFilter = filterScope === 'all';
-        if (!passesScopeFilter) {
+        if (filterScope !== 'all') {
           const [filterEditalId, filterCargoId] = filterScope.split('_');
-          passesScopeFilter = itemEditalId === filterEditalId && itemCargoId === filterCargoId;
+          if (!(itemEditalId === filterEditalId && itemCargoId === filterCargoId)) {
+            return false;
+          }
         }
-        if (!passesScopeFilter) return false;
     
-        // 2. Filter by Subject
-        let passesSubjectFilter = true;
+        // 2. Filter by Subject (Only applies if a specific cargo is selected)
         if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo') {
-          passesSubjectFilter = itemSubjectId === selectedSubjectId;
+          if (itemSubjectId !== selectedSubjectId) {
+            return false;
+          }
         }
-        if (!passesSubjectFilter) return false;
     
-        // 3. Filter by Topic
-        let passesTopicFilter = true;
+        // 3. Filter by Topic (Only applies if a specific cargo AND subject are selected)
         if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo' && selectedTopicId !== 'all_topics_in_subject') {
-          passesTopicFilter = itemTopicId === selectedTopicId;
+          if (itemTopicId !== selectedTopicId) {
+            return false;
+          }
         }
-        if (!passesTopicFilter) return false;
     
-        // 4. Filter by Period (only if period is not 'all_time')
-        if (filterPeriod === 'all_time') return true;
-        if (!item.date) return false; // Item must have a date for period filtering
-        if (!startDate || !endDate) return false; // Should not happen if period is not 'all_time' but good check
-    
-        const itemDate = parseISO(item.date);
-        return isWithinInterval(itemDate, { start: startDate, end: endDate });
+        // 4. Filter by Period
+        if (filterPeriod !== 'all_time') {
+          if (!item.date || !startDate || !endDate) return false; 
+          const itemDate = parseISO(item.date);
+          if (!isWithinInterval(itemDate, { start: startDate, end: endDate })) {
+            return false;
+          }
+        }
+        
+        return true; // All applicable filters passed
       });
     };
-    
-    // For studiedTopicIds, it doesn't have a date, so period filter doesn't apply directly.
-    // It's just a list of IDs. The filtering here is based on scope, subject, and topic.
+        
     const filterCompositeIdsByScopeSubjectAndTopic = (compositeIds: string[] | undefined): string[] => {
         if (!compositeIds || compositeIds.length === 0) return [];
     
         return compositeIds.filter(id => {
             if (!id || typeof id !== 'string') return false;
             const parts = id.split('_');
-            if (parts.length < 4) return false; // edital_cargo_subject_topic
+            if (parts.length < 4) return false; 
     
             const itemEditalId = parts[0];
             const itemCargoId = parts[1];
             const itemSubjectId = parts[2];
             const itemTopicId = parts[3];
     
-            let passesScopeFilter = filterScope === 'all';
-            if (!passesScopeFilter) {
-                const [filterEditalId, filterCargoId] = filterScope.split('_');
-                passesScopeFilter = itemEditalId === filterEditalId && itemCargoId === filterCargoId;
+            if (filterScope !== 'all') {
+              const [filterEditalId, filterCargoId] = filterScope.split('_');
+              if (!(itemEditalId === filterEditalId && itemCargoId === filterCargoId)) {
+                return false;
+              }
             }
-            if (!passesScopeFilter) return false;
-    
-            let passesSubjectFilter = true;
+        
             if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo') {
-                passesSubjectFilter = itemSubjectId === selectedSubjectId;
+              if (itemSubjectId !== selectedSubjectId) {
+                return false;
+              }
             }
-            if (!passesSubjectFilter) return false;
-    
-            let passesTopicFilter = true;
+        
             if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo' && selectedTopicId !== 'all_topics_in_subject') {
-                passesTopicFilter = itemTopicId === selectedTopicId;
+              if (itemTopicId !== selectedTopicId) {
+                return false;
+              }
             }
-            return passesTopicFilter;
+            return true;
         });
     };
 
     const filteredStudyLogs = filterByScopeSubjectTopicAndPeriod(user.studyLogs);
     const filteredQuestionLogs = filterByScopeSubjectTopicAndPeriod(user.questionLogs);
     const filteredStudiedTopicIds = filterCompositeIdsByScopeSubjectAndTopic(user.studiedTopicIds);
-    // Revision schedules have a 'date' (scheduledDate) but the period filter should apply to 'scheduledDate'.
-    // However, the current period filter is designed for 'date' field of creation.
-    // For "Revisões Pendentes", we usually care about *all* pending revisions regardless of creation date,
-    // but applying scope/subject/topic is important.
-    // Let's filter revisions primarily by scope/subject/topic for counts, and then for "pending" status.
-    const relevantRevisionSchedules = filterCompositeIdsByScopeSubjectAndTopic(user.revisionSchedules?.map(rs => rs.compositeTopicId));
+    
     const allUserRevisions = user.revisionSchedules || [];
-    const filteredRevisionSchedulesObjects = allUserRevisions.filter(rs => relevantRevisionSchedules.includes(rs.compositeTopicId));
+    const relevantRevisionCompositeIds = filterCompositeIdsByScopeSubjectAndTopic(allUserRevisions.map(rs => rs.compositeTopicId));
+    const filteredRevisionSchedulesObjects = allUserRevisions.filter(rs => relevantRevisionCompositeIds.includes(rs.compositeTopicId));
 
 
     const totalCargosInscritos = user.registeredCargoIds?.length || 0;
@@ -495,5 +491,4 @@ export default function EstatisticasPage() {
     </PageWrapper>
   );
 }
-
     
