@@ -60,12 +60,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const snapshot = await get(userRef);
           const dbData = snapshot.exists() ? snapshot.val() : {};
 
-          // Construct AppUser, ensuring avatarUrl is string or undefined for the type, but will be null for DB
           const appUser: AppUser = {
             id: firebaseUser.uid,
             name: firebaseUser.displayName || dbData.name || 'Usuário',
             email: firebaseUser.email || dbData.email || '',
-            avatarUrl: firebaseUser.photoURL || dbData.avatarUrl, // Can be undefined here
+            avatarUrl: firebaseUser.photoURL || dbData.avatarUrl || undefined,
             registeredCargoIds: dbData.registeredCargoIds || [],
             studiedTopicIds: dbData.studiedTopicIds || [],
             studyLogs: dbData.studyLogs || [],
@@ -79,7 +78,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const dataToSaveToDb = {
             name: appUser.name,
             email: appUser.email,
-            avatarUrl: appUser.avatarUrl || null, // Ensure null for DB if undefined
+            avatarUrl: appUser.avatarUrl || null,
             registeredCargoIds: appUser.registeredCargoIds,
             studiedTopicIds: appUser.studiedTopicIds,
             studyLogs: appUser.studyLogs,
@@ -92,19 +91,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (!snapshot.exists()) {
              await set(ref(db, `users/${firebaseUser.uid}`), dataToSaveToDb);
           } else {
-             const updates: Partial<AppUser> = {};
+             const updates: Partial<AppUser & {avatarUrl: string | null}> = {}; // Ensure avatarUrl can be explicitly null
              if (dbData.name !== appUser.name) {
                 updates.name = appUser.name;
              }
              if (dbData.email !== appUser.email) {
                 updates.email = appUser.email;
              }
-             // Ensure avatarUrl is null for DB if undefined or different
              if ((dbData.avatarUrl || null) !== (appUser.avatarUrl || null)) {
                  updates.avatarUrl = appUser.avatarUrl || null;
              }
              
-             // Ensure all other fields from AppUser are initialized in RTDB if missing
              if (!dbData.hasOwnProperty('registeredCargoIds')) updates.registeredCargoIds = dataToSaveToDb.registeredCargoIds;
              if (!dbData.hasOwnProperty('studiedTopicIds')) updates.studiedTopicIds = dataToSaveToDb.studiedTopicIds;
              if (!dbData.hasOwnProperty('studyLogs')) updates.studyLogs = dataToSaveToDb.studyLogs;
@@ -113,9 +110,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
              if (!dbData.hasOwnProperty('activePlan')) updates.activePlan = dataToSaveToDb.activePlan;
              if (!dbData.hasOwnProperty('planDetails')) updates.planDetails = dataToSaveToDb.planDetails;
              
-             // Explicitly set avatarUrl to null if it was missing and not part of the diff update
              if (!dbData.hasOwnProperty('avatarUrl') && !updates.hasOwnProperty('avatarUrl')) {
-                updates.avatarUrl = dataToSaveToDb.avatarUrl; // which is appUser.avatarUrl || null
+                updates.avatarUrl = dataToSaveToDb.avatarUrl;
              }
 
              if (Object.keys(updates).length > 0) {
@@ -126,12 +122,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } catch (error) {
           console.error("Error fetching/updating user data from RTDB:", error);
           toast({ title: "Erro ao carregar dados", description: "Não foi possível buscar seus dados salvos.", variant: "destructive" });
-          // Fallback to FirebaseUser data if RTDB fails, ensuring AppUser structure
           setUser({
             id: firebaseUser.uid,
             name: firebaseUser.displayName || 'Usuário',
             email: firebaseUser.email || '',
-            avatarUrl: firebaseUser.photoURL || undefined, // Type allows undefined
+            avatarUrl: firebaseUser.photoURL || undefined,
             registeredCargoIds: [],
             studiedTopicIds: [],
             studyLogs: [],
@@ -153,7 +148,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, pass: string) => {
     setLoading(true);
     await signInWithEmailAndPassword(firebaseAuthService, email, pass);
-    // User data will be loaded by onAuthStateChanged
   };
 
   const register = async (name: string, email: string, pass: string) => {
@@ -164,7 +158,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await set(ref(db, `users/${userCredential.user.uid}`), {
       name: name,
       email: email,
-      avatarUrl: null, // Explicitly null for new users
+      avatarUrl: null,
       registeredCargoIds: [],
       studiedTopicIds: [],
       studyLogs: [],
@@ -192,9 +186,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         const authUpdates: { displayName?: string; photoURL?: string | null } = {};
         if (updatedInfo.hasOwnProperty('name')) authUpdates.displayName = updatedInfo.name;
-        // If avatarUrl is provided (even if it's an empty string intending to clear), use it.
-        // If it's undefined, it means "don't update avatar", so photoURL will not be in authUpdates.
-        // If it's a string (URL or empty string for clear), set it (or null for empty string).
         if (updatedInfo.hasOwnProperty('avatarUrl')) {
             authUpdates.photoURL = updatedInfo.avatarUrl || null;
         }
@@ -203,7 +194,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           await updateProfile(firebaseCurrentUser, authUpdates);
         }
         
-        const dbUpdates: Partial<Pick<AppUser, 'name' | 'avatarUrl'>> = {};
+        const dbUpdates: Partial<Pick<AppUser, 'name'>> & { avatarUrl?: string | null } = {};
         if (updatedInfo.hasOwnProperty('name') && typeof updatedInfo.name === 'string') {
           dbUpdates.name = updatedInfo.name;
         }
@@ -395,6 +386,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return;
     }
     setLoading(true);
+
+    // EM PRODUÇÃO:
+    // 1. ANTES DE ATUALIZAR O BANCO DE DADOS LOCALMENTE:
+    //    a. Chamar um endpoint no seu backend seguro (ex: Firebase Function).
+    //    b. Seu backend se comunicaria com o gateway de pagamento (Stripe, PagSeguro, etc.)
+    //       para criar uma sessão de checkout para o plano selecionado.
+    //    c. O backend retornaria um ID de sessão de checkout ou uma URL para o frontend.
+    //    d. O frontend redirecionaria o usuário para a página de pagamento do gateway.
+    //
+    // 2. APÓS O PAGAMENTO SER COMPLETADO NO GATEWAY:
+    //    a. O gateway de pagamento enviaria um webhook para um endpoint no seu backend.
+    //    b. Seu backend validaria o webhook e, SE O PAGAMENTO FOI BEM-SUCEDIDO:
+    //       - Atualizaria o status da assinatura do usuário no Firebase Realtime Database
+    //         (similar ao que está sendo feito abaixo, mas de forma segura no backend).
+    //       - Poderia registrar a transação, enviar e-mail de confirmação, etc.
+    //
+    // 3. O frontend (via onAuthStateChanged ou recarregando dados do usuário)
+    //    refletiria o novo status do plano.
+
+    // A lógica abaixo é uma SIMULAÇÃO de assinatura bem-sucedida,
+    // atualizando o banco de dados diretamente do frontend.
+    // NÃO FAÇA ISSO EM PRODUÇÃO PARA TRANSAÇÕES REAIS SEM UM BACKEND.
+
     const now = new Date();
     const startDate = formatISO(now);
     let expiryDate = '';
@@ -442,6 +456,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return;
     }
     setLoading(true);
+
+    // EM PRODUÇÃO:
+    // O cancelamento de uma assinatura geralmente é gerenciado através do gateway de pagamento.
+    // 1. O usuário solicitaria o cancelamento no seu app.
+    // 2. Seu frontend chamaria um endpoint no backend.
+    // 3. Seu backend se comunicaria com a API do gateway de pagamento para:
+    //    a. Cancelar a assinatura (geralmente significa que não será renovada no próximo ciclo).
+    //    b. Ou, dependendo da política, marcar para não renovar.
+    // 4. O gateway de pagamento enviaria um webhook para o seu backend confirmando
+    //    a alteração do status da assinatura (ex: 'canceled', 'active_until_end_of_period').
+    // 5. Seu backend atualizaria o `activePlan` e `planDetails` no Firebase RTDB
+    //    para refletir o novo status e a data de expiração real.
+
+    // A lógica abaixo é uma SIMULAÇÃO de cancelamento imediato,
+    // atualizando o banco de dados diretamente do frontend.
+
     try {
       await update(ref(db, `users/${user.id}`), { 
         activePlan: null,
