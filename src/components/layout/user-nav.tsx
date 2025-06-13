@@ -57,11 +57,20 @@ export function UserNav() {
     return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
   }
 
+  const getDisplayName = (name?: string) => {
+    if (!name || name.trim() === '') return 'Usuário';
+    const nameParts = name.split(' ').filter(part => part.length > 0);
+    if (nameParts.length <= 2) {
+      return nameParts.join(' ');
+    }
+    return nameParts.slice(0, 2).join(' ');
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-auto px-2 space-x-2 rounded-full">
-          {user.name && <span className="text-sm font-medium hidden sm:inline-block">{user.name}</span>}
+          {user.name && <span className="text-sm font-medium hidden sm:inline-block">{getDisplayName(user.name)}</span>}
           <Avatar className="h-8 w-8">
             <AvatarImage src={user.avatarUrl} alt={user.name || 'Avatar'} data-ai-hint="user avatar" />
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
