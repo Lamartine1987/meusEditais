@@ -12,7 +12,7 @@ import {
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
 import { AppLogo } from './app-logo';
-import { Home, Briefcase, BarChart3 } from 'lucide-react';
+import { Home, Briefcase, BarChart3, Gem } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar'; 
 import { useAuth } from '@/hooks/use-auth';
 
@@ -61,12 +61,12 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   asChild
                   isActive={pathname === '/meus-editais'}
-                  tooltip={{content: "Meus Editais", side:"right", align:"center"}}
+                  tooltip={{content: "Meus Cargos", side:"right", align:"center"}}
                   onClick={closeMobileSidebar}
                 >
                   <Link href="/meus-editais">
                     <Briefcase />
-                    <span>Meus Editais</span>
+                    <span>Meus Cargos</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -85,6 +85,21 @@ export function AppSidebar() {
               </SidebarMenuItem>
             </>
           )}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={pathname === '/planos'}
+              tooltip={{content: "Nossos Planos", side:"right", align:"center"}}
+              onClick={closeMobileSidebar}
+              variant={pathname === '/planos' ? 'default' : 'ghost'} 
+              className={pathname === '/planos' ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'}
+            >
+              <Link href="/planos">
+                <Gem />
+                <span>Nossos Planos</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarContent>
     </Sidebar>

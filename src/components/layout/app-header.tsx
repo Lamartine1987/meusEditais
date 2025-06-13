@@ -7,7 +7,7 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 import { UserNav } from './user-nav';
 import { AppLogo } from './app-logo';
 import { useAuth } from '@/hooks/use-auth';
-import { Briefcase } from 'lucide-react';
+import { Briefcase, Gem } from 'lucide-react';
 
 export function AppHeader() {
   const { user } = useAuth();
@@ -28,10 +28,16 @@ export function AppHeader() {
           <Button variant="outline" asChild>
             <Link href="/meus-editais">
               <Briefcase className="mr-2 h-4 w-4" />
-              Meus Editais
+              Meus Cargos
             </Link>
           </Button>
         )}
+        <Button variant="premium" asChild>
+          <Link href="/planos">
+            <Gem className="mr-2 h-4 w-4" />
+            Ver Planos
+          </Link>
+        </Button>
         <UserNav />
       </div>
     </header>
