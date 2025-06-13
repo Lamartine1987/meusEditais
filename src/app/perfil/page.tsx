@@ -14,11 +14,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, AlertTriangle } from 'lucide-react';
+import Link from 'next/link';
 
+// O e-mail não será editável por enquanto, pois a atualização via Firebase Auth pode exigir reautenticação.
 const profileSchema = z.object({
-  name: z.string().min(3, { message: "O nome deve ter pelo menos 3 caracteres." }),
-  email: z.string().email({ message: "Por favor, insira um email válido." }),
+  name: z.string().min(2, { message: "O nome deve ter pelo menos 2 caracteres." }),
+  // email: z.string().email({ message: "Por favor, insira um email válido." }), // Removido da validação por agora
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -27,30 +29,31 @@ export default function ProfilePage() {
   const { user, updateUser, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ProfileFormValues>({
+  const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
       name: '',
-      email: '',
+      // email: '', // Removido dos defaultValues
     }
   });
 
   useEffect(() => {
     if (user) {
       reset({
-        name: user.name,
-        email: user.email,
+        name: user.name || '',
       });
+      // O e-mail é apenas exibido, não setado no formulário para edição
     }
   }, [user, reset]);
 
   const onSubmit: SubmitHandler<ProfileFormValues> = async (data) => {
     if (!user) return;
     try {
-      await updateUser({ name: data.name, email: data.email });
+      // Passar apenas o nome para updateUser, já que o e-mail não é editável aqui
+      await updateUser({ name: data.name }); 
       toast({
         title: "Perfil Atualizado!",
-        description: "Suas informações foram salvas com sucesso.",
+        description: "Suas informações de nome foram salvas com sucesso.",
         variant: "default",
         className: "bg-accent text-accent-foreground",
       });
@@ -64,11 +67,14 @@ export default function ProfilePage() {
   };
   
   const getInitials = (name?: string) => {
-    if (!name) return '';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2);
+    if (!name || name.trim() === '') return '?';
+    const nameParts = name.split(' ').filter(part => part.length > 0);
+    if (nameParts.length === 0) return '?';
+    if (nameParts.length === 1) return nameParts[0][0].toUpperCase();
+    return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
   }
 
-  if (authLoading || (!user && authLoading)) { // Check authLoading first
+  if (authLoading) {
     return (
        <PageWrapper>
         <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]">
@@ -78,16 +84,26 @@ export default function ProfilePage() {
     );
   }
 
-  if (!user) { // If auth done and no user (should be caught by auth context for protected routes)
+  if (!user) {
       return (
            <PageWrapper>
             <div className="container mx-auto px-4 py-8 text-center">
-              <PageHeader title="Acesso Negado" description="Você precisa estar logado para acessar esta página."/>
+              <Card className="max-w-md mx-auto shadow-lg rounded-xl">
+                <CardHeader>
+                    <AlertTriangle className="mx-auto h-16 w-16 text-destructive mb-4" />
+                    <CardTitle className="text-2xl">Acesso Restrito</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-lg text-muted-foreground mb-6">Você precisa estar logado para acessar esta página.</p>
+                    <Button asChild size="lg">
+                        <Link href="/login">Fazer Login</Link>
+                    </Button>
+                </CardContent>
+              </Card>
             </div>
           </PageWrapper>
       )
   }
-
 
   return (
     <PageWrapper>
@@ -97,10 +113,10 @@ export default function ProfilePage() {
         <Card className="shadow-lg rounded-xl bg-card">
           <CardHeader className="items-center text-center border-b pb-6">
             <Avatar className="h-24 w-24 mb-4 ring-2 ring-primary ring-offset-background ring-offset-2">
-              <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="user avatar large" />
+              <AvatarImage src={user.avatarUrl} alt={user.name || 'Avatar'} data-ai-hint="user avatar large" />
               <AvatarFallback className="text-3xl font-semibold">{getInitials(user.name)}</AvatarFallback>
             </Avatar>
-            <CardTitle className="text-2xl">{user.name}</CardTitle>
+            <CardTitle className="text-2xl">{user.name || 'Usuário'}</CardTitle>
             <CardDescription>{user.email}</CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit(onSubmit)}>
@@ -120,16 +136,18 @@ export default function ProfilePage() {
                 <Input 
                   id="email" 
                   type="email" 
-                  {...register('email')} 
+                  value={user.email || ''} 
+                  readOnly 
+                  disabled
                   placeholder="seu@email.com"
-                  className="text-base h-11 rounded-md shadow-sm"
+                  className="text-base h-11 rounded-md shadow-sm bg-muted/50 cursor-not-allowed"
                 />
-                {errors.email && <p className="text-sm text-destructive pt-1">{errors.email.message}</p>}
+                <p className="text-xs text-muted-foreground pt-1">O e-mail não pode ser alterado através desta página no momento.</p>
               </div>
             </CardContent>
             <CardFooter className="border-t pt-6">
               <Button type="submit" disabled={isSubmitting || authLoading} className="w-full sm:w-auto min-w-[150px] h-11 text-base">
-                {isSubmitting || authLoading ? (
+                {(isSubmitting || authLoading) ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     Salvando...
@@ -137,7 +155,7 @@ export default function ProfilePage() {
                 ) : (
                   <>
                     <Save className="mr-2 h-5 w-5" />
-                    Salvar Alterações
+                    Salvar Nome
                   </>
                 )}
               </Button>

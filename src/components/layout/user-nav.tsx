@@ -25,13 +25,17 @@ export function UserNav() {
   const { toast } = useToast();
 
   if (loading) {
-    return <Skeleton className="h-10 w-28 rounded-full" />;
+    return <Skeleton className="h-10 w-10 rounded-full sm:w-28" />;
   }
 
   const handleLogout = async () => {
-    await logout();
-    toast({ title: "Logout realizado", description: "Você foi desconectado."});
-    router.push('/login');
+    try {
+      await logout();
+      toast({ title: "Logout realizado", description: "Você foi desconectado."});
+      // O redirecionamento já é feito dentro da função logout no AuthProvider
+    } catch (error) {
+      toast({ title: "Erro no Logout", description: "Não foi possível desconectar.", variant: "destructive"});
+    }
   }
 
   if (!user) {
@@ -45,17 +49,21 @@ export function UserNav() {
     );
   }
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2);
+  const getInitials = (name?: string) => {
+    if (!name || name.trim() === '') return '?';
+    const nameParts = name.split(' ').filter(part => part.length > 0);
+    if (nameParts.length === 0) return '?';
+    if (nameParts.length === 1) return nameParts[0][0].toUpperCase();
+    return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-auto px-2 space-x-2 rounded-full">
-          <span className="text-sm font-medium hidden sm:inline-block">{user.name}</span>
+          {user.name && <span className="text-sm font-medium hidden sm:inline-block">{user.name}</span>}
           <Avatar className="h-8 w-8">
-            <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="user avatar" />
+            <AvatarImage src={user.avatarUrl} alt={user.name || 'Avatar'} data-ai-hint="user avatar" />
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
           </Avatar>
         </Button>
@@ -63,10 +71,12 @@ export function UserNav() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user.name}</p>
-            <p className="text-xs leading-none text-muted-foreground">
-              {user.email}
-            </p>
+            <p className="text-sm font-medium leading-none">{user.name || 'Usuário'}</p>
+            {user.email && 
+              <p className="text-xs leading-none text-muted-foreground">
+                {user.email}
+              </p>
+            }
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
