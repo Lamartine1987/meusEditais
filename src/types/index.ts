@@ -21,6 +21,18 @@ export interface RevisionScheduleEntry {
   reviewedDate: string | null; // ISO string date for when it was marked as reviewed
 }
 
+export type PlanId = 'plano_cargo' | 'plano_edital' | 'plano_anual';
+
+export interface PlanDetails {
+  planId: PlanId;
+  startDate?: string; // ISO date
+  expiryDate?: string; // ISO date
+  // Specific to 'plano_cargo'
+  selectedCargoCompositeId?: string; // e.g., "edital1_cargo1"
+  // Specific to 'plano_edital'
+  selectedEditalId?: string; // e.g., "edital1"
+}
+
 export interface User {
   id: string;
   name: string;
@@ -31,6 +43,8 @@ export interface User {
   studyLogs?: StudyLogEntry[];
   questionLogs?: QuestionLogEntry[];
   revisionSchedules?: RevisionScheduleEntry[];
+  activePlan?: PlanId | null;
+  planDetails?: PlanDetails | null;
 }
 
 export interface Topic {

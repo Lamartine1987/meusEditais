@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { User as AppUser, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry } from '@/types';
+import type { User as AppUser, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, PlanId, PlanDetails } from '@/types';
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { 
   getAuth, 
@@ -35,6 +35,8 @@ interface AuthContextType {
   addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'date'>) => Promise<void>;
   addRevisionSchedule: (compositeTopicId: string, daysToReview: number) => Promise<void>;
   toggleRevisionReviewedStatus: (compositeTopicId: string) => Promise<void>;
+  // TODO: Add functions to manage plans later
+  // setActiveUserPlan: (planId: PlanId, details: PlanDetails) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -53,7 +55,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const unsubscribe = onAuthStateChanged(firebaseAuthService, async (firebaseUser: FirebaseUser | null) => {
       setLoading(true);
       if (firebaseUser) {
-        // Fetch user-specific data from Realtime Database
         const userRef = ref(db, `users/${firebaseUser.uid}`);
         try {
           const snapshot = await get(userRef);
@@ -69,22 +70,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             studyLogs: dbData.studyLogs || [],
             questionLogs: dbData.questionLogs || [],
             revisionSchedules: dbData.revisionSchedules || [],
+            activePlan: dbData.activePlan || null,
+            planDetails: dbData.planDetails || null,
           };
           setUser(appUser);
 
-          // Save basic profile info if not in DB or different from Auth
-          if (!dbData.name || !dbData.email || dbData.name !== appUser.name || dbData.email !== appUser.email) {
-             await update(ref(db, `users/${firebaseUser.uid}`), {
-                name: appUser.name,
-                email: appUser.email,
-                avatarUrl: appUser.avatarUrl || null
-             });
+          const initialDbSave = {
+            name: appUser.name,
+            email: appUser.email,
+            avatarUrl: appUser.avatarUrl || null,
+            registeredCargoIds: appUser.registeredCargoIds,
+            studiedTopicIds: appUser.studiedTopicIds,
+            studyLogs: appUser.studyLogs,
+            questionLogs: appUser.questionLogs,
+            revisionSchedules: appUser.revisionSchedules,
+            activePlan: appUser.activePlan,
+            planDetails: appUser.planDetails,
+          };
+
+          if (!snapshot.exists()) {
+             await set(ref(db, `users/${firebaseUser.uid}`), initialDbSave);
+          } else {
+             const updates: Partial<AppUser> = {};
+             if (dbData.name !== appUser.name) updates.name = appUser.name;
+             if (dbData.email !== appUser.email) updates.email = appUser.email;
+             if (dbData.avatarUrl !== (appUser.avatarUrl || null)) updates.avatarUrl = appUser.avatarUrl || undefined;
+             // Ensure all fields are present or initialized if missing from DB
+             if (!dbData.hasOwnProperty('registeredCargoIds')) updates.registeredCargoIds = [];
+             if (!dbData.hasOwnProperty('studiedTopicIds')) updates.studiedTopicIds = [];
+             if (!dbData.hasOwnProperty('studyLogs')) updates.studyLogs = [];
+             if (!dbData.hasOwnProperty('questionLogs')) updates.questionLogs = [];
+             if (!dbData.hasOwnProperty('revisionSchedules')) updates.revisionSchedules = [];
+             if (!dbData.hasOwnProperty('activePlan')) updates.activePlan = null;
+             if (!dbData.hasOwnProperty('planDetails')) updates.planDetails = null;
+
+             if (Object.keys(updates).length > 0) {
+                await update(ref(db, `users/${firebaseUser.uid}`), updates);
+             }
           }
 
         } catch (error) {
-          console.error("Error fetching user data from RTDB:", error);
+          console.error("Error fetching/updating user data from RTDB:", error);
           toast({ title: "Erro ao carregar dados", description: "Não foi possível buscar seus dados salvos.", variant: "destructive" });
-          // Fallback to basic user from Auth
           setUser({
             id: firebaseUser.uid,
             name: firebaseUser.displayName || 'Usuário',
@@ -95,6 +122,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             studyLogs: [],
             questionLogs: [],
             revisionSchedules: [],
+            activePlan: null,
+            planDetails: null,
           });
         }
       } else {
@@ -109,13 +138,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, pass: string) => {
     setLoading(true);
     await signInWithEmailAndPassword(firebaseAuthService, email, pass);
+    // User data will be loaded by onAuthStateChanged
   };
 
   const register = async (name: string, email: string, pass: string) => {
     setLoading(true);
     const userCredential = await createUserWithEmailAndPassword(firebaseAuthService, email, pass);
     await updateProfile(userCredential.user, { displayName: name });
-    // Save initial user data to Realtime Database
+    
+    // Save initial user data to Realtime Database, including new plan fields
     await set(ref(db, `users/${userCredential.user.uid}`), {
       name: name,
       email: email,
@@ -125,7 +156,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       studyLogs: [],
       questionLogs: [],
       revisionSchedules: [],
+      activePlan: null, 
+      planDetails: null,
     });
+    // User data will be fully loaded by onAuthStateChanged after this
   };
   
   const sendPasswordReset = async (email: string) => {
@@ -135,6 +169,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async () => {
     setLoading(true);
     await signOut(firebaseAuthService);
+    // onAuthStateChanged will set user to null
     router.push('/login'); 
   };
   
@@ -151,24 +186,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           await updateProfile(firebaseCurrentUser, authUpdates);
         }
         
-        const dbUpdates = {
-            name: updatedInfo.name || user.name,
-            avatarUrl: updatedInfo.avatarUrl || user.avatarUrl || null,
-        };
-        await update(ref(db, `users/${user.id}`), dbUpdates);
+        const dbUpdates: Partial<Pick<AppUser, 'name' | 'avatarUrl'>> = {};
+        if (updatedInfo.name) dbUpdates.name = updatedInfo.name;
+        if (updatedInfo.avatarUrl) dbUpdates.avatarUrl = updatedInfo.avatarUrl;
+
+
+        if (Object.keys(dbUpdates).length > 0) {
+          await update(ref(db, `users/${user.id}`), dbUpdates);
+        }
+        
 
         setUser(prevUser => {
           if (!prevUser) return null;
           return {
             ...prevUser,
-            name: dbUpdates.name,
-            avatarUrl: dbUpdates.avatarUrl || undefined,
+            name: updatedInfo.name || prevUser.name,
+            avatarUrl: updatedInfo.avatarUrl || prevUser.avatarUrl || undefined,
           };
         });
         toast({ title: "Perfil Atualizado!", description: "Suas informações foram salvas.", variant: "default", className: "bg-accent text-accent-foreground" });
       } catch (error) {
         console.error("Error updating user profile:", error);
         toast({ title: "Erro ao Atualizar", description: "Não foi possível salvar suas informações.", variant: "destructive" });
+        // Re-fetch from DB to ensure consistency on error? Or rely on onAuthStateChanged if it re-triggers.
+        // For now, let's keep it simple. The local state update is optimistic.
       } finally {
         setLoading(false);
       }
@@ -181,13 +222,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (user) {
       setLoading(true);
       const compositeId = `${editalId}_${cargoId}`;
-      const updatedRegisteredCargoIds = [...(user.registeredCargoIds || [])];
-      if (!updatedRegisteredCargoIds.includes(compositeId)) {
-        updatedRegisteredCargoIds.push(compositeId);
-      }
+      const updatedRegisteredCargoIds = Array.from(new Set([...(user.registeredCargoIds || []), compositeId]));
+      
       try {
-        await set(ref(db, `users/${user.id}/registeredCargoIds`), updatedRegisteredCargoIds);
-        setUser({ ...user, registeredCargoIds: updatedRegisteredCargoIds });
+        await update(ref(db, `users/${user.id}`), { registeredCargoIds: updatedRegisteredCargoIds });
+        setUser(prevUser => prevUser ? { ...prevUser, registeredCargoIds: updatedRegisteredCargoIds } : null);
       } catch (error) {
         console.error("Error registering for cargo:", error);
         toast({ title: "Erro na Inscrição", description: "Não foi possível salvar a inscrição no cargo.", variant: "destructive" });
@@ -203,8 +242,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const compositeId = `${editalId}_${cargoId}`;
       const updatedRegisteredCargoIds = (user.registeredCargoIds || []).filter(id => id !== compositeId);
       try {
-        await set(ref(db, `users/${user.id}/registeredCargoIds`), updatedRegisteredCargoIds);
-        setUser({ ...user, registeredCargoIds: updatedRegisteredCargoIds });
+        await update(ref(db, `users/${user.id}`), { registeredCargoIds: updatedRegisteredCargoIds });
+        setUser(prevUser => prevUser ? { ...prevUser, registeredCargoIds: updatedRegisteredCargoIds } : null);
       } catch (error) {
         console.error("Error unregistering from cargo:", error);
         toast({ title: "Erro ao Cancelar", description: "Não foi possível remover a inscrição do cargo.", variant: "destructive" });
@@ -225,8 +264,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         updatedStudiedTopicIds.push(compositeTopicId); 
       }
       try {
-        await set(ref(db, `users/${user.id}/studiedTopicIds`), updatedStudiedTopicIds);
-        setUser({ ...user, studiedTopicIds: updatedStudiedTopicIds });
+        await update(ref(db, `users/${user.id}`), { studiedTopicIds: updatedStudiedTopicIds });
+        setUser(prevUser => prevUser ? { ...prevUser, studiedTopicIds: updatedStudiedTopicIds } : null);
       } catch (error) {
         console.error("Error toggling topic study status:", error);
         toast({ title: "Erro ao Atualizar Status", description: "Não foi possível salvar o status do tópico.", variant: "destructive" });
@@ -246,8 +285,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       };
       const updatedStudyLogs = [...(user.studyLogs || []), newLog];
       try {
-        await set(ref(db, `users/${user.id}/studyLogs`), updatedStudyLogs);
-        setUser({ ...user, studyLogs: updatedStudyLogs });
+        await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
+        setUser(prevUser => prevUser ? { ...prevUser, studyLogs: updatedStudyLogs } : null);
       } catch (error) {
         console.error("Error adding study log:", error);
         toast({ title: "Erro ao Salvar Log", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
@@ -266,8 +305,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       };
       const updatedQuestionLogs = [...(user.questionLogs || []), newQuestionLog];
       try {
-        await set(ref(db, `users/${user.id}/questionLogs`), updatedQuestionLogs);
-        setUser({ ...user, questionLogs: updatedQuestionLogs });
+        await update(ref(db, `users/${user.id}`), { questionLogs: updatedQuestionLogs });
+        setUser(prevUser => prevUser ? { ...prevUser, questionLogs: updatedQuestionLogs } : null);
       } catch (error) {
         console.error("Error adding question log:", error);
         toast({ title: "Erro ao Salvar Desempenho", description: "Não foi possível salvar o registro de questões.", variant: "destructive" });
@@ -296,8 +335,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         updatedRevisionSchedules.push(newScheduleEntry);
       }
       try {
-        await set(ref(db, `users/${user.id}/revisionSchedules`), updatedRevisionSchedules);
-        setUser({ ...user, revisionSchedules: updatedRevisionSchedules });
+        await update(ref(db, `users/${user.id}`), { revisionSchedules: updatedRevisionSchedules });
+        setUser(prevUser => prevUser ? { ...prevUser, revisionSchedules: updatedRevisionSchedules } : null);
       } catch (error) {
         console.error("Error adding revision schedule:", error);
         toast({ title: "Erro ao Agendar Revisão", description: "Não foi possível salvar o agendamento.", variant: "destructive" });
@@ -321,8 +360,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           reviewedDate: !currentStatus ? new Date().toISOString() : null,
         };
         try {
-          await set(ref(db, `users/${user.id}/revisionSchedules`), updatedRevisionSchedules);
-          setUser({ ...user, revisionSchedules: updatedRevisionSchedules });
+          await update(ref(db, `users/${user.id}`), { revisionSchedules: updatedRevisionSchedules });
+          setUser(prevUser => prevUser ? { ...prevUser, revisionSchedules: updatedRevisionSchedules } : null);
         } catch (error) {
           console.error("Error toggling revision status:", error);
           toast({ title: "Erro ao Atualizar Revisão", description: "Não foi possível salvar o status da revisão.", variant: "destructive" });
