@@ -1,8 +1,8 @@
 
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-// import { getFirestore } from "firebase/firestore"; // Para usar Firestore no futuro
-// import { getAnalytics } from "firebase/analytics"; // Se você for usar o Analytics
+import { getDatabase, type Database } from "firebase/database"; // Importar para usar Realtime Database
+// import { getAnalytics } from "firebase/analytics"; // Se você for usar o Analytics (opcional)
 
 // Configuração do Firebase fornecida pelo usuário
 const firebaseConfig = {
@@ -11,13 +11,14 @@ const firebaseConfig = {
   projectId: "meuseditais",
   storageBucket: "meuseditais.firebasestorage.app", // Corrigido de .firebasestorage.app para .appspot.com se for o padrão, mas mantendo o fornecido pelo usuário. Firebase geralmente usa .appspot.com para storageBucket, mas se o console gerou .firebasestorage.app, usaremos isso.
   messagingSenderId: "801348002832",
+  databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/", // Adicionado o URL do Realtime Database
   appId: "1:801348002832:web:c1c2f89db9c807a09d9695",
   measurementId: "G-CK2H4TKG6C" // Opcional
 };
 
 let app: FirebaseApp;
 let auth: Auth;
-// let db; // Para Firestore
+let db: Database; // Variável para o Realtime Database
 // let analytics; // Para Firebase Analytics
 
 if (getApps().length === 0) {
@@ -31,6 +32,6 @@ if (getApps().length === 0) {
 }
 
 auth = getAuth(app);
-// db = getFirestore(app); // Para Firestore
+db = getDatabase(app); // Inicializar o Realtime Database
 
-export { app, auth /*, db, analytics */ };
+export { app, auth, db /*, analytics */ };

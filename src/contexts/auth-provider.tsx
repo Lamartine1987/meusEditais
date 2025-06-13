@@ -13,9 +13,12 @@ import {
   updateProfile,
   type User as FirebaseUser 
 } from 'firebase/auth';
-import { auth as firebaseAuthService } from '@/lib/firebase'; // Renomeado para evitar conflito
+import { auth as firebaseAuthService, db } from '@/lib/firebase'; // Import db from firebase
+import { ref, set, get, update, remove } from "firebase/database"; // Firebase Realtime Database functions
 import { addDays, formatISO } from 'date-fns';
-import { useRouter } from 'next/navigation'; // Para redirecionamento
+import { useRouter } from 'next/navigation'; 
+import { useToast } from '@/hooks/use-toast';
+
 
 interface AuthContextType {
   user: AppUser | null;
@@ -24,7 +27,7 @@ interface AuthContextType {
   register: (name: string, email: string, pass: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
-  updateUser: (updatedInfo: { name?: string; email?: string; avatarUrl?: string }) => Promise<void>; // Ajustado para Firebase
+  updateUser: (updatedInfo: { name?: string; email?: string; avatarUrl?: string }) => Promise<void>; 
   registerForCargo: (editalId: string, cargoId: string) => Promise<void>;
   unregisterFromCargo: (editalId: string, cargoId: string) => Promise<void>;
   toggleTopicStudyStatus: (compositeTopicId: string) => Promise<void>;
@@ -44,47 +47,85 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuthService, async (firebaseUser: FirebaseUser | null) => {
       setLoading(true);
       if (firebaseUser) {
-        // Usuário está logado via Firebase
-        // TODO: No futuro, aqui você buscaria os dados customizados do usuário (registeredCargoIds, etc.) do Firestore
-        // Por agora, inicializamos com valores padrão ou vazios para a estrutura do AppUser
-        const appUser: AppUser = {
-          id: firebaseUser.uid,
-          name: firebaseUser.displayName || 'Usuário',
-          email: firebaseUser.email || '',
-          avatarUrl: firebaseUser.photoURL || undefined,
-          registeredCargoIds: [], // Inicializa vazio, será populado do Firestore no futuro
-          studiedTopicIds: [],    // Inicializa vazio
-          studyLogs: [],          // Inicializa vazio
-          questionLogs: [],       // Inicializa vazio
-          revisionSchedules: [],  // Inicializa vazio
-        };
-        setUser(appUser);
+        // Fetch user-specific data from Realtime Database
+        const userRef = ref(db, `users/${firebaseUser.uid}`);
+        try {
+          const snapshot = await get(userRef);
+          const dbData = snapshot.exists() ? snapshot.val() : {};
+
+          const appUser: AppUser = {
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName || dbData.name || 'Usuário',
+            email: firebaseUser.email || dbData.email || '',
+            avatarUrl: firebaseUser.photoURL || dbData.avatarUrl || undefined,
+            registeredCargoIds: dbData.registeredCargoIds || [],
+            studiedTopicIds: dbData.studiedTopicIds || [],
+            studyLogs: dbData.studyLogs || [],
+            questionLogs: dbData.questionLogs || [],
+            revisionSchedules: dbData.revisionSchedules || [],
+          };
+          setUser(appUser);
+
+          // Save basic profile info if not in DB or different from Auth
+          if (!dbData.name || !dbData.email || dbData.name !== appUser.name || dbData.email !== appUser.email) {
+             await update(ref(db, `users/${firebaseUser.uid}`), {
+                name: appUser.name,
+                email: appUser.email,
+                avatarUrl: appUser.avatarUrl || null
+             });
+          }
+
+        } catch (error) {
+          console.error("Error fetching user data from RTDB:", error);
+          toast({ title: "Erro ao carregar dados", description: "Não foi possível buscar seus dados salvos.", variant: "destructive" });
+          // Fallback to basic user from Auth
+          setUser({
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName || 'Usuário',
+            email: firebaseUser.email || '',
+            avatarUrl: firebaseUser.photoURL || undefined,
+            registeredCargoIds: [],
+            studiedTopicIds: [],
+            studyLogs: [],
+            questionLogs: [],
+            revisionSchedules: [],
+          });
+        }
       } else {
-        // Usuário não está logado
         setUser(null);
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [toast]);
 
   const login = async (email: string, pass: string) => {
     setLoading(true);
     await signInWithEmailAndPassword(firebaseAuthService, email, pass);
-    // onAuthStateChanged cuidará de definir o usuário e setLoading(false)
   };
 
   const register = async (name: string, email: string, pass: string) => {
     setLoading(true);
     const userCredential = await createUserWithEmailAndPassword(firebaseAuthService, email, pass);
     await updateProfile(userCredential.user, { displayName: name });
-    // onAuthStateChanged cuidará de definir o usuário e setLoading(false)
+    // Save initial user data to Realtime Database
+    await set(ref(db, `users/${userCredential.user.uid}`), {
+      name: name,
+      email: email,
+      avatarUrl: null,
+      registeredCargoIds: [],
+      studiedTopicIds: [],
+      studyLogs: [],
+      questionLogs: [],
+      revisionSchedules: [],
+    });
   };
   
   const sendPasswordReset = async (email: string) => {
@@ -94,168 +135,198 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async () => {
     setLoading(true);
     await signOut(firebaseAuthService);
-    router.push('/login'); // Redireciona para login após logout
-    // onAuthStateChanged cuidará de definir o usuário como null e setLoading(false)
+    router.push('/login'); 
   };
   
   const updateUser = async (updatedInfo: { name?: string; email?: string; avatarUrl?: string }) => {
-    const currentUser = firebaseAuthService.currentUser;
-    if (currentUser) {
+    const firebaseCurrentUser = firebaseAuthService.currentUser;
+    if (firebaseCurrentUser && user) {
       setLoading(true);
-      if (updatedInfo.name || updatedInfo.avatarUrl) {
-        await updateProfile(currentUser, {
-          displayName: updatedInfo.name || currentUser.displayName,
-          photoURL: updatedInfo.avatarUrl || currentUser.photoURL,
-        });
-      }
-      // A atualização de e-mail é mais complexa e pode exigir reautenticação, omitida por simplicidade agora.
-      // Se você implementar, use `updateEmail(currentUser, updatedInfo.email)`.
-
-      // Atualiza o estado local do usuário para refletir imediatamente as mudanças
-      setUser(prevUser => {
-        if (!prevUser) return null;
-        return {
-          ...prevUser,
-          name: updatedInfo.name || prevUser.name,
-          avatarUrl: updatedInfo.avatarUrl || prevUser.avatarUrl,
+      try {
+        const authUpdates: { displayName?: string; photoURL?: string | null } = {};
+        if (updatedInfo.name) authUpdates.displayName = updatedInfo.name;
+        if (updatedInfo.avatarUrl) authUpdates.photoURL = updatedInfo.avatarUrl;
+        
+        if (Object.keys(authUpdates).length > 0) {
+          await updateProfile(firebaseCurrentUser, authUpdates);
+        }
+        
+        const dbUpdates = {
+            name: updatedInfo.name || user.name,
+            avatarUrl: updatedInfo.avatarUrl || user.avatarUrl || null,
         };
-      });
-      setLoading(false);
+        await update(ref(db, `users/${user.id}`), dbUpdates);
+
+        setUser(prevUser => {
+          if (!prevUser) return null;
+          return {
+            ...prevUser,
+            name: dbUpdates.name,
+            avatarUrl: dbUpdates.avatarUrl || undefined,
+          };
+        });
+        toast({ title: "Perfil Atualizado!", description: "Suas informações foram salvas.", variant: "default", className: "bg-accent text-accent-foreground" });
+      } catch (error) {
+        console.error("Error updating user profile:", error);
+        toast({ title: "Erro ao Atualizar", description: "Não foi possível salvar suas informações.", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
     } else {
       throw new Error("Nenhum usuário logado para atualizar.");
     }
   };
 
-  // Funções de dados específicos da aplicação (registeredCargoIds, studyLogs, etc.)
-  // ATENÇÃO: Estas funções agora operam sobre um estado 'user' que é reinicializado no login/logout.
-  // A persistência real desses dados deve ser feita no Firestore ou similar, associada ao user.id (Firebase UID).
-  // Por agora, elas modificarão o estado local do `user` que não persistirá entre sessões de forma robusta sem Firestore.
-
   const registerForCargo = async (editalId: string, cargoId: string) => {
     if (user) {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 100)); // Simula async
       const compositeId = `${editalId}_${cargoId}`;
-      const registeredCargoIds = [...(user.registeredCargoIds || [])];
-      if (!registeredCargoIds.includes(compositeId)) {
-        registeredCargoIds.push(compositeId);
+      const updatedRegisteredCargoIds = [...(user.registeredCargoIds || [])];
+      if (!updatedRegisteredCargoIds.includes(compositeId)) {
+        updatedRegisteredCargoIds.push(compositeId);
       }
-      const updatedUser = { ...user, registeredCargoIds };
-      setUser(updatedUser);
-      // TODO: Salvar 'updatedUser.registeredCargoIds' no Firestore para o 'user.id'
-      setLoading(false);
+      try {
+        await set(ref(db, `users/${user.id}/registeredCargoIds`), updatedRegisteredCargoIds);
+        setUser({ ...user, registeredCargoIds: updatedRegisteredCargoIds });
+      } catch (error) {
+        console.error("Error registering for cargo:", error);
+        toast({ title: "Erro na Inscrição", description: "Não foi possível salvar a inscrição no cargo.", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
   const unregisterFromCargo = async (editalId: string, cargoId: string) => {
     if (user) {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 100));
       const compositeId = `${editalId}_${cargoId}`;
-      const registeredCargoIds = (user.registeredCargoIds || []).filter(id => id !== compositeId);
-      const updatedUser = { ...user, registeredCargoIds };
-      setUser(updatedUser);
-      // TODO: Salvar 'updatedUser.registeredCargoIds' no Firestore
-      setLoading(false);
+      const updatedRegisteredCargoIds = (user.registeredCargoIds || []).filter(id => id !== compositeId);
+      try {
+        await set(ref(db, `users/${user.id}/registeredCargoIds`), updatedRegisteredCargoIds);
+        setUser({ ...user, registeredCargoIds: updatedRegisteredCargoIds });
+      } catch (error) {
+        console.error("Error unregistering from cargo:", error);
+        toast({ title: "Erro ao Cancelar", description: "Não foi possível remover a inscrição do cargo.", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
   const toggleTopicStudyStatus = async (compositeTopicId: string) => {
     if (user) {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      let studiedTopicIds = [...(user.studiedTopicIds || [])];
-      const topicIndex = studiedTopicIds.indexOf(compositeTopicId);
+      let updatedStudiedTopicIds = [...(user.studiedTopicIds || [])];
+      const topicIndex = updatedStudiedTopicIds.indexOf(compositeTopicId);
       if (topicIndex > -1) {
-        studiedTopicIds.splice(topicIndex, 1); 
+        updatedStudiedTopicIds.splice(topicIndex, 1); 
       } else {
-        studiedTopicIds.push(compositeTopicId); 
+        updatedStudiedTopicIds.push(compositeTopicId); 
       }
-      const updatedUser = { ...user, studiedTopicIds };
-      setUser(updatedUser);
-      // TODO: Salvar 'updatedUser.studiedTopicIds' no Firestore
-      setLoading(false);
+      try {
+        await set(ref(db, `users/${user.id}/studiedTopicIds`), updatedStudiedTopicIds);
+        setUser({ ...user, studiedTopicIds: updatedStudiedTopicIds });
+      } catch (error) {
+        console.error("Error toggling topic study status:", error);
+        toast({ title: "Erro ao Atualizar Status", description: "Não foi possível salvar o status do tópico.", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
   const addStudyLog = async (compositeTopicId: string, duration: number) => {
     if (user) {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
       const newLog: StudyLogEntry = {
         compositeTopicId,
         date: new Date().toISOString(),
         duration,
       };
-      const studyLogs = [...(user.studyLogs || []), newLog];
-      const updatedUser = { ...user, studyLogs };
-      setUser(updatedUser);
-      // TODO: Salvar 'updatedUser.studyLogs' no Firestore
-      setLoading(false);
+      const updatedStudyLogs = [...(user.studyLogs || []), newLog];
+      try {
+        await set(ref(db, `users/${user.id}/studyLogs`), updatedStudyLogs);
+        setUser({ ...user, studyLogs: updatedStudyLogs });
+      } catch (error) {
+        console.error("Error adding study log:", error);
+        toast({ title: "Erro ao Salvar Log", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
   const addQuestionLog = async (logEntryData: Omit<QuestionLogEntry, 'date'>) => {
     if (user) {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
       const newQuestionLog: QuestionLogEntry = {
         ...logEntryData,
         date: new Date().toISOString(),
       };
-      const questionLogs = [...(user.questionLogs || []), newQuestionLog];
-      const updatedUser = { ...user, questionLogs };
-      setUser(updatedUser);
-      // TODO: Salvar 'updatedUser.questionLogs' no Firestore
-      setLoading(false);
+      const updatedQuestionLogs = [...(user.questionLogs || []), newQuestionLog];
+      try {
+        await set(ref(db, `users/${user.id}/questionLogs`), updatedQuestionLogs);
+        setUser({ ...user, questionLogs: updatedQuestionLogs });
+      } catch (error) {
+        console.error("Error adding question log:", error);
+        toast({ title: "Erro ao Salvar Desempenho", description: "Não foi possível salvar o registro de questões.", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
   const addRevisionSchedule = async (compositeTopicId: string, daysToReview: number) => {
     if (user) {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
       const scheduledDate = formatISO(addDays(new Date(), daysToReview));
-      let revisionSchedules = [...(user.revisionSchedules || [])];
-      const existingScheduleIndex = revisionSchedules.findIndex(rs => rs.compositeTopicId === compositeTopicId);
+      let updatedRevisionSchedules = [...(user.revisionSchedules || [])];
+      const existingScheduleIndex = updatedRevisionSchedules.findIndex(rs => rs.compositeTopicId === compositeTopicId);
+      const newScheduleEntry: RevisionScheduleEntry = {
+        compositeTopicId,
+        scheduledDate,
+        isReviewed: false,
+        reviewedDate: null,
+      };
+
       if (existingScheduleIndex > -1) {
-        revisionSchedules[existingScheduleIndex] = {
-          ...revisionSchedules[existingScheduleIndex],
-          scheduledDate,
-          isReviewed: false,
-          reviewedDate: null,
-        };
+        updatedRevisionSchedules[existingScheduleIndex] = newScheduleEntry;
       } else {
-        revisionSchedules.push({
-          compositeTopicId,
-          scheduledDate,
-          isReviewed: false,
-          reviewedDate: null,
-        });
+        updatedRevisionSchedules.push(newScheduleEntry);
       }
-      const updatedUser = { ...user, revisionSchedules };
-      setUser(updatedUser);
-      // TODO: Salvar 'updatedUser.revisionSchedules' no Firestore
-      setLoading(false);
+      try {
+        await set(ref(db, `users/${user.id}/revisionSchedules`), updatedRevisionSchedules);
+        setUser({ ...user, revisionSchedules: updatedRevisionSchedules });
+      } catch (error) {
+        console.error("Error adding revision schedule:", error);
+        toast({ title: "Erro ao Agendar Revisão", description: "Não foi possível salvar o agendamento.", variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
   const toggleRevisionReviewedStatus = async (compositeTopicId: string) => {
      if (user) {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 50));
-      let revisionSchedules = [...(user.revisionSchedules || [])];
-      const scheduleIndex = revisionSchedules.findIndex(rs => rs.compositeTopicId === compositeTopicId);
+      let updatedRevisionSchedules = [...(user.revisionSchedules || [])];
+      const scheduleIndex = updatedRevisionSchedules.findIndex(rs => rs.compositeTopicId === compositeTopicId);
+      
       if (scheduleIndex > -1) {
-        const currentStatus = revisionSchedules[scheduleIndex].isReviewed;
-        revisionSchedules[scheduleIndex] = {
-          ...revisionSchedules[scheduleIndex],
+        const currentStatus = updatedRevisionSchedules[scheduleIndex].isReviewed;
+        updatedRevisionSchedules[scheduleIndex] = {
+          ...updatedRevisionSchedules[scheduleIndex],
           isReviewed: !currentStatus,
           reviewedDate: !currentStatus ? new Date().toISOString() : null,
         };
-        const updatedUser = { ...user, revisionSchedules };
-        setUser(updatedUser);
-        // TODO: Salvar 'updatedUser.revisionSchedules' no Firestore
+        try {
+          await set(ref(db, `users/${user.id}/revisionSchedules`), updatedRevisionSchedules);
+          setUser({ ...user, revisionSchedules: updatedRevisionSchedules });
+        } catch (error) {
+          console.error("Error toggling revision status:", error);
+          toast({ title: "Erro ao Atualizar Revisão", description: "Não foi possível salvar o status da revisão.", variant: "destructive" });
+        }
       }
       setLoading(false);
     }
