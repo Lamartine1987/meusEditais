@@ -6,9 +6,8 @@ import Stripe from 'stripe';
 
 // NOTA: A chave secreta do Stripe NUNCA deve ser exposta no frontend.
 // Ela é lida aqui a partir das variáveis de ambiente do servidor.
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20', 
-});
+// Certifique-se de ter STRIPE_SECRET_KEY definido no seu arquivo .env.local (para desenvolvimento)
+// ou nas configurações de ambiente do seu servidor de produção.
 
 interface CreateCheckoutSessionArgs {
   planId: PlanId;
@@ -40,6 +39,9 @@ export async function createCheckoutSession(
     return { success: false, error: "Configuração da URL da aplicação incompleta." };
   }
 
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: '2024-06-20', 
+  });
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
   try {
@@ -117,16 +119,17 @@ export async function createCheckoutSession(
   }
 }
 
-// --- Webhook Handling (Crucial Next Step - Not Implemented Here) ---
+// --- Webhook Handling (Crucial Next Step) ---
 // Você precisará de um endpoint de webhook (ex: /api/webhooks/stripe/route.ts)
 // para receber notificações do Stripe sobre o status do pagamento.
-//
+// Isso é ESSENCIAL para confirmar o pagamento e ATIVAR O PLANO do usuário no seu banco de dados.
+// 
 // Exemplo de como seria a estrutura do webhook:
 //
 // import { headers } from 'next/headers';
 // import { buffer } from 'node:stream/consumers';
-// // import { stripe } from '@/lib/stripe'; // Sua instância do Stripe
-// // import { subscribeUserToPlan } from '@/path/to/your/subscriptionLogic'; // Função para atualizar o DB
+// // import { stripe } from '@/lib/stripe'; // Sua instância do Stripe, já configurada em payment-actions.ts
+// // import { AuthContext } from '@/contexts/auth-provider'; // Ou uma função de serviço separada
 //
 // export async function POST(req: Request) {
 //   const body = await buffer(req.body!);
@@ -136,9 +139,11 @@ export async function createCheckoutSession(
 //   let event: Stripe.Event;
 //
 //   try {
-//     event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
+//     // Stripe.webhooks.constructEvent precisa da instância do Stripe que foi inicializada com a API Key
+//     const stripeForWebhook = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' });
+//     event = stripeForWebhook.webhooks.constructEvent(body, sig, webhookSecret);
 //   } catch (err: any) {
-//     console.error(`Webhook signature verification failed: ${err.message}`);
+//     console.error(\`Webhook signature verification failed: \${err.message}\`);
 //     return new Response(\`Webhook Error: \${err.message}\`, { status: 400 });
 //   }
 //
@@ -146,27 +151,24 @@ export async function createCheckoutSession(
 //   switch (event.type) {
 //     case 'checkout.session.completed':
 //       const session = event.data.object as Stripe.Checkout.Session;
-//       // Retrieve userId and planId from metadata
 //       const userId = session.metadata?.userId;
 //       const planId = session.metadata?.planId as PlanId | undefined;
+//       const selectedCargoCompositeId = session.metadata?.selectedCargoCompositeId; // Se você passou
+//       const selectedEditalId = session.metadata?.selectedEditalId; // Se você passou
 //
 //       if (userId && planId && session.payment_status === 'paid') {
-//         // Chame a função para atualizar o plano do usuário no seu banco de dados
-//         // Exemplo: await subscribeUserToPlan(userId, planId, {
-//         //   startDate: new Date().toISOString(),
-//         //   expiryDate: calculateExpiryDate(new Date(), planId), // Implementar calculateExpiryDate
-//         //   selectedCargoCompositeId: planId === 'plano_cargo' ? session.metadata.selectedCargoCompositeId : undefined,
-//         //   selectedEditalId: planId === 'plano_edital' ? session.metadata.selectedEditalId : undefined,
-//         // });
 //         console.log(\`Pagamento bem-sucedido para usuário \${userId}, plano \${planId}. Ativar plano.\`);
-//         // Lógica para registrar que o plano foi pago e ativar os recursos para o usuário.
-//         // Isso envolveria chamar a função \`subscribeToPlan\` do seu AuthProvider
-//         // (ou uma versão dela adaptada para ser chamada pelo backend)
-//         // Certifique-se de que sua função subscribeToPlan possa ser chamada aqui,
-//         // ou crie uma nova função de backend para lidar com a atualização do plano.
+//         // AQUI você chamaria a lógica para ATIVAR O PLANO no seu Firebase Realtime Database
+//         // Isso envolveria uma função similar à 'subscribeToPlan' do AuthProvider,
+//         // mas adaptada para ser chamada pelo backend/webhook e interagir diretamente com o Firebase DB.
+//         // Exemplo:
+//         // await activateUserPlanInDB(userId, planId, {
+//         //   selectedCargoCompositeId: planId === 'plano_cargo' ? selectedCargoCompositeId : undefined,
+//         //   selectedEditalId: planId === 'plano_edital' ? selectedEditalId : undefined,
+//         // });
 //       }
 //       break;
-//     // ... handle other event types
+//     // ... handle other event types como 'invoice.payment_succeeded' se usar assinaturas recorrentes
 //     default:
 //       console.log(\`Unhandled event type \${event.type}\`);
 //   }
@@ -174,10 +176,24 @@ export async function createCheckoutSession(
 //   return new Response(null, { status: 200 });
 // }
 //
+// Para a função activateUserPlanInDB (exemplo):
+// async function activateUserPlanInDB(userId: string, planId: PlanId, details: { selectedCargoCompositeId?: string; selectedEditalId?: string }) {
+//   // Lógica para buscar o usuário no DB, atualizar activePlan e planDetails
+//   // similar ao que subscribeToPlan faz, mas diretamente no DB.
+//   // Ex:
+//   // const userRef = ref(db, \`users/\${userId}\`);
+//   // const now = new Date();
+//   // const newPlanDetails = {
+//   //   planId,
+//   //   startDate: formatISO(now),
+//   //   expiryDate: formatISO(addDays(now, 365)), // ou 7 dias conforme o plano
+//   //   ...details
+//   // };
+//   // await update(userRef, { activePlan: planId, planDetails: newPlanDetails });
+// }
+//
 // Você precisaria adicionar essa rota no seu \`src/app/api/webhooks/stripe/route.ts\` (ou similar)
-// e configurar o endpoint no seu dashboard do Stripe.
-// A função \`subscribeToPlan\` do AuthProvider precisaria ser adaptada ou uma nova função
-// criada para ser chamada pelo webhook para atualizar o banco de dados do Firebase.
-// Também será necessário um \`STRIPE_WEBHOOK_SECRET\` em suas variáveis de ambiente.
+// e configurar o endpoint no seu dashboard do Stripe, além de um \`STRIPE_WEBHOOK_SECRET\`
+// em suas variáveis de ambiente.
     
     
