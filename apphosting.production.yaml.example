@@ -12,10 +12,7 @@
 # https://firebase.google.com/docs/app-hosting/configure#service-account
 # serviceAccount: backend-runner
 
-# As configurações para executar seu backend em resposta a solicitações.
-# https://firebase.google.com/docs/app-hosting/configure#runconfig
 runConfig:
-
   # Você pode adicionar ou sobrescrever configurações de runConfig aqui,
   # como maxInstances, se necessário para o ambiente de produção.
   # Se não especificadas, as de apphosting.yaml serão usadas.
@@ -59,9 +56,11 @@ runConfig:
   # O tempo máximo que uma instância tem para responder a uma solicitação.
   # timeoutSeconds: 60
 
-# Configurações para controlar como o tráfego de entrada atinge seu backend.
-# https://firebase.google.com/docs/app-hosting/configure#ingresssettings
-ingressSettings: ALLOW_ALL
+    # Segredo do endpoint do Webhook do Stripe para PRODUÇÃO.
+    # Obtenha este valor do seu Stripe Dashboard após criar o endpoint.
+    # ATENÇÃO: Armazene este valor no Google Cloud Secret Manager.
+    # Substitua STRIPE_WEBHOOK_SECRET_PROD pelo nome do segredo que você criou no Secret Manager.
+    STRIPE_WEBHOOK_SECRET: "secret:STRIPE_WEBHOOK_SECRET_PROD"
 
 
 # Variáveis de ambiente disponíveis para o seu backend.
