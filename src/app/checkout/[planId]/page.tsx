@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
@@ -37,15 +37,15 @@ const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
   plano_anual: {
     id: 'plano_anual',
     name: "Plano Anual",
-    price: "R$ 39,99/ano",
+    price: "R$ 39,99/ano", // Corrected price
     description: "Acesso a todos os cargos de todos os editais da plataforma. Liberdade total para explorar e se preparar para múltiplos concursos. Todas as funcionalidades premium e atualizações futuras."
   }
 };
 
-
-export default function CheckoutPage() {
+function CheckoutPageContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, subscribeToPlan, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
@@ -60,17 +60,8 @@ export default function CheckoutPage() {
       setSelectedPlanDetails(planDetails);
       setIsValidPlan(true);
 
-      // Redirecionar para a página de planos se o plano for Cargo ou Edital,
-      // pois eles devem ser assinados via seleção de item específico.
-      if (planIdParam === 'plano_cargo' || planIdParam === 'plano_edital') {
-        toast({
-          title: "Seleção Específica Necessária",
-          description: `Para o ${planDetails.name}, a seleção deve ser feita na página do edital/cargo. Redirecionando...`,
-          variant: "default",
-          duration: 5000,
-        });
-        router.push('/planos');
-      }
+      // Removed automatic redirect for plano_cargo and plano_edital as user arrives here after selection.
+      // Validation for required query params will happen before payment simulation.
 
     } else {
       setIsValidPlan(false);
@@ -78,29 +69,66 @@ export default function CheckoutPage() {
   }, [planIdParam, router, toast]);
 
   useEffect(() => {
-    // Redireciona para login se não houver usuário após o carregamento inicial
     if (!authLoading && !user) {
       toast({ title: "Login Necessário", description: "Você precisa estar logado para acessar o checkout.", variant: "destructive" });
-      router.push('/login?redirect=/checkout/' + planIdParam);
+      let redirectPath = `/checkout/${planIdParam}`;
+      const cargoId = searchParams.get('selectedCargoCompositeId');
+      const editalId = searchParams.get('selectedEditalId');
+      if (cargoId) redirectPath += `?selectedCargoCompositeId=${cargoId}`;
+      if (editalId) redirectPath += `?selectedEditalId=${editalId}`;
+      router.push(`/login?redirect=${encodeURIComponent(redirectPath)}`);
     }
-  }, [user, authLoading, router, toast, planIdParam]);
+  }, [user, authLoading, router, toast, planIdParam, searchParams]);
 
   const handleSimulatedPayment = async () => {
     if (!user || !selectedPlanDetails) return;
+
+    let specificCheckoutDetails: { selectedCargoCompositeId?: string; selectedEditalId?: string } = {};
+
+    if (selectedPlanDetails.id === 'plano_cargo') {
+        const cargoCompositeId = searchParams.get('selectedCargoCompositeId');
+        if (!cargoCompositeId) {
+            toast({ title: "Seleção Incompleta", description: "O cargo específico não foi selecionado. Por favor, volte e selecione um cargo.", variant: "destructive", duration: 7000 });
+            router.push('/planos');
+            return;
+        }
+        specificCheckoutDetails.selectedCargoCompositeId = cargoCompositeId;
+    } else if (selectedPlanDetails.id === 'plano_edital') {
+        const editalId = searchParams.get('selectedEditalId');
+        if (!editalId) {
+            toast({ title: "Seleção Incompleta", description: "O edital específico não foi selecionado. Por favor, volte e selecione um edital.", variant: "destructive", duration: 7000 });
+            router.push('/planos');
+            return;
+        }
+        specificCheckoutDetails.selectedEditalId = editalId;
+    }
 
     if (user.activePlan && user.activePlan !== selectedPlanDetails.id) {
        toast({ title: "Plano Existente", description: `Você já possui o plano ${planDisplayMap[user.activePlan].name} ativo. Cancele-o em seu perfil antes de assinar um novo.`, variant: "default", duration: 7000 });
       return;
     }
+    // Check if user has the same specific plan already
     if (user.activePlan && user.activePlan === selectedPlanDetails.id) {
-        toast({ title: "Plano Já Ativo", description: `Você já está inscrito no ${selectedPlanDetails.name}.`, variant: "default" });
-        router.push('/perfil');
-        return;
+        let alreadyHasThisSpecificPlan = false;
+        if (planIdParam === 'plano_anual') {
+            alreadyHasThisSpecificPlan = true; // For annual, just checking planId is enough
+        } else if (planIdParam === 'plano_cargo' && user.planDetails?.selectedCargoCompositeId === specificCheckoutDetails.selectedCargoCompositeId) {
+            alreadyHasThisSpecificPlan = true;
+        } else if (planIdParam === 'plano_edital' && user.planDetails?.selectedEditalId === specificCheckoutDetails.selectedEditalId) {
+            alreadyHasThisSpecificPlan = true;
+        }
+
+        if (alreadyHasThisSpecificPlan) {
+            toast({ title: "Plano Já Ativo", description: `Você já está inscrito no ${selectedPlanDetails.name}${planIdParam !== 'plano_anual' ? ' para este item específico' : ''}.`, variant: "default" });
+            router.push('/perfil');
+            return;
+        }
     }
+
 
     setIsSubscribing(true);
     try {
-      await subscribeToPlan(selectedPlanDetails.id);
+      await subscribeToPlan(selectedPlanDetails.id, specificCheckoutDetails);
       // O subscribeToPlan já lida com o toast de sucesso e redirecionamento para /perfil
     } catch (error: any) {
       toast({ title: "Erro na Assinatura", description: error.message || "Não foi possível concluir a assinatura.", variant: "destructive" });
@@ -109,7 +137,9 @@ export default function CheckoutPage() {
     }
   };
 
-  if (authLoading || (!isValidPlan && !selectedPlanDetails)) {
+  if (authLoading || (!isValidPlan && !selectedPlanDetails) || (planIdParam !== 'plano_anual' && !searchParams.get('selectedCargoCompositeId') && !searchParams.get('selectedEditalId') && !selectedPlanDetails)) {
+     // Added check for query params for cargo/edital plans if details not yet loaded.
+     // This avoids premature rendering of "Invalid Plan" if query params are still being processed.
     return (
       <PageWrapper>
         <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]">
@@ -143,7 +173,6 @@ export default function CheckoutPage() {
   }
   
   if (!user || !selectedPlanDetails) {
-     // Este estado não deve ser alcançado devido aos useEffects, mas é um fallback.
     return (
       <PageWrapper>
         <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]">
@@ -152,6 +181,19 @@ export default function CheckoutPage() {
       </PageWrapper>
     );
   }
+  
+  // Additional check: for cargo/edital plans, ensure the specific ID is present in query params.
+  if (selectedPlanDetails.id === 'plano_cargo' && !searchParams.get('selectedCargoCompositeId')) {
+    toast({ title: "Seleção Necessária", description: "Por favor, selecione um cargo na página de planos.", variant: "destructive" });
+    router.push('/planos');
+    return <PageWrapper><Loader2 className="h-12 w-12 animate-spin text-primary m-auto" /></PageWrapper>; // Show loader during redirect
+  }
+  if (selectedPlanDetails.id === 'plano_edital' && !searchParams.get('selectedEditalId')) {
+    toast({ title: "Seleção Necessária", description: "Por favor, selecione um edital na página de planos.", variant: "destructive" });
+    router.push('/planos');
+    return <PageWrapper><Loader2 className="h-12 w-12 animate-spin text-primary m-auto" /></PageWrapper>; // Show loader during redirect
+  }
+
 
   return (
     <PageWrapper>
@@ -170,7 +212,7 @@ export default function CheckoutPage() {
           description={`Você está prestes a assinar o ${selectedPlanDetails.name}.`}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-1 gap-8"> {/* Alterado para 1 coluna */}
+        <div className="grid grid-cols-1 md:grid-cols-1 gap-8">
           <Card className="shadow-xl rounded-xl bg-card">
             <CardHeader className="border-b pb-6">
               <div className="flex items-center justify-between">
@@ -189,6 +231,12 @@ export default function CheckoutPage() {
                   <span className="text-muted-foreground">{selectedPlanDetails.name}</span>
                   <span className="font-semibold">{selectedPlanDetails.price}</span>
                 </div>
+                 {selectedPlanDetails.id === 'plano_cargo' && searchParams.get('selectedCargoCompositeId') && (
+                  <p className="text-sm text-muted-foreground pt-1">Cargo ID: {searchParams.get('selectedCargoCompositeId')}</p>
+                )}
+                {selectedPlanDetails.id === 'plano_edital' && searchParams.get('selectedEditalId') && (
+                  <p className="text-sm text-muted-foreground pt-1">Edital ID: {searchParams.get('selectedEditalId')}</p>
+                )}
                 <div className="flex justify-between items-center py-3 font-bold text-lg">
                   <span>Total</span>
                   <span>{selectedPlanDetails.price}</span>
@@ -229,4 +277,19 @@ export default function CheckoutPage() {
       </div>
     </PageWrapper>
   );
+}
+
+// Wrap with Suspense because useSearchParams() needs it
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={
+      <PageWrapper>
+        <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+      </PageWrapper>
+    }>
+      <CheckoutPageContent />
+    </Suspense>
+  )
 }

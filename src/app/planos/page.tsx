@@ -9,9 +9,15 @@ import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, ArrowRight } from '
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { useState } from 'react';
-import type { PlanId } from '@/types';
+import { useState, useMemo, useEffect } from 'react';
+import type { PlanId, Edital as EditalType, Cargo as CargoType } from '@/types';
 import { useRouter } from 'next/navigation';
+import { mockEditais } from '@/lib/mock-data';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from '@/components/ui/separator';
 
 const PlanFeature = ({ children }: { children: React.ReactNode }) => (
   <li className="flex items-start">
@@ -20,51 +26,97 @@ const PlanFeature = ({ children }: { children: React.ReactNode }) => (
   </li>
 );
 
+interface FlattenedCargo {
+  id: string; // compositeId: editalId_cargoId
+  name: string;
+  editalTitle: string;
+}
+
 export default function PlanosPage() {
-  const { user, loading: authLoading } = useAuth(); // subscribeToPlan foi removido daqui
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
-  const [isLoadingPlan, setIsLoadingPlan] = useState<PlanId | null>(null);
 
-  const handleSelectPlan = async (planId: PlanId) => {
+  const [allEditaisData, setAllEditaisData] = useState<EditalType[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalPlanType, setModalPlanType] = useState<'cargo' | 'edital' | null>(null);
+  const [selectedItemInModal, setSelectedItemInModal] = useState<string | null>(null);
+  const [isProcessingModalSelection, setIsProcessingModalSelection] = useState(false);
+
+  useEffect(() => {
+    // Simulate fetching editais data if needed, or just use mock
+    setAllEditaisData(mockEditais);
+  }, []);
+
+  const allFlattenedCargos = useMemo((): FlattenedCargo[] => {
+    if (!allEditaisData.length) return [];
+    return allEditaisData.reduce((acc, edital) => {
+      edital.cargos?.forEach(cargo => {
+        acc.push({
+          id: `${edital.id}_${cargo.id}`, // compositeId
+          name: cargo.name,
+          editalTitle: edital.title,
+        });
+      });
+      return acc;
+    }, [] as FlattenedCargo[]);
+  }, [allEditaisData]);
+
+  const allSelectableEditais = useMemo(() => allEditaisData, [allEditaisData]);
+
+
+  const handleOpenSelectionModal = (planType: 'cargo' | 'edital') => {
     if (!user) {
       toast({ title: "Login Necessário", description: "Você precisa estar logado para selecionar um plano.", variant: "destructive" });
-      router.push('/login');
+      router.push('/login?redirect=/planos');
       return;
     }
-
-    if (user.activePlan && user.activePlan !== planId) {
-      toast({ title: "Plano Existente", description: `Você já possui o ${user.activePlan} ativo. Cancele-o em seu perfil antes de assinar um novo.`, variant: "default", duration: 7000 });
+     if (user.activePlan && user.activePlan !== planType && user.activePlan === 'plano_anual') {
+       toast({ title: "Plano Anual Ativo", description: "Você já possui o Plano Anual, que dá acesso a tudo. Não é necessário assinar um plano inferior.", variant: "default", duration: 7000 });
       return;
     }
-     if (user.activePlan && user.activePlan === planId) {
-      toast({ title: "Plano Já Ativo", description: `Você já está inscrito no plano ${planId === 'plano_cargo' ? 'Cargo' : planId === 'plano_edital' ? 'Edital' : 'Anual'}.`, variant: "default" });
+    // Simplificando: se já tem um plano de cargo/edital, e tenta outro, vamos permitir o fluxo. O backend/checkout decidiria.
+    // Ou, se o plano ATUAL é o mesmo tipo do que ele está tentando selecionar (ex: tem plano_cargo, e clica em plano_cargo de novo)
+    // E o `user.planDetails?.planId === planType`, então ele já tem esse TIPO de plano.
+    // Poderíamos informá-lo, mas o modal ainda permite escolher um item específico.
+    // A lógica de "já tem esse plano" será tratada na página de checkout com mais detalhes.
+
+    setModalPlanType(planType);
+    setSelectedItemInModal(null); // Reset selection
+    setIsModalOpen(true);
+  };
+
+  const handleModalSelectionAndCheckout = () => {
+    if (!selectedItemInModal || !modalPlanType) return;
+    setIsProcessingModalSelection(true);
+
+    let redirectUrl = '';
+    if (modalPlanType === 'cargo') {
+      redirectUrl = `/checkout/plano_cargo?selectedCargoCompositeId=${selectedItemInModal}`;
+    } else if (modalPlanType === 'edital') {
+      redirectUrl = `/checkout/plano_edital?selectedEditalId=${selectedItemInModal}`;
+    }
+
+    if (redirectUrl) {
+      router.push(redirectUrl);
+    }
+    // setIsModalOpen(false); // Checkout page will handle next steps, modal can close
+    // setIsProcessingModalSelection(false); // Handled by page navigation
+  };
+
+  const handleSelectAnualPlan = () => {
+     if (!user) {
+      toast({ title: "Login Necessário", description: "Você precisa estar logado para selecionar um plano.", variant: "destructive" });
+      router.push('/login?redirect=/planos');
       return;
     }
-
-
-    setIsLoadingPlan(planId);
-
-    if (planId === 'plano_anual') {
-      router.push(`/checkout/${planId}`);
-    } else if (planId === 'plano_cargo') {
-      toast({ 
-          title: "Seleção de Cargo Necessária", 
-          description: "Para assinar o Plano Cargo, por favor, inscreva-se no cargo desejado na página de detalhes do edital.",
-          variant: "default",
-          duration: 10000,
-      });
-      setIsLoadingPlan(null);
-    } else if (planId === 'plano_edital') {
-         toast({ 
-          title: "Seleção de Edital Necessária", 
-          description: "Para assinar o Plano Edital, por favor, escolha o edital desejado e selecione a opção de assinatura na página de detalhes do edital (funcionalidade em desenvolvimento).",
-          variant: "default",
-          duration: 10000,
-      });
-      setIsLoadingPlan(null);
+     if (user.activePlan && user.activePlan === 'plano_anual') {
+        toast({ title: "Plano Já Ativo", description: `Você já está inscrito no Plano Anual.`, variant: "default" });
+        return;
     }
-    // setIsLoadingPlan(null) será chamado na página de checkout ou após o toast para cargo/edital.
+    // Se ele tem plano_cargo ou plano_edital e quer o anual, isso é um upgrade, permitido.
+    // A página de checkout pode lidar com a lógica de "já tem um plano inferior".
+    router.push('/checkout/plano_anual');
   };
 
 
@@ -99,11 +151,11 @@ export default function PlanosPage() {
               <Button 
                 size="lg" 
                 className="w-full text-base" 
-                onClick={() => handleSelectPlan('plano_cargo')}
-                disabled={authLoading || isLoadingPlan === 'plano_cargo'}
+                onClick={() => handleOpenSelectionModal('cargo')}
+                disabled={authLoading}
                 variant="outline"
               >
-                {authLoading && isLoadingPlan === 'plano_cargo' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
+                {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
                 Selecionar Cargo
               </Button>
             </CardFooter>
@@ -136,11 +188,11 @@ export default function PlanosPage() {
                <Button 
                 size="lg" 
                 className="w-full text-base" 
-                onClick={() => handleSelectPlan('plano_edital')}
-                disabled={authLoading || isLoadingPlan === 'plano_edital'}
+                onClick={() => handleOpenSelectionModal('edital')}
+                disabled={authLoading}
                 variant="outline"
               >
-                 {authLoading && isLoadingPlan === 'plano_edital' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
+                 {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
                 Selecionar Edital
               </Button>
             </CardFooter>
@@ -168,22 +220,101 @@ export default function PlanosPage() {
               <Button 
                 size="lg" 
                 className="w-full text-base" 
-                onClick={() => handleSelectPlan('plano_anual')}
-                disabled={authLoading || isLoadingPlan === 'plano_anual'}
+                onClick={handleSelectAnualPlan}
+                disabled={authLoading}
               >
-                {authLoading && isLoadingPlan === 'plano_anual' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Gem className="mr-2 h-5 w-5" />}
+                {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Gem className="mr-2 h-5 w-5" />}
                 Assinar Plano Anual
               </Button>
             </CardFooter>
           </Card>
         </div>
 
+        {/* Modal para Seleção de Cargo */}
+        {modalPlanType === 'cargo' && (
+          <AlertDialog open={isModalOpen && modalPlanType === 'cargo'} onOpenChange={(open) => { if (!open) { setIsModalOpen(false); setModalPlanType(null); } }}>
+            <AlertDialogContent className="max-w-lg w-full">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Selecionar Cargo para Assinatura</AlertDialogTitle>
+                <AlertDialogDescription>Escolha o cargo específico que você deseja incluir no seu Plano Cargo.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <Separator />
+              {allFlattenedCargos.length > 0 ? (
+                <ScrollArea className="h-[350px] my-4 pr-3">
+                  <RadioGroup value={selectedItemInModal || ''} onValueChange={setSelectedItemInModal} className="space-y-2">
+                    {allFlattenedCargos.map(cargo => (
+                      <Label 
+                        htmlFor={cargo.id} 
+                        key={cargo.id} 
+                        className="flex items-center space-x-3 p-3 border rounded-md hover:bg-muted/50 cursor-pointer has-[:checked]:bg-accent has-[:checked]:text-accent-foreground has-[:checked]:border-primary transition-colors"
+                      >
+                        <RadioGroupItem value={cargo.id} id={cargo.id} className="border-muted-foreground"/>
+                        <span className="font-medium">{cargo.name} <span className="text-xs text-muted-foreground/80">({cargo.editalTitle})</span></span>
+                      </Label>
+                    ))}
+                  </RadioGroup>
+                </ScrollArea>
+              ) : (
+                <p className="text-muted-foreground text-center py-8">Nenhum cargo disponível para seleção.</p>
+              )}
+              <Separator />
+              <AlertDialogFooter className="pt-4">
+                <AlertDialogCancel onClick={() => { setIsModalOpen(false); setModalPlanType(null); }} disabled={isProcessingModalSelection}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleModalSelectionAndCheckout} disabled={!selectedItemInModal || isProcessingModalSelection}>
+                  {isProcessingModalSelection && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Confirmar e Ir para Checkout
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
+        {/* Modal para Seleção de Edital */}
+        {modalPlanType === 'edital' && (
+           <AlertDialog open={isModalOpen && modalPlanType === 'edital'} onOpenChange={(open) => { if (!open) { setIsModalOpen(false); setModalPlanType(null); } }}>
+            <AlertDialogContent className="max-w-lg w-full">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Selecionar Edital para Assinatura</AlertDialogTitle>
+                <AlertDialogDescription>Escolha o edital ao qual você deseja ter acesso completo com o Plano Edital.</AlertDialogDescription>
+              </AlertDialogHeader>
+               <Separator />
+              {allSelectableEditais.length > 0 ? (
+                <ScrollArea className="h-[350px] my-4 pr-3">
+                  <RadioGroup value={selectedItemInModal || ''} onValueChange={setSelectedItemInModal} className="space-y-2">
+                    {allSelectableEditais.map(edital => (
+                       <Label 
+                        htmlFor={edital.id} 
+                        key={edital.id} 
+                        className="flex items-center space-x-3 p-3 border rounded-md hover:bg-muted/50 cursor-pointer has-[:checked]:bg-accent has-[:checked]:text-accent-foreground has-[:checked]:border-primary transition-colors"
+                      >
+                        <RadioGroupItem value={edital.id} id={edital.id} className="border-muted-foreground"/>
+                        <span className="font-medium">{edital.title} <span className="text-xs text-muted-foreground/80">({edital.organization})</span></span>
+                      </Label>
+                    ))}
+                  </RadioGroup>
+                </ScrollArea>
+              ) : (
+                <p className="text-muted-foreground text-center py-8">Nenhum edital disponível para seleção.</p>
+              )}
+              <Separator />
+              <AlertDialogFooter className="pt-4">
+                <AlertDialogCancel onClick={() => { setIsModalOpen(false); setModalPlanType(null); }} disabled={isProcessingModalSelection}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleModalSelectionAndCheckout} disabled={!selectedItemInModal || isProcessingModalSelection}>
+                  {isProcessingModalSelection && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Confirmar e Ir para Checkout
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
         <Card className="mt-12 bg-muted/70 shadow-md rounded-xl">
             <CardHeader>
                 <CardTitle className="text-xl text-center">Como funciona a assinatura?</CardTitle>
             </CardHeader>
             <CardContent className="text-center text-muted-foreground space-y-3">
-                <p>As assinaturas são gerenciadas através da página de checkout (para o Plano Anual) ou diretamente nas páginas de detalhes (para Planos Cargo/Edital).</p>
+                <p>Para o <strong>Plano Anual</strong>, você será direcionado ao checkout.</p>
+                <p>Para os <strong>Planos Cargo e Edital</strong>, selecione o item desejado no modal para prosseguir ao checkout.</p>
                 <p><strong>Atenção:</strong> No momento, a integração com pagamentos reais (Stripe) é simulada. As funcionalidades de estudo requerem um plano ativo (simulado).</p>
             </CardContent>
              <CardFooter className="justify-center pt-4">
