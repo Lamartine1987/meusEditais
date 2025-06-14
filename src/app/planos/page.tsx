@@ -46,12 +46,17 @@ export default function PlanosPage() {
       if (planId === 'plano_cargo' || planId === 'plano_edital') {
         toast({ 
             title: "Seleção Necessária", 
-            description: `Para assinar o ${planId}, por favor, escolha o ${planId === 'plano_cargo' ? 'cargo' : 'edital'} desejado na respectiva página de detalhes.`,
+            description: `Para assinar o ${planId === 'plano_cargo' ? 'Plano Cargo' : 'Plano Edital'}, por favor, escolha o ${planId === 'plano_cargo' ? 'cargo' : 'edital'} desejado na respectiva página de detalhes. A assinatura aqui simularia o acesso completo ao plano específico escolhido lá.`,
             variant: "default",
-            duration: 7000,
+            duration: 9000,
         });
-        setSubscribingPlan(null); // Reset loading state for these buttons
-        return;
+        // Para simular a assinatura de um plano específico (cargo/edital) que seria normalmente feito na página de detalhes:
+        // await subscribeToPlan(planId, { selectedCargoCompositeId: 'mockEditalId_mockCargoId' }); // Exemplo para Plano Cargo
+        // await subscribeToPlan(planId, { selectedEditalId: 'mockEditalId' }); // Exemplo para Plano Edital
+        // Se você quiser permitir a assinatura genérica aqui (sem seleção específica), remova este toast e a lógica de seleção.
+        // Por ora, vamos simular que ele precisa ir para a página específica.
+        setSubscribingPlan(null); // Reset loading state for these buttons if no direct subscription here.
+        return; // Retornar se a intenção é que ele assine na página específica
       }
       await subscribeToPlan(planId);
       // Success toast and redirection are handled within subscribeToPlan
@@ -82,7 +87,7 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="flex-grow space-y-4 pt-2">
               <p className="text-center text-3xl font-bold text-primary">
-                R$ 29<span className="text-xl font-normal">,90/7 dias</span>
+                R$ 19<span className="text-xl font-normal">,90/7 dias</span>
               </p>
               <ul className="space-y-2 text-sm">
                 <PlanFeature>Acesso por <strong>7 dias</strong> a <strong>1 cargo específico</strong> de <strong>1 edital</strong> à sua escolha.</PlanFeature>
@@ -118,7 +123,7 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="flex-grow space-y-4 pt-2">
               <p className="text-center text-3xl font-bold text-primary">
-                R$ 49<span className="text-xl font-normal">,90/7 dias</span>
+                R$ 29<span className="text-xl font-normal">,90/7 dias</span>
               </p>
               <ul className="space-y-2 text-sm">
                 <PlanFeature>Acesso por <strong>7 dias</strong> a <strong>todos os cargos</strong> de <strong>1 edital específico</strong>.</PlanFeature>
@@ -178,7 +183,7 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="text-center text-muted-foreground space-y-3">
                 <p>No momento, as assinaturas ainda não estão integradas com um sistema de pagamento real. Esta funcionalidade simula a lógica de assinatura.</p>
-                <p>Para o <strong>Plano Anual</strong>, a assinatura pode ser ativada diretamente aqui. Para o <strong>Plano Cargo</strong> e <strong>Plano Edital</strong>, a intenção é que a assinatura seja feita nas páginas de detalhes do cargo ou edital específico (funcionalidade a ser implementada).</p>
+                <p>Para o <strong>Plano Anual</strong>, a assinatura pode ser ativada diretamente aqui. Para o <strong>Plano Cargo</strong> e <strong>Plano Edital</strong>, a intenção é que a assinatura seja feita nas páginas de detalhes do cargo ou edital específico, selecionando o item desejado antes da compra (funcionalidade a ser implementada integralmente).</p>
                 <p><strong>Atenção:</strong> Para utilizar as funcionalidades de inscrição em cargos, marcação de tópicos estudados, registro de tempo e desempenho, é necessário estar logado. Em breve, será necessário também ter um plano ativo para acesso completo.</p>
             </CardContent>
              <CardFooter className="justify-center pt-4">
