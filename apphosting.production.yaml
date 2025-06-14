@@ -24,7 +24,7 @@ runConfig:
     # Obtenha este valor do seu Stripe Dashboard após criar o endpoint.
     # ATENÇÃO: Para máxima segurança, armazene este valor no Google Cloud Secret Manager
     # e referencie-o aqui. Exemplo: STRIPE_WEBHOOK_SECRET: "secret:MEU_SEGREDO_WEBHOOK_PROD"
-    # STRIPE_WEBHOOK_SECRET: "whsec_SEU_SEGREDO_DE_WEBHOOK_DE_PRODUCAO_AQUI"
+    STRIPE_WEBHOOK_SECRET: "whsec_NpFY5VP7TfE8wg0IyAft80rIJA4rZy7h"
 
 # Você pode adicionar ou sobrescrever outras configurações de alto nível aqui,
 # como ingressSettings, se necessário para o ambiente de produção.
