@@ -1,0 +1,28 @@
+# Configurações específicas para o ambiente de produção
+# Este arquivo será usado quando o ambiente "production" estiver ativo.
+
+runConfig:
+  # Você pode adicionar ou sobrescrever configurações de runConfig aqui,
+  # como maxInstances, se necessário para o ambiente de produção.
+  # Se não especificadas, as de apphosting.yaml serão usadas.
+  
+  environmentVariables:
+    # Chave secreta do Stripe para o ambiente de PRODUÇÃO.
+    # ATENÇÃO: Para máxima segurança, armazene este valor no Google Cloud Secret Manager
+    # e referencie-o aqui. Exemplo: STRIPE_SECRET_KEY: "secret:MEU_SEGREDO_STRIPE_PROD"
+    STRIPE_SECRET_KEY: "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"
+    
+    # Chave publicável do Stripe para o ambiente de PRODUÇÃO.
+    # Substitua pelo seu pk_live_... real.
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_live_SUA_CHAVE_PUBLICAVEL_DE_PRODUCAO_AQUI" 
+    
+    # URL base da sua aplicação em PRODUÇÃO.
+    # Substitua pela URL real do seu app hospedado (ex: https://meuseditais.web.app).
+    NEXT_PUBLIC_APP_URL: "https://meuseditais.web.app"
+
+    # Futuramente, você adicionará o segredo do webhook aqui também.
+    # STRIPE_WEBHOOK_SECRET: "secret:MEU_SEGREDO_WEBHOOK_STRIPE" ou o valor direto (com cautela)
+
+# Você pode adicionar ou sobrescrever outras configurações de alto nível aqui,
+# como ingressSettings, se necessário para o ambiente de produção.
+# Se não especificadas, as de apphosting.yaml serão usadas.
