@@ -9,8 +9,9 @@
     "rewrites": [
       {
         "source": "**",
-        "apphosting": {
-          "backendId": "meuseditaisbackend"
+        "run": {
+          "serviceId": "meuseditaisbackend",
+          "region": "us-central1"
         }
       }
     ]
