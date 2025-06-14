@@ -10,7 +10,7 @@
       {
         "source": "**",
         "apphosting": {
-          "backendId": "YOUR_APP_HOSTING_BACKEND_ID_HERE"
+          "backendId": "meuseditaisbackend"
         }
       }
     ]
