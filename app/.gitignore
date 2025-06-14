@@ -1,0 +1,60 @@
+# Firebase
+.firebase
+*-debug.log
+firebase-debug.log
+firestore-debug.log
+
+# Next.js
+.next/
+out/
+build/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment variables
+.env
+.env*.local
+!.env.example
+!.env.development.example
+!.env.production.example
+
+# Production config files with secrets (keep the actual file local or manage via secure CI/CD)
+apphosting.production.yaml
+
+# IDE / Editor specific
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+*.sublime-project
+*.sublime-workspace
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Optional: Log files
+logs
+*.log
+
+# Optional: Coverage directory
+coverage
+*.lcov
+
+# Optional: Compiled TypeScript files
+*.tsbuildinfo

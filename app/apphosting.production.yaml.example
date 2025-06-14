@@ -1,0 +1,33 @@
+# Configurações específicas para o ambiente de produção
+# Este arquivo SERVE COMO EXEMPLO e deve ser copiado para apphosting.production.yaml
+# O arquivo apphosting.production.yaml real (com os segredos) NÃO DEVE SER COMMITADO se o repositório for público.
+# Substitua os placeholders abaixo pelos seus valores reais no seu arquivo apphosting.production.yaml.
+
+runConfig:
+  # Você pode adicionar ou sobrescrever configurações de runConfig aqui,
+  # como maxInstances, se necessário para o ambiente de produção.
+  # Se não especificadas, as de apphosting.yaml serão usadas.
+  
+  environmentVariables:
+    # Chave secreta do Stripe para o ambiente de PRODUÇÃO.
+    # ATENÇÃO: Para máxima segurança, armazene este valor no Google Cloud Secret Manager
+    # e referencie-o aqui. Exemplo: STRIPE_SECRET_KEY: "secret:MEU_SEGREDO_STRIPE_PROD"
+    STRIPE_SECRET_KEY: "sk_live_SEU_SEGREDO_STRIPE_DE_PRODUCAO_AQUI"
+    
+    # Chave publicável do Stripe para o ambiente de PRODUÇÃO.
+    # Substitua pelo seu pk_live_... real.
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_live_SUA_CHAVE_PUBLICAVEL_DE_PRODUCAO_AQUI" 
+    
+    # URL base da sua aplicação em PRODUÇÃO.
+    # Substitua pela URL real do seu app hospedado (ex: https://meuseditais.web.app).
+    NEXT_PUBLIC_APP_URL: "https://sua-url-de-producao.web.app"
+
+    # Segredo do endpoint do Webhook do Stripe para PRODUÇÃO.
+    # Obtenha este valor do seu Stripe Dashboard após criar o endpoint.
+    # ATENÇÃO: Para máxima segurança, armazene este valor no Google Cloud Secret Manager
+    # e referencie-o aqui. Exemplo: STRIPE_WEBHOOK_SECRET: "secret:MEU_SEGREDO_WEBHOOK_PROD"
+    STRIPE_WEBHOOK_SECRET: "whsec_SEU_SEGREDO_DE_WEBHOOK_DE_PRODUCAO_AQUI"
+
+# Você pode adicionar ou sobrescrever outras configurações de alto nível aqui,
+# como ingressSettings, se necessário para o ambiente de produção.
+# Se não especificadas, as de apphosting.yaml serão usadas.
