@@ -2,11 +2,11 @@
 'use server';
 
 import type { PlanId } from '@/types';
-// import Stripe from 'stripe'; // Descomente quando for integrar o Stripe
+import Stripe from 'stripe';
 
-// const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { // Descomente e configure
-//   apiVersion: '2024-06-20', // Use a versão mais recente da API
-// });
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2024-06-20', 
+});
 
 interface CreateCheckoutSessionArgs {
   planId: PlanId;
@@ -18,10 +18,10 @@ interface CreateCheckoutSessionArgs {
 
 interface CreateCheckoutSessionResult {
   success: boolean;
-  checkoutUrl?: string | null; // URL para redirecionar o usuário (ex: Stripe Checkout)
-  sessionId?: string; // ID da sessão de checkout (ex: Stripe Session ID)
+  checkoutUrl?: string | null; 
+  sessionId?: string; 
   error?: string;
-  message?: string; // Para mensagens de sucesso na simulação
+  message?: string; 
 }
 
 export async function createCheckoutSession(
@@ -29,89 +29,112 @@ export async function createCheckoutSession(
 ): Promise<CreateCheckoutSessionResult> {
   const { planId, planName, priceInCents, userEmail, userId } = args;
 
-  console.log(`Iniciando criação de sessão de checkout para:
-    Plano ID: ${planId}
-    Nome do Plano: ${planName}
-    Preço: ${priceInCents / 100}
-    Email Usuário: ${userEmail}
-    ID Usuário: ${userId}
-  `);
+  if (!process.env.STRIPE_SECRET_KEY) {
+    console.error("STRIPE_SECRET_KEY is not set.");
+    return { success: false, error: "Configuração do servidor de pagamento incompleta." };
+  }
+  if (!process.env.NEXT_PUBLIC_APP_URL) {
+    console.error("NEXT_PUBLIC_APP_URL is not set.");
+    return { success: false, error: "Configuração da URL da aplicação incompleta." };
+  }
 
-  // --- Início da Lógica de Integração Real com Stripe (Exemplo Comentado) ---
-  // // Certifique-se de que suas variáveis de ambiente NEXT_PUBLIC_APP_URL, STRIPE_SECRET_KEY estão configuradas.
-  // const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
-  // try {
-  //   // Crie uma sessão de checkout do Stripe
-  //   const session = await stripe.checkout.sessions.create({
-  //     payment_method_types: ['card'],
-  //     line_items: [
-  //       {
-  //         price_data: {
-  //           currency: 'brl', // Moeda
-  //           product_data: {
-  //             name: planName,
-  //             description: `Assinatura do ${planName}`,
-  //           },
-  //           unit_amount: priceInCents, // Preço em centavos
-  //         },
-  //         quantity: 1,
-  //       },
-  //     ],
-  //     mode: 'payment', // Ou 'subscription' para planos recorrentes
-  //     success_url: `${appUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-  //     cancel_url: `${appUrl}/checkout/${planId}?payment_cancelled=true`,
-  //     customer_email: userEmail, // Opcional, mas útil
-  //     client_reference_id: userId, // Para associar a sessão ao seu usuário interno
-  //     metadata: { // Metadados úteis para o webhook
-  //       userId: userId,
-  //       planId: planId,
-  //     }
-  //   });
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'brl', 
+            product_data: {
+              name: planName,
+              description: `Assinatura do ${planName}`,
+            },
+            unit_amount: priceInCents, 
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment', // Use 'subscription' for recurring plans
+      success_url: `${appUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/checkout/${planId}?payment_cancelled=true`,
+      customer_email: userEmail, 
+      client_reference_id: userId, 
+      metadata: { 
+        userId: userId,
+        planId: planId,
+      }
+    });
 
-  //   if (!session.url) {
-  //     return { success: false, error: "Falha ao obter URL de checkout do Stripe." };
-  //   }
+    if (!session.url) {
+      return { success: false, error: "Falha ao obter URL de checkout do Stripe." };
+    }
 
-  //   return { success: true, checkoutUrl: session.url, sessionId: session.id };
+    return { success: true, checkoutUrl: session.url, sessionId: session.id };
 
-  // } catch (error: any) {
-  //   console.error("Erro ao criar sessão de checkout Stripe:", error);
-  //   return { success: false, error: error.message || "Erro desconhecido ao processar pagamento." };
-  // }
-  // --- Fim da Lógica de Integração Real com Stripe ---
-
-
-  // --- Início da Simulação Atual (Placeholder) ---
-  // Simula a criação de uma sessão e retorna uma URL de sucesso/placeholder
-  // Em uma implementação real, esta seria a URL da página de pagamento do provedor.
-  const simulatedCheckoutUrl = `/payment-placeholder?plan=${planId}&user=${userId}&status=pending`;
-  
-  // Apenas para simular que a ação fez algo e retornou uma mensagem.
-  // Na implementação real com Stripe, você retornaria o { checkoutUrl: session.url }.
-   return {
-    success: true,
-    message: "Sessão de checkout simulada criada. Você seria redirecionado para o provedor de pagamento.",
-    checkoutUrl: simulatedCheckoutUrl, // Adicionando a URL simulada para demonstração no toast
-    sessionId: `simulated_session_${Date.now()}`
-  };
-  // --- Fim da Simulação Atual ---
+  } catch (error: any) {
+    console.error("Erro ao criar sessão de checkout Stripe:", error);
+    return { success: false, error: error.message || "Erro desconhecido ao processar pagamento." };
+  }
 }
 
-// Você também precisará de um endpoint de webhook (ex: /api/webhooks/stripe)
+// --- Webhook Handling (Crucial Next Step - Not Implemented Here) ---
+// Você precisará de um endpoint de webhook (ex: /api/webhooks/stripe)
 // para receber notificações do Stripe sobre o status do pagamento.
-// Dentro desse webhook, após confirmar um pagamento bem-sucedido, você chamaria
-// a função `subscribeToPlan` do seu AuthProvider para atualizar o status do usuário no seu banco de dados.
 //
-// Exemplo (muito simplificado) de como seria a chamada no webhook:
+// Exemplo de como seria a estrutura do webhook:
 //
-// import { subscribeToPlan } from '@/contexts/auth-provider'; // Não é assim que se importa server-side, mas para ilustrar
+// import { headers } from 'next/headers';
+// import { buffer } from 'node:stream/consumers';
+// // import { stripe } from '@/lib/stripe'; // Sua instância do Stripe
+// // import { subscribeUserToPlan } from '@/path/to/your/subscriptionLogic'; // Função para atualizar o DB
 //
-// async function handleSuccessfulPayment(userId: string, planId: PlanId) {
-//   // Aqui você precisaria de uma forma de invocar a lógica de subscribeToPlan
-//   // Isso pode ser uma outra Server Action ou uma função utilitária que atualiza o DB.
-//   // Exemplo: await activateUserPlan(userId, planId, {selected...});
-//   console.log(`Pagamento bem-sucedido para usuário ${userId}, plano ${planId}. Ativar plano.`);
-//   // A lógica de ativação real (atualizar DB, etc.) iria aqui.
+// export async function POST(req: Request) {
+//   const body = await buffer(req.body!);
+//   const sig = headers().get('stripe-signature') as string;
+//   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+//
+//   let event: Stripe.Event;
+//
+//   try {
+//     event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
+//   } catch (err: any) {
+//     console.error(`Webhook signature verification failed: ${err.message}`);
+//     return new Response(`Webhook Error: ${err.message}`, { status: 400 });
+//   }
+//
+//   // Handle the event
+//   switch (event.type) {
+//     case 'checkout.session.completed':
+//       const session = event.data.object as Stripe.Checkout.Session;
+//       // Retrieve userId and planId from metadata
+//       const userId = session.metadata?.userId;
+//       const planId = session.metadata?.planId as PlanId | undefined;
+//
+//       if (userId && planId && session.payment_status === 'paid') {
+//         // Chame a função para atualizar o plano do usuário no seu banco de dados
+//         // await subscribeUserToPlan(userId, planId, {
+//         //   startDate: new Date().toISOString(),
+//         //   expiryDate: calculateExpiryDate(new Date(), planId), // Implementar calculateExpiryDate
+//         //   selectedCargoCompositeId: planId === 'plano_cargo' ? session.metadata.selectedCargoCompositeId : undefined,
+//         //   selectedEditalId: planId === 'plano_edital' ? session.metadata.selectedEditalId : undefined,
+//         // });
+//         console.log(`Pagamento bem-sucedido para usuário ${userId}, plano ${planId}. Ativar plano.`);
+//         // Lógica para registrar que o plano foi pago e ativar os recursos para o usuário.
+//         // Isso envolveria chamar a função `subscribeToPlan` do seu AuthProvider
+//         // (ou uma versão dela adaptada para ser chamada pelo backend)
+//       }
+//       break;
+//     // ... handle other event types
+//     default:
+//       console.log(`Unhandled event type ${event.type}`);
+//   }
+//
+//   return new Response(null, { status: 200 });
 // }
-
+//
+// Você precisaria adicionar essa rota no seu `src/app/api/webhooks/stripe/route.ts` (ou similar)
+// e configurar o endpoint no seu dashboard do Stripe.
+// A função `subscribeToPlan` do AuthProvider precisaria ser adaptada ou uma nova função
+// criada para ser chamada pelo webhook para atualizar o banco de dados do Firebase.

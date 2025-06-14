@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -16,6 +17,13 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      // Adicionado para permitir imagens do Stripe, se necessário para product_data
+      {
+        protocol: 'https',
+        hostname: 'files.stripe.com',
+        port: '',
+        pathname: '/**',
+      }
     ],
   },
 };

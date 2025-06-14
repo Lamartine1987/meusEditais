@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
@@ -22,7 +22,7 @@ interface PlanDisplayDetails {
   priceDescription: string;
   features: string[];
   originalPrice?: string;
-  priceInCents?: number; // Para passar para o backend
+  priceInCents: number; 
 }
 
 const planDetailsMap: Record<PlanId, PlanDisplayDetails> = {
@@ -74,9 +74,10 @@ const PlanFeatureItem = ({ children }: { children: React.ReactNode }) => (
   </li>
 );
 
-export default function CheckoutPage() {
+function CheckoutContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
@@ -93,6 +94,19 @@ export default function CheckoutPage() {
     }
   }, [planId, router, toast]);
 
+  useEffect(() => {
+    if (searchParams.get('payment_cancelled') === 'true') {
+      toast({
+        title: "Pagamento Cancelado",
+        description: "Você cancelou o processo de pagamento.",
+        variant: "default",
+        duration: 7000,
+      });
+      // Limpar o parâmetro da URL para evitar que o toast apareça novamente ao recarregar
+      router.replace(`/checkout/${planId}`);
+    }
+  }, [searchParams, planId, router, toast]);
+
   const handleProceedToPayment = async () => {
     if (!selectedPlan || !user || !user.email) {
       toast({ title: "Erro", description: "Detalhes do plano ou usuário ausentes.", variant: "destructive"});
@@ -103,41 +117,30 @@ export default function CheckoutPage() {
       const result = await createCheckoutSession({
         planId: selectedPlan.id,
         planName: selectedPlan.name,
-        priceInCents: selectedPlan.priceInCents || 0, // Garante que priceInCents está definido
+        priceInCents: selectedPlan.priceInCents,
         userEmail: user.email,
         userId: user.id,
       });
 
       if (result.success && result.checkoutUrl) {
-        // Em uma implementação real com Stripe, redirecionaríamos para result.checkoutUrl
-        // window.location.href = result.checkoutUrl;
         toast({
-          title: "Redirecionando para Pagamento (Simulado)",
-          description: `Você seria redirecionado para: ${result.checkoutUrl}`,
+          title: "Redirecionando para Pagamento",
+          description: "Você será redirecionado para a página de pagamento segura.",
           variant: "default",
           className: "bg-accent text-accent-foreground",
-          duration: 7000,
+          duration: 3000, 
         });
-        // Por ora, apenas mostramos o toast e não redirecionamos
-      } else if (result.success && result.message) { // Simulação sem URL de checkout
-         toast({
-          title: "Sessão de Checkout Iniciada (Simulado)",
-          description: result.message || "O processo de pagamento seria iniciado aqui.",
-          variant: "default",
-          className: "bg-accent text-accent-foreground",
-          duration: 7000,
-        });
-      }
-      
-      else {
+        window.location.href = result.checkoutUrl; // Redireciona para o Stripe
+      } else {
         throw new Error(result.error || "Falha ao iniciar o processo de pagamento.");
       }
     } catch (error: any) {
       console.error("Payment initiation failed:", error);
       toast({ title: "Falha no Pagamento", description: error.message || "Não foi possível iniciar o pagamento.", variant: "destructive"});
-    } finally {
       setIsProcessingPayment(false);
     }
+    // Não definir setIsProcessingPayment(false) aqui se o redirecionamento ocorrer,
+    // pois a página será descarregada. Ele está no catch para o caso de falha antes do redirect.
   };
 
 
@@ -152,8 +155,8 @@ export default function CheckoutPage() {
   }
 
   if (!user) {
-     router.push(`/login?redirect=/checkout/${planId || 'plano_anual'}`); // Redireciona para login se não logado
-     return ( // Retorna um loader enquanto redireciona
+     router.push(`/login?redirect=/checkout/${planId || 'plano_anual'}`);
+     return (
       <PageWrapper>
         <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -210,13 +213,13 @@ export default function CheckoutPage() {
               ))}
             </ul>
 
-            <Alert variant="default" className="mt-6 bg-yellow-50 border-yellow-400 text-yellow-700 dark:bg-yellow-900/30 dark:border-yellow-700 dark:text-yellow-300">
-                <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-                <AlertTitle className="font-semibold text-yellow-800 dark:text-yellow-200">Atenção: Sistema de Pagamento</AlertTitle>
-                <AlertDescription className="text-yellow-700 dark:text-yellow-300/90">
-                    Ao clicar em "Prosseguir para Pagamento", iniciaremos uma simulação do processo.
-                    Uma integração real com um provedor de pagamento (ex: Stripe) é necessária para processar pagamentos de verdade.
-                    Esta etapa demonstrará a chamada para uma Server Action que criaria uma sessão de checkout.
+             <Alert variant="default" className="mt-6 bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
+                <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <AlertTitle className="font-semibold text-blue-800 dark:text-blue-200">Próximos Passos</AlertTitle>
+                <AlertDescription className="text-blue-700 dark:text-blue-300/90">
+                    Ao clicar em "Prosseguir para Pagamento", você será redirecionado para uma página de pagamento segura do Stripe (ambiente de teste).
+                    Após a conclusão (ou cancelamento) do pagamento, você será redirecionado de volta para o nosso site.
+                    Uma implementação completa requer um Webhook para confirmar o pagamento e ativar seu plano.
                 </AlertDescription>
             </Alert>
 
@@ -233,7 +236,7 @@ export default function CheckoutPage() {
               ) : (
                 <CreditCard className="mr-2 h-5 w-5" />
               )}
-              {isProcessingPayment ? 'Processando...' : `Pagar ${selectedPlan.price}`}
+              {isProcessingPayment ? 'Processando...' : `Pagar ${selectedPlan.price} com Stripe`}
             </Button>
           </CardFooter>
         </Card>
@@ -247,4 +250,12 @@ export default function CheckoutPage() {
       </div>
     </PageWrapper>
   );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={<div>Carregando checkout...</div>}>
+      <CheckoutContent />
+    </Suspense>
+  )
 }
