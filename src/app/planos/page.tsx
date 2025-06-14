@@ -5,7 +5,7 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, ArrowRight, Search as SearchIcon } from 'lucide-react';
+import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, ArrowRight, Search as SearchIcon, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -25,6 +25,13 @@ import { Input } from "@/components/ui/input";
 const PlanFeature = ({ children }: { children: React.ReactNode }) => (
   <li className="flex items-start">
     <CheckCircle className="h-5 w-5 text-green-500 mr-2 mt-0.5 shrink-0" />
+    <span className="text-muted-foreground">{children}</span>
+  </li>
+);
+
+const InfoFeature = ({ children }: { children: React.ReactNode }) => (
+  <li className="flex items-start">
+    <Info className="h-5 w-5 text-blue-500 mr-2 mt-0.5 shrink-0" />
     <span className="text-muted-foreground">{children}</span>
   </li>
 );
@@ -158,6 +165,7 @@ export default function PlanosPage() {
                 <PlanFeature>Todas as funcionalidades de estudo para o cargo selecionado.</PlanFeature>
                 <PlanFeature>Acompanhamento de progresso detalhado.</PlanFeature>
                 <PlanFeature>Ideal para quem tem um objetivo claro.</PlanFeature>
+                <InfoFeature>Flexibilidade para trocar de cargo nos primeiros 7 dias da assinatura.</InfoFeature>
               </ul>
             </CardContent>
             <CardFooter className="pt-6">
@@ -195,6 +203,7 @@ export default function PlanosPage() {
                 <PlanFeature>Flexibilidade para estudar para múltiplas vagas do mesmo concurso.</PlanFeature>
                 <PlanFeature>Todas as funcionalidades de estudo e acompanhamento.</PlanFeature>
                 <PlanFeature>Perfeito para quem quer maximizar chances em um concurso.</PlanFeature>
+                <InfoFeature>Flexibilidade para trocar de edital nos primeiros 7 dias da assinatura.</InfoFeature>
               </ul>
             </CardContent>
             <CardFooter className="pt-6">
