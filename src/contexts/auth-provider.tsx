@@ -382,9 +382,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const subscribeToPlan = async (planId: PlanId, specificDetails?: { selectedCargoCompositeId?: string; selectedEditalId?: string }) => {
     if (!user) {
       toast({ title: "Usuário não logado", description: "Você precisa estar logado para assinar um plano.", variant: "destructive" });
-      // EM PRODUÇÃO: Idealmente, você chamaria router.push('/login') aqui,
-      // mas como estamos em um contexto que pode não ter o router pronto,
-      // é melhor a página que chama subscribeToPlan lidar com o redirecionamento se necessário.
       return;
     }
     setLoading(true);
@@ -409,10 +406,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     //    refletiria o novo status do plano.
     // --- FIM DA SEÇÃO PARA COMENTAR EM PRODUÇÃO ---
 
-    // A lógica abaixo é uma SIMULAÇÃO de assinatura bem-sucedida,
-    // atualizando o banco de dados diretamente do frontend.
-    // NÃO FAÇA ISSO EM PRODUÇÃO PARA TRANSAÇÕES REAIS SEM UM BACKEND.
-
     const now = new Date();
     const startDate = formatISO(now);
     let expiryDate = '';
@@ -420,10 +413,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     switch (planId) {
       case 'plano_cargo':
       case 'plano_edital':
-        expiryDate = formatISO(addDays(now, 365)); // MUDANÇA: Validade de 1 ano
+        expiryDate = formatISO(addDays(now, 7)); // Validade de 7 dias
         break;
       case 'plano_anual':
-        expiryDate = formatISO(addDays(now, 365)); // Mantém validade de 1 ano
+        expiryDate = formatISO(addDays(now, 365)); // Validade de 1 ano
         break;
       default:
         toast({ title: "Plano Inválido", description: "O plano selecionado não é reconhecido.", variant: "destructive" });
@@ -516,3 +509,4 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+

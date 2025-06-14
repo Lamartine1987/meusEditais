@@ -82,13 +82,13 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="flex-grow space-y-4 pt-2">
               <p className="text-center text-3xl font-bold text-primary">
-                R$ 29<span className="text-xl font-normal">,90/ano</span>
+                R$ 29<span className="text-xl font-normal">,90/7 dias</span>
               </p>
               <ul className="space-y-2 text-sm">
-                <PlanFeature>Acesso por <strong>1 ano</strong> a <strong>1 cargo específico</strong> de <strong>1 edital</strong> à sua escolha.</PlanFeature>
+                <PlanFeature>Acesso por <strong>7 dias</strong> a <strong>1 cargo específico</strong> de <strong>1 edital</strong> à sua escolha.</PlanFeature>
                 <PlanFeature>Todas as funcionalidades de estudo para o cargo selecionado.</PlanFeature>
                 <PlanFeature>Acompanhamento de progresso detalhado.</PlanFeature>
-                <PlanFeature>Ideal para quem tem um objetivo claro.</PlanFeature>
+                <PlanFeature>Ideal para quem tem um objetivo claro e rápido.</PlanFeature>
               </ul>
             </CardContent>
             <CardFooter className="pt-6">
@@ -118,13 +118,13 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="flex-grow space-y-4 pt-2">
               <p className="text-center text-3xl font-bold text-primary">
-                R$ 49<span className="text-xl font-normal">,90/ano</span>
+                R$ 49<span className="text-xl font-normal">,90/7 dias</span>
               </p>
               <ul className="space-y-2 text-sm">
-                <PlanFeature>Acesso por <strong>1 ano</strong> a <strong>todos os cargos</strong> de <strong>1 edital específico</strong>.</PlanFeature>
+                <PlanFeature>Acesso por <strong>7 dias</strong> a <strong>todos os cargos</strong> de <strong>1 edital específico</strong>.</PlanFeature>
                 <PlanFeature>Flexibilidade para estudar para múltiplas vagas do mesmo concurso.</PlanFeature>
                 <PlanFeature>Todas as funcionalidades de estudo e acompanhamento.</PlanFeature>
-                <PlanFeature>Perfeito para quem quer maximizar chances em um concurso.</PlanFeature>
+                <PlanFeature>Perfeito para quem quer maximizar chances em um concurso por um período curto.</PlanFeature>
               </ul>
             </CardContent>
             <CardFooter className="pt-6">
@@ -152,7 +152,7 @@ export default function PlanosPage() {
                 R$ 299<span className="text-xl font-normal">,90/ano</span>
               </p>
               <ul className="space-y-2 text-sm">
-                <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>todos os editais</strong> da plataforma.</PlanFeature>
+                <PlanFeature>Acesso por <strong>1 ano</strong> a <strong>todos os cargos</strong> de <strong>todos os editais</strong> da plataforma.</PlanFeature>
                 <PlanFeature>Liberdade total para explorar e se preparar para múltiplos concursos.</PlanFeature>
                 <PlanFeature>Todas as funcionalidades premium e atualizações futuras.</PlanFeature>
                 <PlanFeature>O melhor custo-benefício para concurseiros dedicados.</PlanFeature>
@@ -198,3 +198,4 @@ export default function PlanosPage() {
     </PageWrapper>
   );
 }
+
