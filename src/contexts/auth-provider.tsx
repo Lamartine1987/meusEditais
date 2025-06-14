@@ -246,10 +246,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(prevUser => prevUser ? { ...prevUser, registeredCargoIds: updatedRegisteredCargoIds } : null);
       } catch (error) {
         console.error("Error registering for cargo:", error);
-        toast({ title: "Erro na Inscrição", description: "Não foi possível salvar a inscrição no cargo.", variant: "destructive" });
+        toast({ title: "Erro na Inscrição do Cargo", description: "Não foi possível salvar a inscrição no cargo.", variant: "destructive" });
+        throw error; 
       } finally {
         setLoading(false);
       }
+    } else {
+        toast({ title: "Usuário não encontrado", description: "Não foi possível registrar no cargo.", variant: "destructive" });
+        throw new Error("User not found for cargo registration");
     }
   };
 
@@ -420,8 +424,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         activePlan: planId,
         planDetails: newPlanDetails 
       });
+
+      // Automatic registration for Plano Cargo
+      if (planId === 'plano_cargo' && specificDetails?.selectedCargoCompositeId) {
+        const [editalId, cargoId] = specificDetails.selectedCargoCompositeId.split('_');
+        if (editalId && cargoId) {
+          try {
+            await registerForCargo(editalId, cargoId);
+            // Success toast for cargo registration is handled within registerForCargo if needed,
+            // or we can rely on the overall plan subscription success toast.
+          } catch (registrationError) {
+            // Error is logged and toasted within registerForCargo.
+            // We might want to inform the user that the plan is active but cargo registration failed.
+            console.warn("Plano Cargo ativado, mas falha ao registrar cargo automaticamente.", registrationError);
+            toast({ title: "Plano Ativo, Falha na Inscrição do Cargo", description: "Seu plano está ativo, mas houve um problema ao inscrevê-lo no cargo. Por favor, tente se inscrever no cargo manualmente.", variant: "default", duration: 8000 });
+          }
+        } else {
+          console.warn("Plano Cargo assinado, mas selectedCargoCompositeId está malformado ou ausente:", specificDetails?.selectedCargoCompositeId);
+          toast({ title: "Aviso", description: "Seu Plano Cargo está ativo, mas não foi possível identificar o cargo para inscrição automática. Por favor, verifique seus cargos inscritos ou contate o suporte.", variant: "default", duration: 8000 });
+        }
+      }
+      
       setUser(prevUser => prevUser ? { ...prevUser, activePlan: planId, planDetails: newPlanDetails } : null);
-      toast({ title: "Assinatura Realizada!", description: `Você assinou o ${planId}.`, variant: "default", className: "bg-accent text-accent-foreground" });
+      
+      let planDisplayName = "Plano Desconhecido";
+      if (planId === 'plano_cargo') planDisplayName = "Plano Cargo";
+      else if (planId === 'plano_edital') planDisplayName = "Plano Edital";
+      else if (planId === 'plano_anual') planDisplayName = "Plano Anual";
+
+      toast({ title: "Assinatura Realizada!", description: `Você assinou o ${planDisplayName}.`, variant: "default", className: "bg-accent text-accent-foreground" });
       router.push('/perfil'); 
     } catch (error) {
       console.error("Error subscribing to plan:", error);
