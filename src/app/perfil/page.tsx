@@ -122,7 +122,8 @@ export default function ProfilePage() {
     if (startDate) {
         const start = parseISO(startDate);
         changeDeadline = addDays(start, 7);
-        if (differenceInCalendarDays(new Date(), start) < 7) {
+        // Verifica se a data atual está dentro dos 7 dias da data de início
+        if (differenceInCalendarDays(new Date(), start) < 7 && !isPast(changeDeadline)) {
             canChangeSelection = true;
         }
     }
@@ -135,7 +136,7 @@ export default function ProfilePage() {
       if (canChangeSelection && changeDeadline) {
         details += ` Você pode alterar o cargo escolhido até ${format(changeDeadline, "dd/MM/yyyy", { locale: ptBR })}.`;
       } else if (startDate && !canChangeSelection) {
-        details += ` A escolha do cargo é final.`;
+        details += ` A escolha do cargo é final para este período.`;
       }
     } else if (planId === 'plano_edital' && selectedEditalId) {
       const edital = mockEditais.find(e => e.id === selectedEditalId);
@@ -143,7 +144,7 @@ export default function ProfilePage() {
        if (canChangeSelection && changeDeadline) {
         details += ` Você pode alterar o edital escolhido até ${format(changeDeadline, "dd/MM/yyyy", { locale: ptBR })}.`;
       } else if (startDate && !canChangeSelection) {
-        details += ` A escolha do edital é final.`;
+        details += ` A escolha do edital é final para este período.`;
       }
     } else if (planId === 'plano_anual') {
       details = "Acesso ilimitado a todos os editais e cargos.";
@@ -157,7 +158,8 @@ export default function ProfilePage() {
   
   const canChangeCurrentPlanSelection = user?.activePlan && user.planDetails?.startDate && 
                                         (user.activePlan === 'plano_cargo' || user.activePlan === 'plano_edital') &&
-                                        differenceInCalendarDays(new Date(), parseISO(user.planDetails.startDate)) < 7;
+                                        differenceInCalendarDays(new Date(), parseISO(user.planDetails.startDate)) < 7 &&
+                                        !isPast(addDays(parseISO(user.planDetails.startDate), 7));
 
 
   if (authLoading && !user) { 
@@ -245,15 +247,15 @@ export default function ProfilePage() {
             {user.activePlan && user.planDetails && (<p className="text-sm text-muted-foreground">{getPlanDetailsDescription(user.planDetails)}</p>)}
             {!user.activePlan && (<p className="text-sm text-muted-foreground">Você ainda não possui um plano ativo. Considere assinar um para desbloquear todos os recursos!</p>)}
             
-            {canChangeCurrentPlanSelection && (
+            {canChangeCurrentPlanSelection && user.planDetails?.startDate && (
                 <div className="p-3 border-l-4 border-primary bg-primary/10 rounded-md">
                     <div className="flex items-start">
                         <RefreshCw className="h-5 w-5 text-primary mr-3 mt-0.5" />
                         <div>
                             <p className="text-sm font-semibold text-primary">Flexibilidade na Escolha!</p>
                             <p className="text-xs text-primary/80">
-                                Você pode alterar sua seleção de {user.activePlan === 'plano_cargo' ? 'cargo' : 'edital'} até {format(addDays(parseISO(user.planDetails!.startDate!), 7), "dd/MM/yyyy", { locale: ptBR })}.
-                                Para isso, basta "assinar" o novo item desejado na página de detalhes do respectivo edital/cargo.
+                                Você pode alterar sua seleção de {user.activePlan === 'plano_cargo' ? 'cargo' : 'edital'} até {format(addDays(parseISO(user.planDetails.startDate), 7), "dd/MM/yyyy", { locale: ptBR })}.
+                                Para isso, basta "inscrever-se" no novo item desejado na página de detalhes do respectivo {user.activePlan === 'plano_cargo' ? 'cargo' : 'edital'}.
                             </p>
                         </div>
                     </div>
@@ -279,7 +281,7 @@ export default function ProfilePage() {
                     <AlertDialogHeader><AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
                       <AlertDialogDescription>
                         Você tem certeza que deseja cancelar sua assinatura do {getPlanDisplayName(user.activePlan)}? 
-                        Você perderá o acesso aos benefícios do plano ao final do período de cobrança atual (simulado aqui como imediato).
+                        Seu acesso aos benefícios do plano será removido (simulado aqui como imediato).
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -298,3 +300,5 @@ export default function ProfilePage() {
     </PageWrapper>
   );
 }
+
+    

@@ -351,28 +351,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const now = new Date();
     const planName = getPlanDisplayNameHelper(planId);
+    const newExpiryDate = formatISO(addDays(now, 365)); // Todos os planos com validade de 1 ano.
 
     // Lógica para usuários que já possuem um plano ativo
     if (user.activePlan) {
-      if (user.activePlan === planId) { // Tentando 'reassinar' o mesmo tipo de plano
+      if (user.activePlan === planId) { // Tentando 'reassinar' ou 'alterar seleção' do mesmo tipo de plano
         if (user.planDetails?.startDate) {
           const startDate = parseISO(user.planDetails.startDate);
           const daysSinceSubscription = differenceInCalendarDays(now, startDate);
 
-          if (daysSinceSubscription < 7) {
+          if (daysSinceSubscription < 7) { // Dentro do período de 7 dias para mudança
             let detailsToUpdate: Partial<PlanDetails> = {};
             let changeMade = false;
 
             if (planId === 'plano_cargo' && specificDetails?.selectedCargoCompositeId && specificDetails.selectedCargoCompositeId !== user.planDetails.selectedCargoCompositeId) {
               detailsToUpdate.selectedCargoCompositeId = specificDetails.selectedCargoCompositeId;
+              // Não resetar selectedEditalId se não for relevante para plano_cargo
+              detailsToUpdate.selectedEditalId = undefined; 
               changeMade = true;
             } else if (planId === 'plano_edital' && specificDetails?.selectedEditalId && specificDetails.selectedEditalId !== user.planDetails.selectedEditalId) {
               detailsToUpdate.selectedEditalId = specificDetails.selectedEditalId;
+              // Não resetar selectedCargoCompositeId se não for relevante para plano_edital
+              detailsToUpdate.selectedCargoCompositeId = undefined;
               changeMade = true;
             }
 
             if (changeMade) {
-              const updatedPlanDetails: PlanDetails = { ...user.planDetails, ...detailsToUpdate };
+              // Mantém o startDate e expiryDate originais, apenas atualiza a seleção
+              const updatedPlanDetails: PlanDetails = { 
+                ...user.planDetails, 
+                ...detailsToUpdate 
+              };
               try {
                 await update(ref(db, `users/${user.id}`), { planDetails: updatedPlanDetails });
                 setUser(prev => prev ? { ...prev, planDetails: updatedPlanDetails } : null);
@@ -386,6 +395,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               return;
             } else if (planId === 'plano_anual') {
                  toast({ title: "Plano Anual Já Ativo", description: "Você já possui o Plano Anual.", variant: "default" });
+            } else if ((planId === 'plano_cargo' && !specificDetails?.selectedCargoCompositeId) || (planId === 'plano_edital' && !specificDetails?.selectedEditalId)){
+                // Usuário clicou em "assinar" na página de planos, mas já tem o mesmo plano e está nos 7 dias.
+                // Não é uma tentativa de mudar seleção, apenas uma reafirmação da assinatura.
+                toast({ title: "Seleção Necessária", description: `Você já possui o ${planName}. Para alterar sua escolha de ${planId === 'plano_cargo' ? 'cargo' : 'edital'}, selecione o novo item na página de detalhes.`, variant: "default", duration: 7000 });
             } else {
                  toast({ title: "Seleção Mantida", description: `Você já está com esta seleção para o ${planName}.`, variant: "default" });
             }
@@ -409,7 +422,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!specificDetails && (planId === 'plano_cargo' || planId === 'plano_edital')) {
         toast({ 
             title: "Seleção Necessária", 
-            description: `Para assinar o ${planName}, por favor, escolha o ${planId === 'plano_cargo' ? 'cargo' : 'edital'} desejado na respectiva página de detalhes.`,
+            description: `Para assinar o ${planName}, por favor, escolha o ${planId === 'plano_cargo' ? 'cargo' : 'edital'} desejado na respectiva página de detalhes e clique em "Inscrever-se".`,
             variant: "default",
             duration: 9000,
         });
@@ -417,13 +430,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return;
     }
 
-    const startDate = formatISO(now);
-    const expiryDate = formatISO(addDays(now, 365)); // Todos os planos com 1 ano de validade
+    const newStartDate = formatISO(now);
 
     const newPlanDetails: PlanDetails = {
       planId,
-      startDate,
-      expiryDate,
+      startDate: newStartDate,
+      expiryDate: newExpiryDate, // Validade de 1 ano
       ...(planId === 'plano_cargo' && specificDetails?.selectedCargoCompositeId && { selectedCargoCompositeId: specificDetails.selectedCargoCompositeId }),
       ...(planId === 'plano_edital' && specificDetails?.selectedEditalId && { selectedEditalId: specificDetails.selectedEditalId }),
     };
@@ -473,3 +485,5 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+    

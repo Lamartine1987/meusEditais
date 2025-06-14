@@ -30,16 +30,12 @@ export default function PlanosPage() {
       toast({ title: "Login Necessário", description: "Você precisa estar logado para assinar um plano.", variant: "destructive" });
       return;
     }
-
-    // Para Plano Anual, a assinatura pode ser direta.
-    // Para Plano Cargo e Edital, a lógica de `subscribeToPlan` agora lida com seleção/mudança.
-    // A chamada aqui não passará `specificDetails`, então `subscribeToPlan` exibirá o toast de "Seleção Necessária".
     setSubscribingPlan(planId);
     try {
-      await subscribeToPlan(planId);
-      // Toasts de sucesso/erro/info são tratados dentro de subscribeToPlan
+      // Para Plano Cargo e Edital, a seleção é feita na página do item.
+      // Para Plano Anual, a assinatura é direta.
+      await subscribeToPlan(planId); 
     } catch (error) {
-      // Erro já tratado no AuthProvider se não for capturado antes em subscribeToPlan
       console.error(`Error subscribing to ${planId}:`, error);
     } finally {
       setSubscribingPlan(null);
@@ -161,7 +157,7 @@ export default function PlanosPage() {
             <AlertDescription className="text-blue-700 dark:text-blue-300/90 space-y-2">
                 <p>No momento, as assinaturas simulam a lógica de um sistema real. Todos os planos têm <strong>validade de 1 ano</strong>.</p>
                 <p>Para o <strong>Plano Anual</strong>, a assinatura pode ser ativada diretamente aqui.</p>
-                <p>Para o <strong>Plano Cargo</strong> e <strong>Plano Edital</strong>, a assinatura é realizada ao selecionar o cargo/edital desejado nas páginas de detalhes. Você terá <strong>7 dias</strong> após a assinatura para alterar sua escolha de cargo ou edital, caso deseje.</p>
+                <p>Para o <strong>Plano Cargo</strong> e <strong>Plano Edital</strong>, a assinatura é realizada ao selecionar o cargo/edital desejado nas páginas de detalhes e clicar em "Inscrever-se". Você terá <strong>7 dias</strong> após a assinatura para alterar sua escolha de cargo ou edital, caso deseje. Para alterar, basta "inscrever-se" no novo item desejado.</p>
                 <p><strong>Atenção:</strong> É necessário estar logado para utilizar funcionalidades de estudo e assinatura.</p>
             </AlertDescription>
         </Alert>
@@ -182,3 +178,5 @@ export default function PlanosPage() {
     </PageWrapper>
   );
 }
+
+    
