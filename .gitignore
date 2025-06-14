@@ -1,3 +1,4 @@
+
 # Firebase
 .firebase
 *-debug.log
@@ -44,3 +45,65 @@ logs
 *.tmp
 *.bak
 *.swp
+
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# local env files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Firebase
+.firebase # Firebase CLI state and cache
+firebase-debug.log # Firebase CLI debug logs
+*.firebase.*.log # Other Firebase log files
+public/ # Often used for Firebase Hosting static files, ensure specific build outputs are here if needed.
+# If you are using Firebase Hosting with a dynamic backend (like App Hosting or Cloud Functions),
+# you might not need to ignore the entire 'public' folder if your framework builds into it.
+# However, for App Hosting, the framework builds into a different directory handled by App Hosting.
+
+# App Hosting specific
+apphosting.yaml # Ignore if it contains secrets or project-specific runtime config not meant for VCS.
+apphosting.production.yaml # Definitivamente ignore se contiver segredos.
+# Mantenha um apphosting.yaml.example ou apphosting.production.yaml.example no repositório.
+
+# Cache do Firebase Emulator Suite
+.firebase/emulators/ # Cache e dados do Firebase Emulator Suite
+*.snapshot # Backups e snapshots do Emulator Suite
+firebase-export-* # Exportações de dados do Emulator Suite
+ui-config.json # Configuração da UI do Emulator Suite (pode conter dados sensíveis de teste)
+

@@ -1,9 +1,21 @@
+
 # Configurações específicas para o ambiente de produção
 # Este arquivo DEVE SER RENOMEADO para apphosting.production.yaml e os placeholders substituídos.
 # O arquivo apphosting.production.yaml NÃO DEVE ser commitado se contiver segredos.
 # Em vez disso, configure-o diretamente no seu ambiente de implantação ou use o Secret Manager.
 
+# Definições para gerenciar e configurar um backend do Firebase App Hosting.
+# https://firebase.google.com/docs/app-hosting/configure
+
+
+# A conta de serviço usada para executar seu backend.
+# https://firebase.google.com/docs/app-hosting/configure#service-account
+# serviceAccount: backend-runner
+
+# As configurações para executar seu backend em resposta a solicitações.
+# https://firebase.google.com/docs/app-hosting/configure#runconfig
 runConfig:
+
   # Você pode adicionar ou sobrescrever configurações de runConfig aqui,
   # como maxInstances, se necessário para o ambiente de produção.
   # Se não especificadas, as de apphosting.yaml serão usadas.
@@ -29,6 +41,48 @@ runConfig:
     # Se for usar o valor direto (NÃO RECOMENDADO PARA REPOSITÓRIOS PÚBLICOS):
     STRIPE_WEBHOOK_SECRET: "whsec_SEU_SEGREDO_DE_WEBHOOK_DE_PRODUCAO_AQUI"
 
-# Você pode adicionar ou sobrescrever outras configurações de alto nível aqui,
-# como ingressSettings, se necessário para o ambiente de produção.
-# Se não especificadas, as de apphosting.yaml serão usadas.
+  # O número máximo de instâncias que podem ser executadas ao mesmo tempo.
+  # Aumente este valor se desejar que mais instâncias sejam iniciadas automaticamente
+  # em resposta ao aumento do tráfego.
+  maxInstances: 1
+  # O número mínimo de instâncias que devem estar prontas para atender ao tráfego.
+  # Aumente este valor se o seu backend tiver cold starts lentos e você
+  # quiser mais instâncias prontas para minimizar o impacto dos cold starts.
+  # minInstances: 0
+  # A quantidade de CPU alocada para cada instância, em unidades de CPU.
+  # Uma unidade de CPU corresponde aproximadamente a um único núcleo de vCPU.
+  # cpu: 1
+  # A quantidade de memória alocada para cada instância.
+  # memoryMiB: 512
+  # O número de solicitações simultâneas que cada instância pode manipular.
+  # concurrency: 80
+  # O tempo máximo que uma instância tem para responder a uma solicitação.
+  # timeoutSeconds: 60
+
+# Configurações para controlar como o tráfego de entrada atinge seu backend.
+# https://firebase.google.com/docs/app-hosting/configure#ingresssettings
+ingressSettings: ALLOW_ALL
+
+
+# Variáveis de ambiente disponíveis para o seu backend.
+#  * Os valores literais são passados diretamente.
+#  * Os valores que começam com "secret:" são tratados como referências a segredos
+#    no Google Secret Manager. Os segredos devem existir no mesmo projeto
+#    Firebase. Se você não especificar uma versão, a versão "latest" será usada.
+#    Por exemplo, para acessar a versão mais recente de um segredo chamado "API_KEY"
+#    disponível no Secret Manager, use "secret:API_KEY". Para acessar a versão 5
+#    de um segredo chamado "API_KEY", use "secret:API_KEY:5".
+# https://firebase.google.com/docs/app-hosting/configure#environment-variables
+env:
+  - variable: NEXT_PUBLIC_APP_URL # Deve ser a URL de produção do seu site
+    value: "https://meuseditais.web.app" # Substitua pela sua URL real
+  - variable: STRIPE_SECRET_KEY
+    value: "secret:STRIPE_SECRET_KEY_PROD" # Substitua STRIPE_SECRET_KEY_PROD pelo nome do seu segredo no Secret Manager
+  - variable: STRIPE_WEBHOOK_SECRET
+    value: "secret:STRIPE_WEBHOOK_SECRET_PROD" # Substitua STRIPE_WEBHOOK_SECRET_PROD pelo nome do seu segredo no Secret Manager
+  # - variable: FIREBASE_CONFIG_JSON
+  #   value: '{"projectId":"MEU_PROJETO_ID", "appId": "MINHA_APP_ID", "storageBucket": "MEU_BUCKET", "apiKey": "MINHA_API_KEY", "authDomain": "MEU_DOMINIO_AUTH", "messagingSenderId": "MEU_SENDER_ID"}'
+  # - variable: MY_API_KEY
+  #   value: "secret:MY_API_KEY_NAME" # Busca o segredo chamado MY_API_KEY_NAME do Secret Manager
+  # - variable: MY_API_KEY_VERSIONED
+  #   value: "secret:MY_API_KEY_NAME:5" # Busca a versão 5 do segredo MY_API_KEY_NAME
