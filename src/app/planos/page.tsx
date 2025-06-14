@@ -5,7 +5,7 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, ArrowRight } from 'lucide-react';
+import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, ArrowRight, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +18,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 const PlanFeature = ({ children }: { children: React.ReactNode }) => (
   <li className="flex items-start">
@@ -40,29 +42,31 @@ export default function PlanosPage() {
   const [allEditaisData, setAllEditaisData] = useState<EditalType[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalPlanType, setModalPlanType] = useState<'cargo' | 'edital' | null>(null);
+  
+  // For 'Plano Cargo' modal specifically
+  const [selectedEditalIdInCargoModal, setSelectedEditalIdInCargoModal] = useState<string | null>(null);
+  const [cargosForSelectedEdital, setCargosForSelectedEdital] = useState<CargoType[]>([]);
+  
+  // For 'Plano Edital' modal & final cargo selection in 'Plano Cargo' modal
   const [selectedItemInModal, setSelectedItemInModal] = useState<string | null>(null);
+  
   const [isProcessingModalSelection, setIsProcessingModalSelection] = useState(false);
 
   useEffect(() => {
-    // Simulate fetching editais data if needed, or just use mock
     setAllEditaisData(mockEditais);
   }, []);
 
-  const allFlattenedCargos = useMemo((): FlattenedCargo[] => {
-    if (!allEditaisData.length) return [];
-    return allEditaisData.reduce((acc, edital) => {
-      edital.cargos?.forEach(cargo => {
-        acc.push({
-          id: `${edital.id}_${cargo.id}`, // compositeId
-          name: cargo.name,
-          editalTitle: edital.title,
-        });
-      });
-      return acc;
-    }, [] as FlattenedCargo[]);
-  }, [allEditaisData]);
+  const allSelectableEditais = useMemo(() => allEditaisData.sort((a,b) => a.title.localeCompare(b.title)), [allEditaisData]);
 
-  const allSelectableEditais = useMemo(() => allEditaisData, [allEditaisData]);
+  useEffect(() => {
+    if (modalPlanType === 'cargo' && selectedEditalIdInCargoModal) {
+      const edital = allSelectableEditais.find(e => e.id === selectedEditalIdInCargoModal);
+      setCargosForSelectedEdital(edital?.cargos || []);
+      setSelectedItemInModal(null); // Reset cargo selection when edital changes
+    } else {
+      setCargosForSelectedEdital([]);
+    }
+  }, [selectedEditalIdInCargoModal, modalPlanType, allSelectableEditais]);
 
 
   const handleOpenSelectionModal = (planType: 'cargo' | 'edital') => {
@@ -75,14 +79,13 @@ export default function PlanosPage() {
        toast({ title: "Plano Anual Ativo", description: "Você já possui o Plano Anual, que dá acesso a tudo. Não é necessário assinar um plano inferior.", variant: "default", duration: 7000 });
       return;
     }
-    // Simplificando: se já tem um plano de cargo/edital, e tenta outro, vamos permitir o fluxo. O backend/checkout decidiria.
-    // Ou, se o plano ATUAL é o mesmo tipo do que ele está tentando selecionar (ex: tem plano_cargo, e clica em plano_cargo de novo)
-    // E o `user.planDetails?.planId === planType`, então ele já tem esse TIPO de plano.
-    // Poderíamos informá-lo, mas o modal ainda permite escolher um item específico.
-    // A lógica de "já tem esse plano" será tratada na página de checkout com mais detalhes.
 
     setModalPlanType(planType);
-    setSelectedItemInModal(null); // Reset selection
+    setSelectedItemInModal(null); 
+    if (planType === 'cargo') {
+      setSelectedEditalIdInCargoModal(null);
+      setCargosForSelectedEdital([]);
+    }
     setIsModalOpen(true);
   };
 
@@ -100,8 +103,6 @@ export default function PlanosPage() {
     if (redirectUrl) {
       router.push(redirectUrl);
     }
-    // setIsModalOpen(false); // Checkout page will handle next steps, modal can close
-    // setIsProcessingModalSelection(false); // Handled by page navigation
   };
 
   const handleSelectAnualPlan = () => {
@@ -114,8 +115,6 @@ export default function PlanosPage() {
         toast({ title: "Plano Já Ativo", description: `Você já está inscrito no Plano Anual.`, variant: "default" });
         return;
     }
-    // Se ele tem plano_cargo ou plano_edital e quer o anual, isso é um upgrade, permitido.
-    // A página de checkout pode lidar com a lógica de "já tem um plano inferior".
     router.push('/checkout/plano_anual');
   };
 
@@ -236,27 +235,54 @@ export default function PlanosPage() {
             <AlertDialogContent className="max-w-lg w-full">
               <AlertDialogHeader>
                 <AlertDialogTitle>Selecionar Cargo para Assinatura</AlertDialogTitle>
-                <AlertDialogDescription>Escolha o cargo específico que você deseja incluir no seu Plano Cargo.</AlertDialogDescription>
+                <AlertDialogDescription>Escolha primeiro o edital e depois o cargo específico que você deseja incluir no seu Plano Cargo.</AlertDialogDescription>
               </AlertDialogHeader>
               <Separator />
-              {allFlattenedCargos.length > 0 ? (
-                <ScrollArea className="h-[350px] my-4 pr-3">
-                  <RadioGroup value={selectedItemInModal || ''} onValueChange={setSelectedItemInModal} className="space-y-2">
-                    {allFlattenedCargos.map(cargo => (
-                      <Label 
-                        htmlFor={cargo.id} 
-                        key={cargo.id} 
-                        className="flex items-center space-x-3 p-3 border rounded-md hover:bg-muted/50 cursor-pointer has-[:checked]:bg-accent has-[:checked]:text-accent-foreground has-[:checked]:border-primary transition-colors"
-                      >
-                        <RadioGroupItem value={cargo.id} id={cargo.id} className="border-muted-foreground"/>
-                        <span className="font-medium">{cargo.name} <span className="text-xs text-muted-foreground/80">({cargo.editalTitle})</span></span>
-                      </Label>
-                    ))}
-                  </RadioGroup>
-                </ScrollArea>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">Nenhum cargo disponível para seleção.</p>
-              )}
+              <div className="space-y-4 py-2">
+                <div>
+                    <Label htmlFor="edital-select-cargo-modal" className="mb-1.5 block text-sm font-medium text-muted-foreground">1. Selecione o Edital:</Label>
+                    <Select 
+                        value={selectedEditalIdInCargoModal || ""} 
+                        onValueChange={(value) => setSelectedEditalIdInCargoModal(value)}
+                    >
+                        <SelectTrigger id="edital-select-cargo-modal">
+                            <SelectValue placeholder="Escolha um edital..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {allSelectableEditais.map(edital => (
+                                <SelectItem key={edital.id} value={edital.id}>{edital.title}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {selectedEditalIdInCargoModal && (
+                    <div>
+                        <Label className="mb-1.5 block text-sm font-medium text-muted-foreground">2. Selecione o Cargo:</Label>
+                        {cargosForSelectedEdital.length > 0 ? (
+                            <ScrollArea className="h-[200px] pr-3 border rounded-md">
+                                <RadioGroup value={selectedItemInModal || ''} onValueChange={setSelectedItemInModal} className="space-y-1 p-2">
+                                    {cargosForSelectedEdital.map(cargo => {
+                                        const compositeCargoId = `${selectedEditalIdInCargoModal}_${cargo.id}`;
+                                        return (
+                                            <Label 
+                                                htmlFor={compositeCargoId} 
+                                                key={compositeCargoId} 
+                                                className="flex items-center space-x-3 p-2.5 border rounded-md hover:bg-muted/50 cursor-pointer has-[:checked]:bg-accent has-[:checked]:text-accent-foreground has-[:checked]:border-primary transition-colors"
+                                            >
+                                                <RadioGroupItem value={compositeCargoId} id={compositeCargoId} className="border-muted-foreground"/>
+                                                <span className="font-medium">{cargo.name}</span>
+                                            </Label>
+                                        );
+                                    })}
+                                </RadioGroup>
+                            </ScrollArea>
+                        ) : (
+                             <p className="text-muted-foreground text-sm text-center py-4">Nenhum cargo encontrado para este edital.</p>
+                        )}
+                    </div>
+                )}
+              </div>
               <Separator />
               <AlertDialogFooter className="pt-4">
                 <AlertDialogCancel onClick={() => { setIsModalOpen(false); setModalPlanType(null); }} disabled={isProcessingModalSelection}>Cancelar</AlertDialogCancel>
