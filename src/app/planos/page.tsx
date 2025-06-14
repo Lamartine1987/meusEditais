@@ -46,7 +46,7 @@ export default function PlanosPage() {
       if (planId === 'plano_cargo' || planId === 'plano_edital') {
         toast({ 
             title: "Seleção Necessária", 
-            description: `Para assinar o ${planId}, por favor, escolha o ${planId === 'plano_cargo' ? 'cargo' : 'edital'} desejado na respectiva página de detalhes.`,
+            description: `Para assinar o ${planId === 'plano_cargo' ? 'Plano Cargo' : 'Plano Edital'}, por favor, escolha o ${planId === 'plano_cargo' ? 'cargo' : 'edital'} desejado na respectiva página de detalhes.`,
             variant: "default",
             duration: 7000,
         });
@@ -82,7 +82,7 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="flex-grow space-y-4 pt-2">
               <p className="text-center text-3xl font-bold text-primary">
-                R$ 29<span className="text-xl font-normal">,90/mês</span>
+                R$ 4<span className="text-xl font-normal">,99/mês</span>
               </p>
               <ul className="space-y-2 text-sm">
                 <PlanFeature>Acesso a <strong>1 cargo específico</strong> de <strong>1 edital</strong> à sua escolha.</PlanFeature>
@@ -118,7 +118,7 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="flex-grow space-y-4 pt-2">
               <p className="text-center text-3xl font-bold text-primary">
-                R$ 49<span className="text-xl font-normal">,90/mês</span>
+                R$ 9<span className="text-xl font-normal">,99/mês</span>
               </p>
               <ul className="space-y-2 text-sm">
                 <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>1 edital específico</strong>.</PlanFeature>
@@ -149,7 +149,7 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="flex-grow space-y-4 pt-2">
               <p className="text-center text-3xl font-bold text-primary">
-                R$ 299<span className="text-xl font-normal">,90/ano</span>
+                R$ 39<span className="text-xl font-normal">,99/ano</span>
               </p>
               <ul className="space-y-2 text-sm">
                 <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>todos os editais</strong> da plataforma.</PlanFeature>
