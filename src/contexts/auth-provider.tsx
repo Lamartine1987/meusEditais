@@ -382,11 +382,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const subscribeToPlan = async (planId: PlanId, specificDetails?: { selectedCargoCompositeId?: string; selectedEditalId?: string }) => {
     if (!user) {
       toast({ title: "Usuário não logado", description: "Você precisa estar logado para assinar um plano.", variant: "destructive" });
-      router.push('/login');
+      // EM PRODUÇÃO: Idealmente, você chamaria router.push('/login') aqui,
+      // mas como estamos em um contexto que pode não ter o router pronto,
+      // é melhor a página que chama subscribeToPlan lidar com o redirecionamento se necessário.
       return;
     }
     setLoading(true);
 
+    // --- INÍCIO DA SEÇÃO PARA COMENTAR EM PRODUÇÃO ---
     // EM PRODUÇÃO:
     // 1. ANTES DE ATUALIZAR O BANCO DE DADOS LOCALMENTE:
     //    a. Chamar um endpoint no seu backend seguro (ex: Firebase Function).
@@ -404,6 +407,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     //
     // 3. O frontend (via onAuthStateChanged ou recarregando dados do usuário)
     //    refletiria o novo status do plano.
+    // --- FIM DA SEÇÃO PARA COMENTAR EM PRODUÇÃO ---
 
     // A lógica abaixo é uma SIMULAÇÃO de assinatura bem-sucedida,
     // atualizando o banco de dados diretamente do frontend.
@@ -416,10 +420,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     switch (planId) {
       case 'plano_cargo':
       case 'plano_edital':
-        expiryDate = formatISO(addDays(now, 30)); // Monthly
+        expiryDate = formatISO(addDays(now, 365)); // MUDANÇA: Validade de 1 ano
         break;
       case 'plano_anual':
-        expiryDate = formatISO(addDays(now, 365)); // Annual
+        expiryDate = formatISO(addDays(now, 365)); // Mantém validade de 1 ano
         break;
       default:
         toast({ title: "Plano Inválido", description: "O plano selecionado não é reconhecido.", variant: "destructive" });
@@ -457,6 +461,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
     setLoading(true);
 
+    // --- INÍCIO DA SEÇÃO PARA COMENTAR EM PRODUÇÃO ---
     // EM PRODUÇÃO:
     // O cancelamento de uma assinatura geralmente é gerenciado através do gateway de pagamento.
     // 1. O usuário solicitaria o cancelamento no seu app.
@@ -468,7 +473,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     //    a alteração do status da assinatura (ex: 'canceled', 'active_until_end_of_period').
     // 5. Seu backend atualizaria o `activePlan` e `planDetails` no Firebase RTDB
     //    para refletir o novo status e a data de expiração real.
-
+    // --- FIM DA SEÇÃO PARA COMENTAR EM PRODUÇÃO ---
+    
     // A lógica abaixo é uma SIMULAÇÃO de cancelamento imediato,
     // atualizando o banco de dados diretamente do frontend.
 

@@ -82,10 +82,10 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="flex-grow space-y-4 pt-2">
               <p className="text-center text-3xl font-bold text-primary">
-                R$ 29<span className="text-xl font-normal">,90/mês</span>
+                R$ 29<span className="text-xl font-normal">,90/ano</span>
               </p>
               <ul className="space-y-2 text-sm">
-                <PlanFeature>Acesso a <strong>1 cargo específico</strong> de <strong>1 edital</strong> à sua escolha.</PlanFeature>
+                <PlanFeature>Acesso por <strong>1 ano</strong> a <strong>1 cargo específico</strong> de <strong>1 edital</strong> à sua escolha.</PlanFeature>
                 <PlanFeature>Todas as funcionalidades de estudo para o cargo selecionado.</PlanFeature>
                 <PlanFeature>Acompanhamento de progresso detalhado.</PlanFeature>
                 <PlanFeature>Ideal para quem tem um objetivo claro.</PlanFeature>
@@ -118,10 +118,10 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="flex-grow space-y-4 pt-2">
               <p className="text-center text-3xl font-bold text-primary">
-                R$ 49<span className="text-xl font-normal">,90/mês</span>
+                R$ 49<span className="text-xl font-normal">,90/ano</span>
               </p>
               <ul className="space-y-2 text-sm">
-                <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>1 edital específico</strong>.</PlanFeature>
+                <PlanFeature>Acesso por <strong>1 ano</strong> a <strong>todos os cargos</strong> de <strong>1 edital específico</strong>.</PlanFeature>
                 <PlanFeature>Flexibilidade para estudar para múltiplas vagas do mesmo concurso.</PlanFeature>
                 <PlanFeature>Todas as funcionalidades de estudo e acompanhamento.</PlanFeature>
                 <PlanFeature>Perfeito para quem quer maximizar chances em um concurso.</PlanFeature>
@@ -198,4 +198,3 @@ export default function PlanosPage() {
     </PageWrapper>
   );
 }
-
