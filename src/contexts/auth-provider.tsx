@@ -13,12 +13,22 @@ import {
   updateProfile,
   type User as FirebaseUser 
 } from 'firebase/auth';
-import { auth as firebaseAuthService, db } from '@/lib/firebase'; // Import db from firebase
-import { ref, set, get, update, remove } from "firebase/database"; // Firebase Realtime Database functions
-import { addDays, formatISO } from 'date-fns';
+import { auth as firebaseAuthService, db } from '@/lib/firebase'; 
+import { ref, set, get, update, remove } from "firebase/database"; 
+import { addDays, formatISO, parseISO, differenceInCalendarDays } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
 
+// Helper para obter o nome do plano (usado em toasts)
+const getPlanDisplayNameHelper = (planId?: PlanId | null): string => {
+  if (!planId) return "Nenhum plano";
+  switch (planId) {
+    case 'plano_cargo': return "Plano Cargo";
+    case 'plano_edital': return "Plano Edital";
+    case 'plano_anual': return "Plano Anual";
+    default: return "Plano Desconhecido";
+  }
+};
 
 interface AuthContextType {
   user: AppUser | null;
@@ -91,17 +101,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (!snapshot.exists()) {
              await set(ref(db, `users/${firebaseUser.uid}`), dataToSaveToDb);
           } else {
-             const updates: Partial<AppUser & {avatarUrl: string | null}> = {}; // Ensure avatarUrl can be explicitly null
-             if (dbData.name !== appUser.name) {
-                updates.name = appUser.name;
-             }
-             if (dbData.email !== appUser.email) {
-                updates.email = appUser.email;
-             }
-             if ((dbData.avatarUrl || null) !== (appUser.avatarUrl || null)) {
-                 updates.avatarUrl = appUser.avatarUrl || null;
-             }
-             
+             const updates: Partial<AppUser & {avatarUrl: string | null}> = {};
+             if (dbData.name !== appUser.name) updates.name = appUser.name;
+             if (dbData.email !== appUser.email) updates.email = appUser.email;
+             if ((dbData.avatarUrl || null) !== (appUser.avatarUrl || null)) updates.avatarUrl = appUser.avatarUrl || null;
              if (!dbData.hasOwnProperty('registeredCargoIds')) updates.registeredCargoIds = dataToSaveToDb.registeredCargoIds;
              if (!dbData.hasOwnProperty('studiedTopicIds')) updates.studiedTopicIds = dataToSaveToDb.studiedTopicIds;
              if (!dbData.hasOwnProperty('studyLogs')) updates.studyLogs = dataToSaveToDb.studyLogs;
@@ -109,16 +112,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
              if (!dbData.hasOwnProperty('revisionSchedules')) updates.revisionSchedules = dataToSaveToDb.revisionSchedules;
              if (!dbData.hasOwnProperty('activePlan')) updates.activePlan = dataToSaveToDb.activePlan;
              if (!dbData.hasOwnProperty('planDetails')) updates.planDetails = dataToSaveToDb.planDetails;
-             
-             if (!dbData.hasOwnProperty('avatarUrl') && !updates.hasOwnProperty('avatarUrl')) {
-                updates.avatarUrl = dataToSaveToDb.avatarUrl;
-             }
+             if (!dbData.hasOwnProperty('avatarUrl') && !updates.hasOwnProperty('avatarUrl')) updates.avatarUrl = dataToSaveToDb.avatarUrl;
 
              if (Object.keys(updates).length > 0) {
                 await update(ref(db, `users/${firebaseUser.uid}`), updates);
              }
           }
-
         } catch (error) {
           console.error("Error fetching/updating user data from RTDB:", error);
           toast({ title: "Erro ao carregar dados", description: "Não foi possível buscar seus dados salvos.", variant: "destructive" });
@@ -141,7 +140,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, [toast]);
 
@@ -186,25 +184,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         const authUpdates: { displayName?: string; photoURL?: string | null } = {};
         if (updatedInfo.hasOwnProperty('name')) authUpdates.displayName = updatedInfo.name;
-        if (updatedInfo.hasOwnProperty('avatarUrl')) {
-            authUpdates.photoURL = updatedInfo.avatarUrl || null;
-        }
+        if (updatedInfo.hasOwnProperty('avatarUrl')) authUpdates.photoURL = updatedInfo.avatarUrl || null;
         
-        if (Object.keys(authUpdates).length > 0) {
-          await updateProfile(firebaseCurrentUser, authUpdates);
-        }
+        if (Object.keys(authUpdates).length > 0) await updateProfile(firebaseCurrentUser, authUpdates);
         
         const dbUpdates: Partial<Pick<AppUser, 'name'>> & { avatarUrl?: string | null } = {};
-        if (updatedInfo.hasOwnProperty('name') && typeof updatedInfo.name === 'string') {
-          dbUpdates.name = updatedInfo.name;
-        }
-        if (updatedInfo.hasOwnProperty('avatarUrl')) {
-          dbUpdates.avatarUrl = updatedInfo.avatarUrl || null; 
-        }
+        if (updatedInfo.hasOwnProperty('name') && typeof updatedInfo.name === 'string') dbUpdates.name = updatedInfo.name;
+        if (updatedInfo.hasOwnProperty('avatarUrl')) dbUpdates.avatarUrl = updatedInfo.avatarUrl || null; 
 
-        if (Object.keys(dbUpdates).length > 0) {
-          await update(ref(db, `users/${user.id}`), dbUpdates);
-        }
+        if (Object.keys(dbUpdates).length > 0) await update(ref(db, `users/${user.id}`), dbUpdates);
         
         setUser(prevUser => {
           if (!prevUser) return null;
@@ -231,7 +219,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       const compositeId = `${editalId}_${cargoId}`;
       const updatedRegisteredCargoIds = Array.from(new Set([...(user.registeredCargoIds || []), compositeId]));
-      
       try {
         await update(ref(db, `users/${user.id}`), { registeredCargoIds: updatedRegisteredCargoIds });
         setUser(prevUser => prevUser ? { ...prevUser, registeredCargoIds: updatedRegisteredCargoIds } : null);
@@ -266,11 +253,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       let updatedStudiedTopicIds = [...(user.studiedTopicIds || [])];
       const topicIndex = updatedStudiedTopicIds.indexOf(compositeTopicId);
-      if (topicIndex > -1) {
-        updatedStudiedTopicIds.splice(topicIndex, 1); 
-      } else {
-        updatedStudiedTopicIds.push(compositeTopicId); 
-      }
+      if (topicIndex > -1) updatedStudiedTopicIds.splice(topicIndex, 1); 
+      else updatedStudiedTopicIds.push(compositeTopicId); 
       try {
         await update(ref(db, `users/${user.id}`), { studiedTopicIds: updatedStudiedTopicIds });
         setUser(prevUser => prevUser ? { ...prevUser, studiedTopicIds: updatedStudiedTopicIds } : null);
@@ -286,11 +270,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const addStudyLog = async (compositeTopicId: string, duration: number) => {
     if (user) {
       setLoading(true);
-      const newLog: StudyLogEntry = {
-        compositeTopicId,
-        date: new Date().toISOString(),
-        duration,
-      };
+      const newLog: StudyLogEntry = { compositeTopicId, date: new Date().toISOString(), duration };
       const updatedStudyLogs = [...(user.studyLogs || []), newLog];
       try {
         await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
@@ -307,10 +287,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const addQuestionLog = async (logEntryData: Omit<QuestionLogEntry, 'date'>) => {
     if (user) {
       setLoading(true);
-      const newQuestionLog: QuestionLogEntry = {
-        ...logEntryData,
-        date: new Date().toISOString(),
-      };
+      const newQuestionLog: QuestionLogEntry = { ...logEntryData, date: new Date().toISOString() };
       const updatedQuestionLogs = [...(user.questionLogs || []), newQuestionLog];
       try {
         await update(ref(db, `users/${user.id}`), { questionLogs: updatedQuestionLogs });
@@ -330,18 +307,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const scheduledDate = formatISO(addDays(new Date(), daysToReview));
       let updatedRevisionSchedules = [...(user.revisionSchedules || [])];
       const existingScheduleIndex = updatedRevisionSchedules.findIndex(rs => rs.compositeTopicId === compositeTopicId);
-      const newScheduleEntry: RevisionScheduleEntry = {
-        compositeTopicId,
-        scheduledDate,
-        isReviewed: false,
-        reviewedDate: null,
-      };
-
-      if (existingScheduleIndex > -1) {
-        updatedRevisionSchedules[existingScheduleIndex] = newScheduleEntry;
-      } else {
-        updatedRevisionSchedules.push(newScheduleEntry);
-      }
+      const newScheduleEntry: RevisionScheduleEntry = { compositeTopicId, scheduledDate, isReviewed: false, reviewedDate: null };
+      if (existingScheduleIndex > -1) updatedRevisionSchedules[existingScheduleIndex] = newScheduleEntry;
+      else updatedRevisionSchedules.push(newScheduleEntry);
       try {
         await update(ref(db, `users/${user.id}`), { revisionSchedules: updatedRevisionSchedules });
         setUser(prevUser => prevUser ? { ...prevUser, revisionSchedules: updatedRevisionSchedules } : null);
@@ -359,14 +327,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       let updatedRevisionSchedules = [...(user.revisionSchedules || [])];
       const scheduleIndex = updatedRevisionSchedules.findIndex(rs => rs.compositeTopicId === compositeTopicId);
-      
       if (scheduleIndex > -1) {
         const currentStatus = updatedRevisionSchedules[scheduleIndex].isReviewed;
-        updatedRevisionSchedules[scheduleIndex] = {
-          ...updatedRevisionSchedules[scheduleIndex],
-          isReviewed: !currentStatus,
-          reviewedDate: !currentStatus ? new Date().toISOString() : null,
-        };
+        updatedRevisionSchedules[scheduleIndex] = { ...updatedRevisionSchedules[scheduleIndex], isReviewed: !currentStatus, reviewedDate: !currentStatus ? new Date().toISOString() : null };
         try {
           await update(ref(db, `users/${user.id}`), { revisionSchedules: updatedRevisionSchedules });
           setUser(prevUser => prevUser ? { ...prevUser, revisionSchedules: updatedRevisionSchedules } : null);
@@ -386,49 +349,83 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
     setLoading(true);
 
-    // --- INÍCIO DA SEÇÃO PARA COMENTAR EM PRODUÇÃO ---
-    // EM PRODUÇÃO:
-    // 1. ANTES DE ATUALIZAR O BANCO DE DADOS LOCALMENTE:
-    //    a. Chamar um endpoint no seu backend seguro (ex: Firebase Function).
-    //    b. Seu backend se comunicaria com o gateway de pagamento (Stripe, PagSeguro, etc.)
-    //       para criar uma sessão de checkout para o plano selecionado.
-    //    c. O backend retornaria um ID de sessão de checkout ou uma URL para o frontend.
-    //    d. O frontend redirecionaria o usuário para a página de pagamento do gateway.
-    //
-    // 2. APÓS O PAGAMENTO SER COMPLETADO NO GATEWAY:
-    //    a. O gateway de pagamento enviaria um webhook para um endpoint no seu backend.
-    //    b. Seu backend validaria o webhook e, SE O PAGAMENTO FOI BEM-SUCEDIDO:
-    //       - Atualizaria o status da assinatura do usuário no Firebase Realtime Database
-    //         (similar ao que está sendo feito abaixo, mas de forma segura no backend).
-    //       - Poderia registrar a transação, enviar e-mail de confirmação, etc.
-    //
-    // 3. O frontend (via onAuthStateChanged ou recarregando dados do usuário)
-    //    refletiria o novo status do plano.
-    // --- FIM DA SEÇÃO PARA COMENTAR EM PRODUÇÃO ---
-
     const now = new Date();
-    const startDate = formatISO(now);
-    let expiryDate = '';
-    
-    switch (planId) {
-      case 'plano_cargo':
-      case 'plano_edital':
-        expiryDate = formatISO(addDays(now, 7)); // Validade de 7 dias
-        break;
-      case 'plano_anual':
-        expiryDate = formatISO(addDays(now, 365)); // Validade de 1 ano
-        break;
-      default:
-        toast({ title: "Plano Inválido", description: "O plano selecionado não é reconhecido.", variant: "destructive" });
+    const planName = getPlanDisplayNameHelper(planId);
+
+    // Lógica para usuários que já possuem um plano ativo
+    if (user.activePlan) {
+      if (user.activePlan === planId) { // Tentando 'reassinar' o mesmo tipo de plano
+        if (user.planDetails?.startDate) {
+          const startDate = parseISO(user.planDetails.startDate);
+          const daysSinceSubscription = differenceInCalendarDays(now, startDate);
+
+          if (daysSinceSubscription < 7) {
+            let detailsToUpdate: Partial<PlanDetails> = {};
+            let changeMade = false;
+
+            if (planId === 'plano_cargo' && specificDetails?.selectedCargoCompositeId && specificDetails.selectedCargoCompositeId !== user.planDetails.selectedCargoCompositeId) {
+              detailsToUpdate.selectedCargoCompositeId = specificDetails.selectedCargoCompositeId;
+              changeMade = true;
+            } else if (planId === 'plano_edital' && specificDetails?.selectedEditalId && specificDetails.selectedEditalId !== user.planDetails.selectedEditalId) {
+              detailsToUpdate.selectedEditalId = specificDetails.selectedEditalId;
+              changeMade = true;
+            }
+
+            if (changeMade) {
+              const updatedPlanDetails: PlanDetails = { ...user.planDetails, ...detailsToUpdate };
+              try {
+                await update(ref(db, `users/${user.id}`), { planDetails: updatedPlanDetails });
+                setUser(prev => prev ? { ...prev, planDetails: updatedPlanDetails } : null);
+                toast({ title: "Seleção Alterada!", description: `Sua seleção para o ${planName} foi atualizada.`, variant: "default", className: "bg-accent text-accent-foreground" });
+                router.push('/perfil');
+              } catch (error) {
+                toast({ title: "Erro ao Alterar Seleção", description: "Não foi possível atualizar sua seleção.", variant: "destructive" });
+              } finally {
+                setLoading(false);
+              }
+              return;
+            } else if (planId === 'plano_anual') {
+                 toast({ title: "Plano Anual Já Ativo", description: "Você já possui o Plano Anual.", variant: "default" });
+            } else {
+                 toast({ title: "Seleção Mantida", description: `Você já está com esta seleção para o ${planName}.`, variant: "default" });
+            }
+
+          } else { // Fora do período de 7 dias para mudança
+            toast({ title: "Prazo Expirado", description: `O prazo de 7 dias para alterar a seleção do ${planName} terminou.`, variant: "default" });
+          }
+        } else { // Caso estranho: plano ativo mas sem startDate
+           toast({ title: "Erro no Plano", description: "Detalhes do seu plano atual estão incompletos. Contate o suporte.", variant: "destructive" });
+        }
+        setLoading(false);
+        return;
+      } else { // Tentando assinar um plano diferente do atual
+        toast({ title: "Plano Existente", description: `Você já possui o ${getPlanDisplayNameHelper(user.activePlan)} ativo. Cancele-o antes de assinar um novo.`, variant: "default" });
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Lógica para nova assinatura (usuário não tem plano ativo)
+    if (!specificDetails && (planId === 'plano_cargo' || planId === 'plano_edital')) {
+        toast({ 
+            title: "Seleção Necessária", 
+            description: `Para assinar o ${planName}, por favor, escolha o ${planId === 'plano_cargo' ? 'cargo' : 'edital'} desejado na respectiva página de detalhes.`,
+            variant: "default",
+            duration: 9000,
+        });
         setLoading(false);
         return;
     }
+
+    const startDate = formatISO(now);
+    const expiryDate = formatISO(addDays(now, 365)); // Todos os planos com 1 ano de validade
 
     const newPlanDetails: PlanDetails = {
       planId,
       startDate,
       expiryDate,
-      ...specificDetails,
+      ...(planId === 'plano_cargo' && specificDetails?.selectedCargoCompositeId && { selectedCargoCompositeId: specificDetails.selectedCargoCompositeId }),
+      ...(planId === 'plano_edital' && specificDetails?.selectedEditalId && { selectedEditalId: specificDetails.selectedEditalId }),
     };
 
     try {
@@ -437,7 +434,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         planDetails: newPlanDetails 
       });
       setUser(prevUser => prevUser ? { ...prevUser, activePlan: planId, planDetails: newPlanDetails } : null);
-      toast({ title: "Assinatura Realizada!", description: `Você assinou o ${planId}.`, variant: "default", className: "bg-accent text-accent-foreground" });
+      toast({ title: "Assinatura Realizada!", description: `Você assinou o ${planName} por 1 ano.`, variant: "default", className: "bg-accent text-accent-foreground" });
       router.push('/perfil'); 
     } catch (error) {
       console.error("Error subscribing to plan:", error);
@@ -453,29 +450,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return;
     }
     setLoading(true);
-
-    // --- INÍCIO DA SEÇÃO PARA COMENTAR EM PRODUÇÃO ---
-    // EM PRODUÇÃO:
-    // O cancelamento de uma assinatura geralmente é gerenciado através do gateway de pagamento.
-    // 1. O usuário solicitaria o cancelamento no seu app.
-    // 2. Seu frontend chamaria um endpoint no backend.
-    // 3. Seu backend se comunicaria com a API do gateway de pagamento para:
-    //    a. Cancelar a assinatura (geralmente significa que não será renovada no próximo ciclo).
-    //    b. Ou, dependendo da política, marcar para não renovar.
-    // 4. O gateway de pagamento enviaria um webhook para o seu backend confirmando
-    //    a alteração do status da assinatura (ex: 'canceled', 'active_until_end_of_period').
-    // 5. Seu backend atualizaria o `activePlan` e `planDetails` no Firebase RTDB
-    //    para refletir o novo status e a data de expiração real.
-    // --- FIM DA SEÇÃO PARA COMENTAR EM PRODUÇÃO ---
-    
-    // A lógica abaixo é uma SIMULAÇÃO de cancelamento imediato,
-    // atualizando o banco de dados diretamente do frontend.
-
     try {
-      await update(ref(db, `users/${user.id}`), { 
-        activePlan: null,
-        planDetails: null 
-      });
+      await update(ref(db, `users/${user.id}`), { activePlan: null, planDetails: null });
       setUser(prevUser => prevUser ? { ...prevUser, activePlan: null, planDetails: null } : null);
       toast({ title: "Assinatura Cancelada", description: "Seu plano foi cancelado.", variant: "default" });
     } catch (error) {
@@ -488,25 +464,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{ 
-      user, 
-      loading, 
-      login, 
-      register,
-      sendPasswordReset,
-      logout, 
-      updateUser, 
-      registerForCargo, 
-      unregisterFromCargo, 
-      toggleTopicStudyStatus, 
-      addStudyLog, 
-      addQuestionLog,
-      addRevisionSchedule,
-      toggleRevisionReviewedStatus,
-      subscribeToPlan,
-      cancelSubscription
+      user, loading, login, register, sendPasswordReset, logout, updateUser, 
+      registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, 
+      addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
+      subscribeToPlan, cancelSubscription
     }}>
       {children}
     </AuthContext.Provider>
   );
 };
-

@@ -5,12 +5,13 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2 } from 'lucide-react';
+import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import type { PlanId } from '@/types';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const PlanFeature = ({ children }: { children: React.ReactNode }) => (
   <li className="flex items-start">
@@ -27,41 +28,18 @@ export default function PlanosPage() {
   const handleSubscribe = async (planId: PlanId) => {
     if (!user) {
       toast({ title: "Login Necessário", description: "Você precisa estar logado para assinar um plano.", variant: "destructive" });
-      // Consider redirecting to login: router.push('/login');
       return;
     }
 
-    if (user.activePlan === planId) {
-        toast({ title: "Plano Já Ativo", description: `Você já está inscrito no ${planId}.`, variant: "default" });
-        return;
-    }
-    if (user.activePlan && user.activePlan !== planId) {
-         toast({ title: "Plano Existente", description: `Você já possui o ${user.activePlan} ativo. Cancele-o antes de assinar um novo.`, variant: "default" });
-        return;
-    }
-
-
+    // Para Plano Anual, a assinatura pode ser direta.
+    // Para Plano Cargo e Edital, a lógica de `subscribeToPlan` agora lida com seleção/mudança.
+    // A chamada aqui não passará `specificDetails`, então `subscribeToPlan` exibirá o toast de "Seleção Necessária".
     setSubscribingPlan(planId);
     try {
-      if (planId === 'plano_cargo' || planId === 'plano_edital') {
-        toast({ 
-            title: "Seleção Necessária", 
-            description: `Para assinar o ${planId === 'plano_cargo' ? 'Plano Cargo' : 'Plano Edital'}, por favor, escolha o ${planId === 'plano_cargo' ? 'cargo' : 'edital'} desejado na respectiva página de detalhes. A assinatura aqui simularia o acesso completo ao plano específico escolhido lá.`,
-            variant: "default",
-            duration: 9000,
-        });
-        // Para simular a assinatura de um plano específico (cargo/edital) que seria normalmente feito na página de detalhes:
-        // await subscribeToPlan(planId, { selectedCargoCompositeId: 'mockEditalId_mockCargoId' }); // Exemplo para Plano Cargo
-        // await subscribeToPlan(planId, { selectedEditalId: 'mockEditalId' }); // Exemplo para Plano Edital
-        // Se você quiser permitir a assinatura genérica aqui (sem seleção específica), remova este toast e a lógica de seleção.
-        // Por ora, vamos simular que ele precisa ir para a página específica.
-        setSubscribingPlan(null); // Reset loading state for these buttons if no direct subscription here.
-        return; // Retornar se a intenção é que ele assine na página específica
-      }
       await subscribeToPlan(planId);
-      // Success toast and redirection are handled within subscribeToPlan
+      // Toasts de sucesso/erro/info são tratados dentro de subscribeToPlan
     } catch (error) {
-      // Error toast is handled within subscribeToPlan
+      // Erro já tratado no AuthProvider se não for capturado antes em subscribeToPlan
       console.error(`Error subscribing to ${planId}:`, error);
     } finally {
       setSubscribingPlan(null);
@@ -74,7 +52,7 @@ export default function PlanosPage() {
       <div className="container mx-auto px-0 sm:px-4 py-8">
         <PageHeader 
           title="Nossos Planos"
-          description="Escolha o plano ideal para sua jornada de aprovação."
+          description="Escolha o plano ideal para sua jornada de aprovação. Todos os planos têm validade de 1 ano!"
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -87,13 +65,13 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="flex-grow space-y-4 pt-2">
               <p className="text-center text-3xl font-bold text-primary">
-                R$ 19<span className="text-xl font-normal">,90/7 dias</span>
+                R$ 4<span className="text-xl font-normal">,99/ano</span>
               </p>
               <ul className="space-y-2 text-sm">
-                <PlanFeature>Acesso por <strong>7 dias</strong> a <strong>1 cargo específico</strong> de <strong>1 edital</strong> à sua escolha.</PlanFeature>
+                <PlanFeature>Acesso por <strong>1 ano</strong> a <strong>1 cargo específico</strong> de sua escolha.</PlanFeature>
+                <PlanFeature>Flexibilidade para <strong>alterar o cargo escolhido</strong> nos primeiros <strong>7 dias</strong> da assinatura.</PlanFeature>
                 <PlanFeature>Todas as funcionalidades de estudo para o cargo selecionado.</PlanFeature>
                 <PlanFeature>Acompanhamento de progresso detalhado.</PlanFeature>
-                <PlanFeature>Ideal para quem tem um objetivo claro e rápido.</PlanFeature>
               </ul>
             </CardContent>
             <CardFooter className="pt-6">
@@ -123,13 +101,13 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="flex-grow space-y-4 pt-2">
               <p className="text-center text-3xl font-bold text-primary">
-                R$ 29<span className="text-xl font-normal">,90/7 dias</span>
+                R$ 9<span className="text-xl font-normal">,99/ano</span>
               </p>
               <ul className="space-y-2 text-sm">
-                <PlanFeature>Acesso por <strong>7 dias</strong> a <strong>todos os cargos</strong> de <strong>1 edital específico</strong>.</PlanFeature>
+                <PlanFeature>Acesso por <strong>1 ano</strong> a <strong>todos os cargos</strong> de <strong>1 edital específico</strong> de sua escolha.</PlanFeature>
+                <PlanFeature>Flexibilidade para <strong>alterar o edital escolhido</strong> nos primeiros <strong>7 dias</strong> da assinatura.</PlanFeature>
                 <PlanFeature>Flexibilidade para estudar para múltiplas vagas do mesmo concurso.</PlanFeature>
                 <PlanFeature>Todas as funcionalidades de estudo e acompanhamento.</PlanFeature>
-                <PlanFeature>Perfeito para quem quer maximizar chances em um concurso por um período curto.</PlanFeature>
               </ul>
             </CardContent>
             <CardFooter className="pt-6">
@@ -148,13 +126,13 @@ export default function PlanosPage() {
           {/* Plano Anual */}
           <Card className="shadow-lg rounded-xl flex flex-col transform hover:scale-105 transition-transform duration-300">
             <CardHeader className="items-center text-center pb-4">
-              <Zap className="h-12 w-12 text-primary mb-3" /> {/* Usando Zap como ícone para "ilimitado" ou "premium" */}
+              <Zap className="h-12 w-12 text-primary mb-3" />
               <CardTitle className="text-2xl font-semibold">Plano Anual</CardTitle>
               <CardDescription className="text-base text-muted-foreground">Acesso total e ilimitado!</CardDescription>
             </CardHeader>
             <CardContent className="flex-grow space-y-4 pt-2">
               <p className="text-center text-3xl font-bold text-primary">
-                R$ 299<span className="text-xl font-normal">,90/ano</span>
+                R$ 39<span className="text-xl font-normal">,90/ano</span>
               </p>
               <ul className="space-y-2 text-sm">
                 <PlanFeature>Acesso por <strong>1 ano</strong> a <strong>todos os cargos</strong> de <strong>todos os editais</strong> da plataforma.</PlanFeature>
@@ -177,30 +155,30 @@ export default function PlanosPage() {
           </Card>
         </div>
 
-        <Card className="mt-12 bg-muted/70 shadow-md rounded-xl">
-            <CardHeader>
-                <CardTitle className="text-xl text-center">Como funciona a assinatura?</CardTitle>
-            </CardHeader>
-            <CardContent className="text-center text-muted-foreground space-y-3">
-                <p>No momento, as assinaturas ainda não estão integradas com um sistema de pagamento real. Esta funcionalidade simula a lógica de assinatura.</p>
-                <p>Para o <strong>Plano Anual</strong>, a assinatura pode ser ativada diretamente aqui. Para o <strong>Plano Cargo</strong> e <strong>Plano Edital</strong>, a intenção é que a assinatura seja feita nas páginas de detalhes do cargo ou edital específico, selecionando o item desejado antes da compra (funcionalidade a ser implementada integralmente).</p>
-                <p><strong>Atenção:</strong> Para utilizar as funcionalidades de inscrição em cargos, marcação de tópicos estudados, registro de tempo e desempenho, é necessário estar logado. Em breve, será necessário também ter um plano ativo para acesso completo.</p>
-            </CardContent>
-             <CardFooter className="justify-center pt-4">
-                {user ? (
-                     <Button variant="outline" asChild>
-                        <Link href="/perfil">Ver Meu Perfil</Link>
-                    </Button>
-                ) : (
-                    <Button variant="outline" asChild>
-                        <Link href="/login">Já tem uma conta? Faça Login</Link>
-                    </Button>
-                )}
-            </CardFooter>
-        </Card>
+        <Alert variant="default" className="mt-12 bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
+            <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <AlertTitle className="font-semibold text-blue-800 dark:text-blue-200">Como funciona a assinatura?</AlertTitle>
+            <AlertDescription className="text-blue-700 dark:text-blue-300/90 space-y-2">
+                <p>No momento, as assinaturas simulam a lógica de um sistema real. Todos os planos têm <strong>validade de 1 ano</strong>.</p>
+                <p>Para o <strong>Plano Anual</strong>, a assinatura pode ser ativada diretamente aqui.</p>
+                <p>Para o <strong>Plano Cargo</strong> e <strong>Plano Edital</strong>, a assinatura é realizada ao selecionar o cargo/edital desejado nas páginas de detalhes. Você terá <strong>7 dias</strong> após a assinatura para alterar sua escolha de cargo ou edital, caso deseje.</p>
+                <p><strong>Atenção:</strong> É necessário estar logado para utilizar funcionalidades de estudo e assinatura.</p>
+            </AlertDescription>
+        </Alert>
+        
+        <CardFooter className="justify-center pt-8">
+            {user ? (
+                 <Button variant="outline" asChild>
+                    <Link href="/perfil">Ver Meu Perfil e Assinatura</Link>
+                </Button>
+            ) : (
+                <Button variant="outline" asChild>
+                    <Link href="/login">Já tem uma conta? Faça Login</Link>
+                </Button>
+            )}
+        </CardFooter>
 
       </div>
     </PageWrapper>
   );
 }
-
