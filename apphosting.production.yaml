@@ -20,8 +20,11 @@ runConfig:
     # Substitua pela URL real do seu app hospedado (ex: https://meuseditais.web.app).
     NEXT_PUBLIC_APP_URL: "https://meuseditais.web.app"
 
-    # Futuramente, você adicionará o segredo do webhook aqui também.
-    # STRIPE_WEBHOOK_SECRET: "secret:MEU_SEGREDO_WEBHOOK_STRIPE" ou o valor direto (com cautela)
+    # Segredo do endpoint do Webhook do Stripe para PRODUÇÃO.
+    # Obtenha este valor do seu Stripe Dashboard após criar o endpoint.
+    # ATENÇÃO: Para máxima segurança, armazene este valor no Google Cloud Secret Manager
+    # e referencie-o aqui. Exemplo: STRIPE_WEBHOOK_SECRET: "secret:MEU_SEGREDO_WEBHOOK_PROD"
+    # STRIPE_WEBHOOK_SECRET: "whsec_SEU_SEGREDO_DE_WEBHOOK_DE_PRODUCAO_AQUI"
 
 # Você pode adicionar ou sobrescrever outras configurações de alto nível aqui,
 # como ingressSettings, se necessário para o ambiente de produção.

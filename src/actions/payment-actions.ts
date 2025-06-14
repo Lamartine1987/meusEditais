@@ -69,10 +69,12 @@ export async function createCheckoutSession(
       success_url: `${appUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/checkout/${planId}?payment_cancelled=true`,
       customer_email: userEmail,
-      client_reference_id: userId,
-      metadata: {
+      client_reference_id: userId, // Útil para reconciliação, mas não usado diretamente para buscar usuário aqui.
+      metadata: { // ESSENCIAL para o webhook identificar o usuário e o plano comprado.
         userId: userId,
         planId: planId,
+        // Você pode adicionar outros metadados aqui, se necessário.
+        // Ex: selectedCargoCompositeId: args.selectedCargoCompositeId (se aplicável e passado para esta função)
       }
     });
 
@@ -104,73 +106,27 @@ export async function createCheckoutSession(
   }
 }
 
-// --- MANUSEIO DE WEBHOOK (PRÓXIMO PASSO CRUCIAL PARA PRODUÇÃO) ---
-// Você PRECISARÁ de um endpoint de webhook (ex: /api/webhooks/stripe/route.ts)
-// para receber notificações do Stripe sobre o status do pagamento.
-// Isso é ESSENCIAL para confirmar o pagamento e ATIVAR O PLANO do usuário no seu banco de dados.
+// --- MANUSEIO DE WEBHOOK (IMPLEMENTADO EM /src/app/api/webhooks/stripe/route.ts) ---
 //
-// A estrutura básica do seu manipulador de webhook seria:
+// O endpoint de webhook em '/src/app/api/webhooks/stripe/route.ts' é agora responsável por:
+// 1. Receber eventos do Stripe (especialmente 'checkout.session.completed').
+// 2. Verificar a assinatura do webhook usando o 'STRIPE_WEBHOOK_SECRET'.
+// 3. Se o pagamento for bem-sucedido:
+//    a. Extrair 'userId' e 'planId' dos metadados da sessão.
+//    b. Chamar a função 'activateUserPlanInDB' (de '@/actions/user-plan-actions')
+//       para atualizar o status da assinatura do usuário no Firebase Realtime Database.
 //
-// import { headers } from 'next/headers';
-// import { buffer } from 'node:stream/consumers';
-// // import { stripe } from '@/lib/stripe'; // Sua instância Stripe, já configurada
-// // import { AuthContext } // ou uma função de serviço para atualizar o plano do usuário
+// Você precisará:
+// 1. Criar um endpoint de webhook no seu Stripe Dashboard.
+//    - URL do endpoint: `https://SUA_URL_DE_PRODUCAO/api/webhooks/stripe`
+//    - Eventos para escutar: Pelo menos `checkout.session.completed`.
+// 2. Obter o "Segredo do endpoint" (Signing secret) do Stripe para este endpoint.
+// 3. Configurar a variável de ambiente `STRIPE_WEBHOOK_SECRET` no seu ambiente de produção
+//    (no arquivo `apphosting.production.yaml`, idealmente via Google Secret Manager)
+//    e no seu `.env.local` para testes locais com a Stripe CLI
+//    (ex: `STRIPE_WEBHOOK_SECRET=whsec_...`).
 //
-// export async function POST(req: Request) {
-//   const body = await buffer(req.body!);
-//   const sig = headers().get('stripe-signature') as string;
-//   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!; // VOCÊ PRECISARÁ DE UM SEGREDO DE WEBHOOK DO STRIPE
-//
-//   let event: Stripe.Event;
-//
-//   try {
-//     const stripeForWebhook = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' });
-//     event = stripeForWebhook.webhooks.constructEvent(body, sig, webhookSecret);
-//   } catch (err: any) {
-//     console.error(\`Webhook signature verification failed: \${err.message}\`);
-//     return new Response(\`Webhook Error: \${err.message}\`, { status: 400 });
-//   }
-//
-//   // Handle the event
-//   switch (event.type) {
-//     case 'checkout.session.completed':
-//       const session = event.data.object as Stripe.Checkout.Session;
-//       const userId = session.metadata?.userId;
-//       const planId = session.metadata?.planId as PlanId | undefined;
-//
-//       if (userId && planId && session.payment_status === 'paid') {
-//         console.log(\`Pagamento bem-sucedido para usuário \${userId}, plano \${planId}. Ativar plano.\`);
-//         // AQUI você chamaria a lógica para ATIVAR O PLANO no seu Firebase Realtime Database
-//         // Exemplo:
-//         // await activateUserPlanInDB(userId, planId, session); // Passe a sessão para obter mais detalhes se necessário
-//       }
-//       break;
-//     // ... lidar com outros tipos de evento
-//     default:
-//       console.log(\`Unhandled event type \${event.type}\`);
-//   }
-//
-//   return new Response(null, { status: 200 });
-// }
-//
-// async function activateUserPlanInDB(userId: string, planId: PlanId, session: Stripe.Checkout.Session) {
-//   // Lógica para buscar o usuário no DB, atualizar activePlan e planDetails
-//   // similar ao que subscribeToPlan faz, mas diretamente no DB e acionado pelo webhook.
-//   // const userRef = ref(db, \`users/\${userId}\`);
-//   // const now = new Date();
-//   // const newPlanDetails = {
-//   //   planId,
-//   //   startDate: formatISO(now),
-//   //   expiryDate: formatISO(addDays(now, 365)), // ou 7 dias conforme o plano
-//   //   stripeCheckoutSessionId: session.id, // Guarde o ID da sessão do Stripe
-//   //   stripeCustomerId: typeof session.customer === 'string' ? session.customer : session.customer?.id, // Guarde o ID do cliente Stripe se aplicável
-//   //   // ... outros detalhes relevantes
-//   // };
-//   // await update(userRef, { activePlan: planId, planDetails: newPlanDetails });
-// }
-//
-// Você precisaria adicionar esta rota (ex: \`src/app/api/webhooks/stripe/route.ts\`)
-// e configurar o endpoint no seu dashboard do Stripe, além de um \`STRIPE_WEBHOOK_SECRET\`
-// nas suas variáveis de ambiente de produção.
-    
-    
+// Para testar webhooks localmente com a Stripe CLI:
+//    stripe listen --forward-to localhost:PORTA/api/webhooks/stripe
+//    (substitua PORTA pela porta do seu servidor de desenvolvimento, ex: 9002)
+//    A CLI fornecerá um segredo de webhook de teste (whsec_...) para usar no seu .env.local.

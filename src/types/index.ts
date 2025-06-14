@@ -27,10 +27,10 @@ export interface PlanDetails {
   planId: PlanId;
   startDate?: string; // ISO date
   expiryDate?: string; // ISO date
-  // Specific to 'plano_cargo'
   selectedCargoCompositeId?: string; // e.g., "edital1_cargo1"
-  // Specific to 'plano_edital'
   selectedEditalId?: string; // e.g., "edital1"
+  stripeCheckoutSessionId?: string; // ID of the Stripe Checkout Session
+  stripeCustomerId?: string | null; // ID of the Stripe Customer object
 }
 
 export interface User {

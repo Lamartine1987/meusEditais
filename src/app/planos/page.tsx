@@ -9,7 +9,7 @@ import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, Info } from 'lucide
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation'; // Importado useRouter
+import { useRouter } from 'next/navigation';
 import type { PlanId } from '@/types';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -21,16 +21,19 @@ const PlanFeature = ({ children }: { children: React.ReactNode }) => (
 );
 
 export default function PlanosPage() {
-  const { user, loading: authLoading } = useAuth(); // Removido subscribeToPlan
-  const router = useRouter(); // Inicializado useRouter
-  const { toast } = useToast(); // Mantido para possíveis toasts futuros, mas não usado em handleSubscribe
-
-  // Removido subscribingPlan e handleSubscribe
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
 
   const navigateToCheckout = (planId: PlanId) => {
     if (!user) {
-      toast({ title: "Login Necessário", description: "Você precisa estar logado para prosseguir para o checkout.", variant: "destructive" });
-      router.push('/login');
+      toast({ 
+        title: "Login Necessário", 
+        description: "Você precisa estar logado para selecionar um plano e prosseguir para o checkout.", 
+        variant: "destructive",
+        duration: 5000 
+      });
+      router.push(`/login?redirect=/planos`); // Redireciona para login, depois volta para planos
       return;
     }
     router.push(`/checkout/${planId}`);
@@ -69,10 +72,9 @@ export default function PlanosPage() {
                 size="lg" 
                 className="w-full text-base" 
                 onClick={() => navigateToCheckout('plano_cargo')}
-                disabled={authLoading} // Removido subscribingPlan
+                disabled={authLoading}
               >
-                {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-                Assinar Plano Cargo
+                {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Selecionar Plano Cargo"}
               </Button>
             </CardFooter>
           </Card>
@@ -105,10 +107,9 @@ export default function PlanosPage() {
                 size="lg" 
                 className="w-full text-base" 
                 onClick={() => navigateToCheckout('plano_edital')}
-                disabled={authLoading} // Removido subscribingPlan
+                disabled={authLoading}
               >
-                 {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-                Assinar Plano Edital
+                 {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Selecionar Plano Edital"}
               </Button>
             </CardFooter>
           </Card>
@@ -136,10 +137,9 @@ export default function PlanosPage() {
                 size="lg" 
                 className="w-full text-base" 
                 onClick={() => navigateToCheckout('plano_anual')}
-                disabled={authLoading} // Removido subscribingPlan
+                disabled={authLoading}
               >
-                {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-                Assinar Plano Anual
+                {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Selecionar Plano Anual"}
               </Button>
             </CardFooter>
           </Card>
@@ -149,10 +149,10 @@ export default function PlanosPage() {
             <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             <AlertTitle className="font-semibold text-blue-800 dark:text-blue-200">Como funciona a assinatura?</AlertTitle>
             <AlertDescription className="text-blue-700 dark:text-blue-300/90 space-y-2">
-                <p>No momento, as assinaturas simulam a lógica de um sistema real. Todos os planos têm <strong>validade de 1 ano</strong>.</p>
-                <p>Para o <strong>Plano Anual</strong>, a assinatura pode ser ativada diretamente aqui ou via checkout (a ativação real ocorreria após pagamento).</p>
-                <p>Para o <strong>Plano Cargo</strong> e <strong>Plano Edital</strong>, a assinatura é realizada ao selecionar o cargo/edital desejado nas páginas de detalhes e clicar em "Inscrever-se" (a ativação real ocorreria após pagamento). Você terá <strong>7 dias</strong> após a assinatura para alterar sua escolha de cargo ou edital, caso deseje. Para alterar, basta "inscrever-se" no novo item desejado.</p>
-                <p><strong>Atenção:</strong> É necessário estar logado para utilizar funcionalidades de estudo e assinatura.</p>
+                <p>Ao selecionar um plano, você será redirecionado para a página de checkout e, em seguida, para o ambiente seguro de pagamento do Stripe.</p>
+                <p>Após a confirmação do pagamento pelo Stripe (via webhook), seu plano será ativado automaticamente em sua conta.</p>
+                <p>Para o <strong>Plano Cargo</strong> e <strong>Plano Edital</strong>, você terá <strong>7 dias</strong> após a ativação para alterar sua escolha específica de cargo ou edital, caso deseje. Isso pode ser feito na sua página de perfil.</p>
+                <p><strong>Atenção:</strong> É necessário estar logado para selecionar um plano e prosseguir com a assinatura.</p>
             </AlertDescription>
         </Alert>
         
@@ -163,7 +163,7 @@ export default function PlanosPage() {
                 </Button>
             ) : (
                 <Button variant="outline" asChild>
-                    <Link href="/login">Já tem uma conta? Faça Login</Link>
+                    <Link href="/login?redirect=/planos">Já tem uma conta? Faça Login</Link>
                 </Button>
             )}
         </CardFooter>
