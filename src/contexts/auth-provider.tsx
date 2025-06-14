@@ -399,18 +399,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const startDate = formatISO(now);
     let expiryDate = '';
     
-    switch (planId) {
-      case 'plano_cargo':
-      case 'plano_edital':
-        expiryDate = formatISO(addDays(now, 30)); // Monthly
-        break;
-      case 'plano_anual':
-        expiryDate = formatISO(addDays(now, 365)); // Annual
-        break;
-      default:
-        toast({ title: "Plano Inválido", description: "O plano selecionado não é reconhecido.", variant: "destructive" });
-        setLoading(false);
-        return;
+    // All plans are now annual
+    if (planId === 'plano_cargo' || planId === 'plano_edital' || planId === 'plano_anual') {
+      expiryDate = formatISO(addDays(now, 365));
+    } else {
+      toast({ title: "Plano Inválido", description: "O plano selecionado não é reconhecido.", variant: "destructive" });
+      setLoading(false);
+      return;
     }
 
     const newPlanDetails: PlanDetails = {
@@ -480,3 +475,4 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+

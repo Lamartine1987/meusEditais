@@ -25,19 +25,19 @@ const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
   plano_cargo: {
     id: 'plano_cargo',
     name: "Plano Cargo",
-    price: "R$ 4,99/mês",
+    price: "R$ 4,99/ano", // Changed to annual
     description: "Acesso a 1 cargo específico de 1 edital à sua escolha. Todas as funcionalidades de estudo para o cargo selecionado. Acompanhamento de progresso detalhado."
   },
   plano_edital: {
     id: 'plano_edital',
     name: "Plano Edital",
-    price: "R$ 9,99/mês",
+    price: "R$ 9,99/ano", // Changed to annual
     description: "Acesso a todos os cargos de 1 edital específico. Flexibilidade para estudar para múltiplas vagas do mesmo concurso. Todas as funcionalidades de estudo e acompanhamento."
   },
   plano_anual: {
     id: 'plano_anual',
     name: "Plano Anual",
-    price: "R$ 39,99/ano", // Corrected price
+    price: "R$ 39,99/ano", 
     description: "Acesso a todos os cargos de todos os editais da plataforma. Liberdade total para explorar e se preparar para múltiplos concursos. Todas as funcionalidades premium e atualizações futuras."
   }
 };
@@ -293,3 +293,4 @@ export default function CheckoutPage() {
     </Suspense>
   )
 }
+
