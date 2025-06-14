@@ -5,3 +5,6 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
+# Allow all traffic to the App Hosting backend.
+# This is often necessary when serving a public website.
+ingressSettings: ALLOW_ALL
