@@ -5,12 +5,13 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2 } from 'lucide-react';
+import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 import type { PlanId } from '@/types';
+import { useRouter } from 'next/navigation';
 
 const PlanFeature = ({ children }: { children: React.ReactNode }) => (
   <li className="flex items-start">
@@ -20,47 +21,50 @@ const PlanFeature = ({ children }: { children: React.ReactNode }) => (
 );
 
 export default function PlanosPage() {
-  const { user, subscribeToPlan, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth(); // subscribeToPlan foi removido daqui
   const { toast } = useToast();
-  const [subscribingPlan, setSubscribingPlan] = useState<PlanId | null>(null);
+  const router = useRouter();
+  const [isLoadingPlan, setIsLoadingPlan] = useState<PlanId | null>(null);
 
-  const handleSubscribe = async (planId: PlanId) => {
+  const handleSelectPlan = async (planId: PlanId) => {
     if (!user) {
-      toast({ title: "Login Necessário", description: "Você precisa estar logado para assinar um plano.", variant: "destructive" });
-      // Consider redirecting to login: router.push('/login');
+      toast({ title: "Login Necessário", description: "Você precisa estar logado para selecionar um plano.", variant: "destructive" });
+      router.push('/login');
       return;
     }
 
-    if (user.activePlan === planId) {
-        toast({ title: "Plano Já Ativo", description: `Você já está inscrito no ${planId}.`, variant: "default" });
-        return;
-    }
     if (user.activePlan && user.activePlan !== planId) {
-         toast({ title: "Plano Existente", description: `Você já possui o ${user.activePlan} ativo. Cancele-o antes de assinar um novo.`, variant: "default" });
-        return;
+      toast({ title: "Plano Existente", description: `Você já possui o ${user.activePlan} ativo. Cancele-o em seu perfil antes de assinar um novo.`, variant: "default", duration: 7000 });
+      return;
+    }
+     if (user.activePlan && user.activePlan === planId) {
+      toast({ title: "Plano Já Ativo", description: `Você já está inscrito no plano ${planId === 'plano_cargo' ? 'Cargo' : planId === 'plano_edital' ? 'Edital' : 'Anual'}.`, variant: "default" });
+      return;
     }
 
 
-    setSubscribingPlan(planId);
-    try {
-      if (planId === 'plano_cargo' || planId === 'plano_edital') {
-        toast({ 
-            title: "Seleção Necessária", 
-            description: `Para assinar o ${planId === 'plano_cargo' ? 'Plano Cargo' : 'Plano Edital'}, por favor, escolha o ${planId === 'plano_cargo' ? 'cargo' : 'edital'} desejado na respectiva página de detalhes.`,
-            variant: "default",
-            duration: 7000,
-        });
-        setSubscribingPlan(null); // Reset loading state for these buttons
-        return;
-      }
-      await subscribeToPlan(planId);
-      // Success toast and redirection are handled within subscribeToPlan
-    } catch (error) {
-      // Error toast is handled within subscribeToPlan
-      console.error(`Error subscribing to ${planId}:`, error);
-    } finally {
-      setSubscribingPlan(null);
+    setIsLoadingPlan(planId);
+
+    if (planId === 'plano_anual') {
+      router.push(`/checkout/${planId}`);
+    } else if (planId === 'plano_cargo') {
+      toast({ 
+          title: "Seleção de Cargo Necessária", 
+          description: "Para assinar o Plano Cargo, por favor, inscreva-se no cargo desejado na página de detalhes do edital.",
+          variant: "default",
+          duration: 10000,
+      });
+      setIsLoadingPlan(null);
+    } else if (planId === 'plano_edital') {
+         toast({ 
+          title: "Seleção de Edital Necessária", 
+          description: "Para assinar o Plano Edital, por favor, escolha o edital desejado e selecione a opção de assinatura na página de detalhes do edital (funcionalidade em desenvolvimento).",
+          variant: "default",
+          duration: 10000,
+      });
+      setIsLoadingPlan(null);
     }
+    // setIsLoadingPlan(null) será chamado na página de checkout ou após o toast para cargo/edital.
   };
 
 
@@ -95,11 +99,12 @@ export default function PlanosPage() {
               <Button 
                 size="lg" 
                 className="w-full text-base" 
-                onClick={() => handleSubscribe('plano_cargo')}
-                disabled={authLoading || subscribingPlan === 'plano_cargo'}
+                onClick={() => handleSelectPlan('plano_cargo')}
+                disabled={authLoading || isLoadingPlan === 'plano_cargo'}
+                variant="outline"
               >
-                {authLoading && subscribingPlan === 'plano_cargo' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-                Assinar Plano Cargo
+                {authLoading && isLoadingPlan === 'plano_cargo' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
+                Selecionar Cargo
               </Button>
             </CardFooter>
           </Card>
@@ -131,11 +136,12 @@ export default function PlanosPage() {
                <Button 
                 size="lg" 
                 className="w-full text-base" 
-                onClick={() => handleSubscribe('plano_edital')}
-                disabled={authLoading || subscribingPlan === 'plano_edital'}
+                onClick={() => handleSelectPlan('plano_edital')}
+                disabled={authLoading || isLoadingPlan === 'plano_edital'}
+                variant="outline"
               >
-                 {authLoading && subscribingPlan === 'plano_edital' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-                Assinar Plano Edital
+                 {authLoading && isLoadingPlan === 'plano_edital' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
+                Selecionar Edital
               </Button>
             </CardFooter>
           </Card>
@@ -143,7 +149,7 @@ export default function PlanosPage() {
           {/* Plano Anual */}
           <Card className="shadow-lg rounded-xl flex flex-col transform hover:scale-105 transition-transform duration-300">
             <CardHeader className="items-center text-center pb-4">
-              <Zap className="h-12 w-12 text-primary mb-3" /> {/* Usando Zap como ícone para "ilimitado" ou "premium" */}
+              <Zap className="h-12 w-12 text-primary mb-3" />
               <CardTitle className="text-2xl font-semibold">Plano Anual</CardTitle>
               <CardDescription className="text-base text-muted-foreground">Acesso total e ilimitado!</CardDescription>
             </CardHeader>
@@ -162,10 +168,10 @@ export default function PlanosPage() {
               <Button 
                 size="lg" 
                 className="w-full text-base" 
-                onClick={() => handleSubscribe('plano_anual')}
-                disabled={authLoading || subscribingPlan === 'plano_anual'}
+                onClick={() => handleSelectPlan('plano_anual')}
+                disabled={authLoading || isLoadingPlan === 'plano_anual'}
               >
-                {authLoading && subscribingPlan === 'plano_anual' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+                {authLoading && isLoadingPlan === 'plano_anual' ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Gem className="mr-2 h-5 w-5" />}
                 Assinar Plano Anual
               </Button>
             </CardFooter>
@@ -177,9 +183,8 @@ export default function PlanosPage() {
                 <CardTitle className="text-xl text-center">Como funciona a assinatura?</CardTitle>
             </CardHeader>
             <CardContent className="text-center text-muted-foreground space-y-3">
-                <p>No momento, as assinaturas ainda não estão integradas com um sistema de pagamento real. Esta funcionalidade simula a lógica de assinatura.</p>
-                <p>Para o <strong>Plano Anual</strong>, a assinatura pode ser ativada diretamente aqui. Para o <strong>Plano Cargo</strong> e <strong>Plano Edital</strong>, a intenção é que a assinatura seja feita nas páginas de detalhes do cargo ou edital específico (funcionalidade a ser implementada).</p>
-                <p><strong>Atenção:</strong> Para utilizar as funcionalidades de inscrição em cargos, marcação de tópicos estudados, registro de tempo e desempenho, é necessário estar logado. Em breve, será necessário também ter um plano ativo para acesso completo.</p>
+                <p>As assinaturas são gerenciadas através da página de checkout (para o Plano Anual) ou diretamente nas páginas de detalhes (para Planos Cargo/Edital).</p>
+                <p><strong>Atenção:</strong> No momento, a integração com pagamentos reais (Stripe) é simulada. As funcionalidades de estudo requerem um plano ativo (simulado).</p>
             </CardContent>
              <CardFooter className="justify-center pt-4">
                 {user ? (
