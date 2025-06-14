@@ -5,7 +5,7 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, ArrowRight, ChevronDown } from 'lucide-react';
+import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, ArrowRight, Search as SearchIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 
 const PlanFeature = ({ children }: { children: React.ReactNode }) => (
@@ -27,12 +28,6 @@ const PlanFeature = ({ children }: { children: React.ReactNode }) => (
     <span className="text-muted-foreground">{children}</span>
   </li>
 );
-
-interface FlattenedCargo {
-  id: string; // compositeId: editalId_cargoId
-  name: string;
-  editalTitle: string;
-}
 
 export default function PlanosPage() {
   const { user, loading: authLoading } = useAuth();
@@ -43,11 +38,11 @@ export default function PlanosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalPlanType, setModalPlanType] = useState<'cargo' | 'edital' | null>(null);
   
-  // For 'Plano Cargo' modal specifically
   const [selectedEditalIdInCargoModal, setSelectedEditalIdInCargoModal] = useState<string | null>(null);
   const [cargosForSelectedEdital, setCargosForSelectedEdital] = useState<CargoType[]>([]);
+  const [cargoSearchTerm, setCargoSearchTerm] = useState('');
   
-  // For 'Plano Edital' modal & final cargo selection in 'Plano Cargo' modal
+  const [editalSearchTerm, setEditalSearchTerm] = useState('');
   const [selectedItemInModal, setSelectedItemInModal] = useState<string | null>(null);
   
   const [isProcessingModalSelection, setIsProcessingModalSelection] = useState(false);
@@ -62,11 +57,27 @@ export default function PlanosPage() {
     if (modalPlanType === 'cargo' && selectedEditalIdInCargoModal) {
       const edital = allSelectableEditais.find(e => e.id === selectedEditalIdInCargoModal);
       setCargosForSelectedEdital(edital?.cargos || []);
-      setSelectedItemInModal(null); // Reset cargo selection when edital changes
+      setSelectedItemInModal(null); 
+      setCargoSearchTerm(''); 
     } else {
       setCargosForSelectedEdital([]);
     }
   }, [selectedEditalIdInCargoModal, modalPlanType, allSelectableEditais]);
+
+  const filteredCargosForModal = useMemo(() => {
+    if (!cargoSearchTerm) return cargosForSelectedEdital;
+    return cargosForSelectedEdital.filter(cargo => 
+      cargo.name.toLowerCase().includes(cargoSearchTerm.toLowerCase())
+    );
+  }, [cargosForSelectedEdital, cargoSearchTerm]);
+
+  const filteredEditaisForModal = useMemo(() => {
+    if (!editalSearchTerm) return allSelectableEditais;
+    return allSelectableEditais.filter(edital => 
+      edital.title.toLowerCase().includes(editalSearchTerm.toLowerCase()) ||
+      edital.organization.toLowerCase().includes(editalSearchTerm.toLowerCase())
+    );
+  }, [allSelectableEditais, editalSearchTerm]);
 
 
   const handleOpenSelectionModal = (planType: 'cargo' | 'edital') => {
@@ -85,6 +96,9 @@ export default function PlanosPage() {
     if (planType === 'cargo') {
       setSelectedEditalIdInCargoModal(null);
       setCargosForSelectedEdital([]);
+      setCargoSearchTerm('');
+    } else {
+      setEditalSearchTerm('');
     }
     setIsModalOpen(true);
   };
@@ -235,7 +249,7 @@ export default function PlanosPage() {
             <AlertDialogContent className="max-w-lg w-full">
               <AlertDialogHeader>
                 <AlertDialogTitle>Selecionar Cargo para Assinatura</AlertDialogTitle>
-                <AlertDialogDescription>Escolha primeiro o edital e depois o cargo específico que você deseja incluir no seu Plano Cargo.</AlertDialogDescription>
+                <AlertDialogDescription>Escolha o edital e depois o cargo específico que você deseja incluir no seu Plano Cargo.</AlertDialogDescription>
               </AlertDialogHeader>
               <Separator />
               <div className="space-y-4 py-2">
@@ -257,12 +271,23 @@ export default function PlanosPage() {
                 </div>
 
                 {selectedEditalIdInCargoModal && (
-                    <div>
-                        <Label className="mb-1.5 block text-sm font-medium text-muted-foreground">2. Selecione o Cargo:</Label>
-                        {cargosForSelectedEdital.length > 0 ? (
+                    <div className="space-y-2">
+                        <Label htmlFor="cargo-search-input" className="block text-sm font-medium text-muted-foreground">2. Busque e Selecione o Cargo:</Label>
+                        <div className="relative">
+                            <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input 
+                                id="cargo-search-input"
+                                type="search"
+                                placeholder="Buscar cargo..."
+                                value={cargoSearchTerm}
+                                onChange={(e) => setCargoSearchTerm(e.target.value)}
+                                className="pl-8"
+                            />
+                        </div>
+                        {filteredCargosForModal.length > 0 ? (
                             <ScrollArea className="h-[200px] pr-3 border rounded-md">
                                 <RadioGroup value={selectedItemInModal || ''} onValueChange={setSelectedItemInModal} className="space-y-1 p-2">
-                                    {cargosForSelectedEdital.map(cargo => {
+                                    {filteredCargosForModal.map(cargo => {
                                         const compositeCargoId = `${selectedEditalIdInCargoModal}_${cargo.id}`;
                                         return (
                                             <Label 
@@ -278,7 +303,9 @@ export default function PlanosPage() {
                                 </RadioGroup>
                             </ScrollArea>
                         ) : (
-                             <p className="text-muted-foreground text-sm text-center py-4">Nenhum cargo encontrado para este edital.</p>
+                             <p className="text-muted-foreground text-sm text-center py-4">
+                                {cargoSearchTerm ? "Nenhum cargo encontrado com este termo." : "Nenhum cargo encontrado para este edital."}
+                            </p>
                         )}
                     </div>
                 )}
@@ -304,24 +331,40 @@ export default function PlanosPage() {
                 <AlertDialogDescription>Escolha o edital ao qual você deseja ter acesso completo com o Plano Edital.</AlertDialogDescription>
               </AlertDialogHeader>
                <Separator />
-              {allSelectableEditais.length > 0 ? (
-                <ScrollArea className="h-[350px] my-4 pr-3">
-                  <RadioGroup value={selectedItemInModal || ''} onValueChange={setSelectedItemInModal} className="space-y-2">
-                    {allSelectableEditais.map(edital => (
-                       <Label 
-                        htmlFor={edital.id} 
-                        key={edital.id} 
-                        className="flex items-center space-x-3 p-3 border rounded-md hover:bg-muted/50 cursor-pointer has-[:checked]:bg-accent has-[:checked]:text-accent-foreground has-[:checked]:border-primary transition-colors"
-                      >
-                        <RadioGroupItem value={edital.id} id={edital.id} className="border-muted-foreground"/>
-                        <span className="font-medium">{edital.title} <span className="text-xs text-muted-foreground/80">({edital.organization})</span></span>
-                      </Label>
-                    ))}
-                  </RadioGroup>
-                </ScrollArea>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">Nenhum edital disponível para seleção.</p>
-              )}
+               <div className="py-2 space-y-2">
+                <Label htmlFor="edital-search-input" className="block text-sm font-medium text-muted-foreground">Busque e Selecione o Edital:</Label>
+                <div className="relative">
+                    <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                        id="edital-search-input"
+                        type="search"
+                        placeholder="Buscar edital por título ou organização..."
+                        value={editalSearchTerm}
+                        onChange={(e) => setEditalSearchTerm(e.target.value)}
+                        className="pl-8"
+                    />
+                </div>
+                {filteredEditaisForModal.length > 0 ? (
+                    <ScrollArea className="h-[300px] mt-2 pr-3 border rounded-md">
+                    <RadioGroup value={selectedItemInModal || ''} onValueChange={setSelectedItemInModal} className="space-y-2 p-2">
+                        {filteredEditaisForModal.map(edital => (
+                        <Label 
+                            htmlFor={edital.id} 
+                            key={edital.id} 
+                            className="flex items-center space-x-3 p-3 border rounded-md hover:bg-muted/50 cursor-pointer has-[:checked]:bg-accent has-[:checked]:text-accent-foreground has-[:checked]:border-primary transition-colors"
+                        >
+                            <RadioGroupItem value={edital.id} id={edital.id} className="border-muted-foreground"/>
+                            <span className="font-medium">{edital.title} <span className="text-xs text-muted-foreground/80">({edital.organization})</span></span>
+                        </Label>
+                        ))}
+                    </RadioGroup>
+                    </ScrollArea>
+                ) : (
+                    <p className="text-muted-foreground text-sm text-center py-8">
+                        {editalSearchTerm ? "Nenhum edital encontrado com este termo." : "Nenhum edital disponível para seleção."}
+                    </p>
+                )}
+               </div>
               <Separator />
               <AlertDialogFooter className="pt-4">
                 <AlertDialogCancel onClick={() => { setIsModalOpen(false); setModalPlanType(null); }} disabled={isProcessingModalSelection}>Cancelar</AlertDialogCancel>
