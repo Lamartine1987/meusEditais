@@ -6,7 +6,7 @@ import type { PlanId } from '@/types';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { ref, update, get } from 'firebase/database';
+import { ref, update, get } from 'firebase/database'; // get is still needed for webhook logic, but removed from initial customer check
 import { formatISO, addDays } from 'date-fns';
 
 const planToPriceMap: Record<PlanId, string> = {
@@ -35,18 +35,24 @@ export async function createCheckoutSession(
   const cancelUrl = `${appUrl}/checkout/cancel`;
 
   let stripeCustomerId: string | undefined;
-
-  // Check if user already has a Stripe customer ID in RTDB
   const userRef = ref(db, `users/${userId}`);
-  const userSnapshot = await get(userRef);
-  if (userSnapshot.exists()) {
-    const userData = userSnapshot.val();
-    stripeCustomerId = userData.stripeCustomerId;
-  }
 
-  // If no Stripe customer ID, create one
-  if (!stripeCustomerId) {
-    try {
+  try {
+    // Attempt to retrieve or create Stripe customer
+    const existingCustomers = await stripe.customers.list({
+      email: userEmail,
+      limit: 1,
+    });
+
+    if (existingCustomers.data.length > 0) {
+      stripeCustomerId = existingCustomers.data[0].id;
+      // Optionally ensure FirebaseUID is set on Stripe customer metadata
+      if (existingCustomers.data[0].metadata?.firebaseUID !== userId) {
+        await stripe.customers.update(stripeCustomerId, {
+          metadata: { ...existingCustomers.data[0].metadata, firebaseUID: userId },
+        });
+      }
+    } else {
       const customer = await stripe.customers.create({
         email: userEmail,
         metadata: {
@@ -54,12 +60,27 @@ export async function createCheckoutSession(
         },
       });
       stripeCustomerId = customer.id;
-      // Save Stripe customer ID to Firebase RTDB
-      await update(userRef, { stripeCustomerId });
-    } catch (error) {
-      console.error('Error creating Stripe customer:', error);
-      throw new Error('Could not create Stripe customer.');
     }
+
+    // Attempt to save/update Stripe customer ID to Firebase RTDB
+    // This write operation might still fail if RTDB write permissions are also restrictive.
+    try {
+      await update(userRef, { stripeCustomerId });
+    } catch (dbError: any) {
+      console.warn(`Warning: Could not update Stripe customer ID in Firebase RTDB for user ${userId}. Error: ${dbError.message}. Proceeding with checkout.`);
+      // We can still proceed with checkout creation, but the link between Firebase user and Stripe customer might not be saved in RTDB.
+      // This part depends on how critical the RTDB link is pre-checkout vs. post-webhook.
+    }
+
+  } catch (error: any) {
+    console.error('Error retrieving or creating Stripe customer:', error);
+    throw new Error(`Could not retrieve or create Stripe customer: ${error.message}`);
+  }
+
+
+  if (!stripeCustomerId) {
+    // This case should ideally not be reached if the above logic is correct
+    throw new Error('Stripe Customer ID could not be established.');
   }
 
   const metadata = {
@@ -72,7 +93,7 @@ export async function createCheckoutSession(
   try {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      mode: 'subscription', // Assuming all plans are subscriptions
+      mode: 'subscription', 
       customer: stripeCustomerId,
       line_items: [
         {
@@ -84,7 +105,7 @@ export async function createCheckoutSession(
       cancel_url: cancelUrl,
       metadata: metadata,
       subscription_data: {
-        metadata: metadata, // Pass metadata to subscription too
+        metadata: metadata, 
       },
     });
 
@@ -102,9 +123,6 @@ export async function createCheckoutSession(
   }
 }
 
-// Basic Webhook Handler Structure
-// IMPORTANT: This needs to be deployed as a secure HTTP endpoint (e.g., Firebase Function or Next.js API Route)
-// And the endpoint URL needs to be configured in your Stripe Dashboard.
 export async function handleStripeWebhook(req: Request) {
   const signature = headers().get('stripe-signature');
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -126,16 +144,16 @@ export async function handleStripeWebhook(req: Request) {
     return new Response(`Webhook Error: ${err.message}`, { status: 400 });
   }
 
-  // Handle the event
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
-      // Retrieve metadata
       const userId = session.metadata?.userId;
       const planId = session.metadata?.planId as PlanId | undefined;
       const selectedCargoCompositeId = session.metadata?.selectedCargoCompositeId;
       const selectedEditalId = session.metadata?.selectedEditalId;
-      const subscriptionId = session.subscription; // Stripe Subscription ID
+      const subscriptionId = session.subscription; 
+      const stripeCustomerIdFromSession = session.customer;
+
 
       if (!userId || !planId) {
         console.error('Webhook Error: Missing userId or planId in checkout session metadata.', session.metadata);
@@ -146,41 +164,47 @@ export async function handleStripeWebhook(req: Request) {
         console.error('Webhook Error: Missing or invalid subscription ID in checkout session.', session);
         return new Response('Webhook Error: Missing subscription ID.', { status: 400 });
       }
+      
+      if (!stripeCustomerIdFromSession || typeof stripeCustomerIdFromSession !== 'string') {
+        console.error('Webhook Error: Missing or invalid customer ID in checkout session.', session);
+        return new Response('Webhook Error: Missing customer ID.', { status: 400 });
+      }
 
-      // Fetch the subscription to get current_period_end
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      const currentPeriodEnd = subscription.current_period_end; // Unix timestamp
+      const currentPeriodEnd = subscription.current_period_end; 
 
       const now = new Date();
       const planDetails = {
         planId,
         startDate: formatISO(now),
-        // All plans are annual
-        expiryDate: formatISO(new Date(currentPeriodEnd * 1000)), // Convert Unix timestamp to ISO
+        expiryDate: formatISO(new Date(currentPeriodEnd * 1000)), 
         ...(selectedCargoCompositeId && { selectedCargoCompositeId }),
         ...(selectedEditalId && { selectedEditalId }),
-        stripeSubscriptionId: subscriptionId, // Store Stripe subscription ID
-        stripeCustomerId: session.customer, // Store Stripe customer ID
+        stripeSubscriptionId: subscriptionId, 
+        stripeCustomerId: stripeCustomerIdFromSession, 
       };
 
       try {
         const userRef = ref(db, `users/${userId}`);
+        // Ensure stripeCustomerId is also updated here, as it's the source of truth from Stripe
         await update(userRef, {
           activePlan: planId,
           planDetails: planDetails,
+          stripeCustomerId: stripeCustomerIdFromSession 
         });
         console.log(`Successfully updated plan for user ${userId} to ${planId}`);
 
-        // If it's plano_cargo, attempt to register for the cargo
         if (planId === 'plano_cargo' && selectedCargoCompositeId) {
             const [editalIdForReg, cargoIdForReg] = selectedCargoCompositeId.split('_');
             if (editalIdForReg && cargoIdForReg) {
-                const userSnapshot = await get(userRef);
+                const userSnapshot = await get(userRef); // This read might fail if rules are too strict
                 if (userSnapshot.exists()) {
                     const userData = userSnapshot.val();
                     const updatedRegisteredCargoIds = Array.from(new Set([...(userData.registeredCargoIds || []), selectedCargoCompositeId]));
                     await update(userRef, { registeredCargoIds: updatedRegisteredCargoIds });
                     console.log(`Successfully auto-registered user ${userId} for cargo ${selectedCargoCompositeId}`);
+                } else {
+                    console.warn(`Webhook: User ${userId} not found in DB for auto-registration to cargo.`);
                 }
             }
         }
@@ -195,19 +219,16 @@ export async function handleStripeWebhook(req: Request) {
       const subscription = event.data.object as Stripe.Subscription;
       const stripeCustomerId = subscription.customer;
        if (typeof stripeCustomerId === 'string') {
-        // Find user by stripeCustomerId (you'll need to query your DB or adjust data model)
-        // For now, assuming planDetails contains stripeCustomerId
-        // This part needs a robust way to map stripeCustomerId back to your Firebase UID.
-        // A common way is to query your users where stripeCustomerId matches.
-        // Since we stored firebaseUID in customer metadata, we can also use that if needed.
-        // For simplicity, we assume we can find the user. A real implementation needs this.
          const usersRef = ref(db, 'users');
-         const usersSnapshot = await get(usersRef);
+         const usersSnapshot = await get(usersRef); // This is a broad read, potentially problematic with strict rules
          if (usersSnapshot.exists()) {
             const usersData = usersSnapshot.val();
             let userIdToUpdate: string | null = null;
+            // Iterate through users to find a match by stripeCustomerId
+            // This is inefficient and might be slow for many users.
+            // A better approach would be to query if your DB supports it, or use FirebaseUID from customer metadata if available.
             for (const uid in usersData) {
-                if (usersData[uid].planDetails?.stripeCustomerId === stripeCustomerId) {
+                if (usersData[uid].stripeCustomerId === stripeCustomerId || usersData[uid].planDetails?.stripeCustomerId === stripeCustomerId) {
                     userIdToUpdate = uid;
                     break;
                 }
@@ -223,7 +244,9 @@ export async function handleStripeWebhook(req: Request) {
                     console.error(`Webhook Error: Failed to cancel subscription for user in DB:`, dbError);
                 }
             } else {
-                 console.warn(`Webhook Info: Received subscription.deleted for Stripe Customer ID ${stripeCustomerId}, but no matching user found in DB.`);
+                 console.warn(`Webhook Info: Received subscription.deleted for Stripe Customer ID ${stripeCustomerId}, but no matching user found in DB by stripeCustomerId field.`);
+                 // Attempt to find user via Stripe Customer metadata if not found by direct field.
+                 // This would require fetching the customer from Stripe API using stripeCustomerId, then getting firebaseUID from metadata.
             }
          }
       } else {
@@ -231,7 +254,6 @@ export async function handleStripeWebhook(req: Request) {
       }
       break;
     }
-    // Add other event types as needed (e.g., invoice.payment_failed, customer.subscription.updated)
     default:
       console.log(`Unhandled Stripe webhook event type: ${event.type}`);
   }
