@@ -1,25 +1,25 @@
-# Settings to manage and configure a Firebase App Hosting backend.
+# Configurações do backend do Firebase App Hosting
 # https://firebase.google.com/docs/app-hosting/configure
 
 runConfig:
-  # Increase this value if you'd like to automatically spin up
-  # more instances in response to increased traffic.
-  maxInstances: 1
+  maxInstances: 1  # Você pode ajustar isso conforme a carga esperada
 
 env:
-  - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY 
+  # ✅ Segredos usados apenas no backend
   - variable: STRIPE_SECRET_KEY_PROD
-    secret: STRIPE_SECRET_KEY_PROD 
+    secret: STRIPE_SECRET_KEY_PROD
+
   - variable: STRIPE_WEBHOOK_SECRET_PROD
-    secret: STRIPE_WEBHOOK_SECRET_PROD 
+    secret: STRIPE_WEBHOOK_SECRET_PROD
+
   - variable: STRIPE_PRICE_ID_PLANO_CARGO
-    secret: STRIPE_PRICE_ID_PLANO_CARGO 
+    secret: STRIPE_PRICE_ID_PLANO_CARGO
+
   - variable: STRIPE_PRICE_ID_PLANO_EDITAL
-    secret: STRIPE_PRICE_ID_PLANO_EDITAL 
+    secret: STRIPE_PRICE_ID_PLANO_EDITAL
+
   - variable: STRIPE_PRICE_ID_PLANO_ANUAL
-    secret: STRIPE_PRICE_ID_PLANO_ANUAL 
-  - variable: NEXT_PUBLIC_APP_URL # Necessário para URLs de redirecionamento do Stripe
-    value: "https://meuseditais.web.app" # Atualizado para o domínio correto
-    # Se você tiver um secret para NEXT_PUBLIC_APP_URL, use:
-    # secret: NOME_DO_SEU_SECRET_APP_URL
+    secret: STRIPE_PRICE_ID_PLANO_ANUAL
+
+  - variable: NEXT_PUBLIC_APP_URL
+    value: "https://meuseditais.web.app"
