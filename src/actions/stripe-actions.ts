@@ -28,8 +28,8 @@ export async function createCheckoutSession(
   userEmail: string,
   specificDetails?: { selectedCargoCompositeId?: string; selectedEditalId?: string }
 ) {
-  console.log('[createCheckoutSession] Initializing TEST checkout session. PlanID:', planId, 'UserID:', userId);
-  console.log(`[createCheckoutSession] ENV_STRIPE_SECRET_KEY_TEST: ${process.env.STRIPE_SECRET_KEY_TEST === undefined ? "undefined" : (process.env.STRIPE_SECRET_KEY_TEST ? "****** (present)" : "EMPTY_STRING_OR_NULL")}`);
+  console.log('[createCheckoutSession] Initializing PRODUCTION checkout session. PlanID:', planId, 'UserID:', userId);
+  console.log(`[createCheckoutSession] ENV_STRIPE_SECRET_KEY_PROD: ${process.env.STRIPE_SECRET_KEY_PROD === undefined ? "undefined" : (process.env.STRIPE_SECRET_KEY_PROD ? "****** (present)" : "EMPTY_STRING_OR_NULL")}`);
   console.log(`[createCheckoutSession] ENV_STRIPE_PRICE_ID_PLANO_CARGO: ${process.env.STRIPE_PRICE_ID_PLANO_CARGO === undefined ? "undefined" : (process.env.STRIPE_PRICE_ID_PLANO_CARGO || "EMPTY_STRING")}`);
   console.log(`[createCheckoutSession] ENV_STRIPE_PRICE_ID_PLANO_EDITAL: ${process.env.STRIPE_PRICE_ID_PLANO_EDITAL === undefined ? "undefined" : (process.env.STRIPE_PRICE_ID_PLANO_EDITAL || "EMPTY_STRING")}`);
   console.log(`[createCheckoutSession] ENV_STRIPE_PRICE_ID_PLANO_ANUAL: ${process.env.STRIPE_PRICE_ID_PLANO_ANUAL === undefined ? "undefined" : (process.env.STRIPE_PRICE_ID_PLANO_ANUAL || "EMPTY_STRING")}`);
@@ -59,7 +59,7 @@ export async function createCheckoutSession(
     throw new Error(`Configuration error: Stripe Price ID for plan '${planId}' ('${envVarNameForPriceId}') is invalid or not configured. Check server logs.`);
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'; // For production, NEXT_PUBLIC_APP_URL must be set
   if (appUrl === 'http://localhost:9002' && process.env.NODE_ENV === 'production') {
     console.warn(`[createCheckoutSession] Warning: NEXT_PUBLIC_APP_URL is not set for production. Using default ${appUrl}. This might cause issues with Stripe redirects. Ensure it's set in apphosting.yaml.`);
   }
@@ -184,15 +184,15 @@ export async function createCheckoutSession(
 }
 
 export async function handleStripeWebhook(req: Request) {
-  console.log('[handleStripeWebhook] Received TEST webhook request.');
+  console.log('[handleStripeWebhook] Received PRODUCTION webhook request.');
   const stripe = getStripeClient();
   const headersList = await headers();
   const signature = headersList.get('stripe-signature');
   console.log(`[handleStripeWebhook] Stripe Signature from header: ${signature ? 'present' : 'missing'}`);
 
 
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_TEST;
-  console.log(`[handleStripeWebhook] ENV_STRIPE_WEBHOOK_SECRET_TEST: ${webhookSecret === undefined ? "undefined" : (webhookSecret ? "****** (present)" : "EMPTY_STRING_OR_NULL")}`);
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_PROD; // Changed back to _PROD
+  console.log(`[handleStripeWebhook] ENV_STRIPE_WEBHOOK_SECRET_PROD: ${webhookSecret === undefined ? "undefined" : (webhookSecret ? "****** (present)" : "EMPTY_STRING_OR_NULL")}`);
 
 
   if (!signature) {
@@ -202,7 +202,7 @@ export async function handleStripeWebhook(req: Request) {
   }
   if (!webhookSecret || webhookSecret.trim() === '') {
     const currentWebhookKeyValue = webhookSecret === undefined ? 'undefined' : (webhookSecret === null ? 'null' : `'${webhookSecret}'`);
-    const msg = `CRITICAL: STRIPE_WEBHOOK_SECRET_TEST is not set or is empty in environment variables. This is a server-side configuration issue. Current value: ${currentWebhookKeyValue}. Ensure secret is linked in apphosting.yaml and has a non-empty value.`;
+    const msg = `CRITICAL: STRIPE_WEBHOOK_SECRET_PROD is not set or is empty in environment variables. This is a server-side configuration issue. Current value: ${currentWebhookKeyValue}. Ensure secret is linked in apphosting.yaml and has a non-empty value.`;
     console.error(`[handleStripeWebhook] ${msg}`);
     return new Response('Webhook Error: Webhook secret not configured or is empty. Server configuration issue.', { status: 500 });
   }
@@ -347,5 +347,3 @@ export async function handleStripeWebhook(req: Request) {
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
-
-    

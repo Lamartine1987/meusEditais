@@ -1,3 +1,4 @@
+
 # Configurações do backend do Firebase App Hosting
 # https://firebase.google.com/docs/app-hosting/configure
 
@@ -5,19 +6,17 @@ runConfig:
   maxInstances: 1
 
 env:
-  # ✅ Segredos para o ambiente de TESTE do Stripe
-  - variable: STRIPE_SECRET_KEY_TEST # Alterado de _PROD para _TEST
-    secret: STRIPE_SECRET_KEY_TEST    # Nome do secret no Secret Manager
+  # ✅ Segredos para o ambiente de PRODUÇÃO do Stripe
+  - variable: STRIPE_SECRET_KEY_PROD
+    secret: STRIPE_SECRET_KEY_PROD # Nome do secret no Secret Manager
 
-  - variable: STRIPE_WEBHOOK_SECRET_TEST # Alterado de _PROD para _TEST
-    secret: STRIPE_WEBHOOK_SECRET_TEST  # Nome do secret no Secret Manager
+  - variable: STRIPE_WEBHOOK_SECRET_PROD
+    secret: STRIPE_WEBHOOK_SECRET_PROD # Nome do secret no Secret Manager
 
-  - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY # A variável de ambiente continua a mesma para o Next.js
-    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY_TEST # Mas agora aponta para um secret de TESTE
+  - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY # Nome do secret no Secret Manager
 
-  # ✅ IDs de Preço - MANTIDOS COMO ESTAVAM. Crie secrets com esses nomes e valores de TESTE se forem diferentes.
-  # Se seus Price IDs de teste são diferentes, você deve criar secrets com estes nomes e os valores de teste.
-  # Ou, se preferir, podemos adicionar _TEST aqui também e nos arquivos. Por ora, vou manter.
+  # ✅ IDs de Preço - Devem corresponder aos IDs de preço de PRODUÇÃO
   - variable: STRIPE_PRICE_ID_PLANO_CARGO
     secret: STRIPE_PRICE_ID_PLANO_CARGO
 
@@ -28,4 +27,4 @@ env:
     secret: STRIPE_PRICE_ID_PLANO_ANUAL
 
   - variable: NEXT_PUBLIC_APP_URL
-    value: "https://meuseditais.web.app" # Mantenha ou altere para seu URL de teste se necessário
+    secret: NEXT_PUBLIC_APP_URL # Ou defina 'value: "https://seu-dominio.web.app"'
