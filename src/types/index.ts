@@ -31,6 +31,9 @@ export interface PlanDetails {
   selectedCargoCompositeId?: string; // e.g., "edital1_cargo1"
   // Specific to 'plano_edital'
   selectedEditalId?: string; // e.g., "edital1"
+  // Stripe specific fields
+  stripeSubscriptionId?: string | null;
+  stripeCustomerId?: string | null; // Added here as well for completeness, primarily on User type
 }
 
 export interface User {
@@ -45,6 +48,7 @@ export interface User {
   revisionSchedules?: RevisionScheduleEntry[];
   activePlan?: PlanId | null;
   planDetails?: PlanDetails | null;
+  stripeCustomerId?: string | null; // To store Stripe's customer ID
 }
 
 export interface Topic {
@@ -80,4 +84,3 @@ export interface Edital {
   status: 'open' | 'closed' | 'upcoming';
   state?: string; // e.g., 'SP', 'RJ', 'Nacional'
 }
-

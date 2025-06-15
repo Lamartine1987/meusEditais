@@ -35,6 +35,7 @@ interface AuthContextType {
   addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'date'>) => Promise<void>;
   addRevisionSchedule: (compositeTopicId: string, daysToReview: number) => Promise<void>;
   toggleRevisionReviewedStatus: (compositeTopicId: string) => Promise<void>;
+  // subscribeToPlan is now effectively handled by Stripe webhook, but kept for potential non-Stripe flows or manual admin actions
   subscribeToPlan: (planId: PlanId, specificDetails?: { selectedCargoCompositeId?: string; selectedEditalId?: string }) => Promise<void>;
   cancelSubscription: () => Promise<void>;
 }
@@ -60,12 +61,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const snapshot = await get(userRef);
           const dbData = snapshot.exists() ? snapshot.val() : {};
 
-          // Construct AppUser, ensuring avatarUrl is string or undefined for the type, but will be null for DB
           const appUser: AppUser = {
             id: firebaseUser.uid,
             name: firebaseUser.displayName || dbData.name || 'Usuário',
             email: firebaseUser.email || dbData.email || '',
-            avatarUrl: firebaseUser.photoURL || dbData.avatarUrl, // Can be undefined here
+            avatarUrl: firebaseUser.photoURL || dbData.avatarUrl,
             registeredCargoIds: dbData.registeredCargoIds || [],
             studiedTopicIds: dbData.studiedTopicIds || [],
             studyLogs: dbData.studyLogs || [],
@@ -73,13 +73,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             revisionSchedules: dbData.revisionSchedules || [],
             activePlan: dbData.activePlan || null,
             planDetails: dbData.planDetails || null,
+            stripeCustomerId: dbData.stripeCustomerId || null, // Add stripeCustomerId
           };
           setUser(appUser);
 
-          const dataToSaveToDb = {
+          const dataToSaveToDb: any = { // Use 'any' for flexibility during this sync
             name: appUser.name,
             email: appUser.email,
-            avatarUrl: appUser.avatarUrl || null, // Ensure null for DB if undefined
+            avatarUrl: appUser.avatarUrl || null,
             registeredCargoIds: appUser.registeredCargoIds,
             studiedTopicIds: appUser.studiedTopicIds,
             studyLogs: appUser.studyLogs,
@@ -87,24 +88,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             revisionSchedules: appUser.revisionSchedules,
             activePlan: appUser.activePlan,
             planDetails: appUser.planDetails,
+            stripeCustomerId: appUser.stripeCustomerId // Ensure stripeCustomerId is part of the save
           };
-
+          
           if (!snapshot.exists()) {
              await set(ref(db, `users/${firebaseUser.uid}`), dataToSaveToDb);
           } else {
              const updates: Partial<AppUser> = {};
-             if (dbData.name !== appUser.name) {
-                updates.name = appUser.name;
-             }
-             if (dbData.email !== appUser.email) {
-                updates.email = appUser.email;
-             }
-             // Ensure avatarUrl is null for DB if undefined or different
-             if ((dbData.avatarUrl || null) !== (appUser.avatarUrl || null)) {
-                 updates.avatarUrl = appUser.avatarUrl || null;
-             }
+             if (dbData.name !== appUser.name) updates.name = appUser.name;
+             if (dbData.email !== appUser.email) updates.email = appUser.email;
+             if ((dbData.avatarUrl || null) !== (appUser.avatarUrl || null)) updates.avatarUrl = appUser.avatarUrl || null;
+             if ((dbData.stripeCustomerId || null) !== (appUser.stripeCustomerId || null)) updates.stripeCustomerId = appUser.stripeCustomerId || null;
              
-             // Ensure all other fields from AppUser are initialized in RTDB if missing
              if (!dbData.hasOwnProperty('registeredCargoIds')) updates.registeredCargoIds = dataToSaveToDb.registeredCargoIds;
              if (!dbData.hasOwnProperty('studiedTopicIds')) updates.studiedTopicIds = dataToSaveToDb.studiedTopicIds;
              if (!dbData.hasOwnProperty('studyLogs')) updates.studyLogs = dataToSaveToDb.studyLogs;
@@ -112,11 +107,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
              if (!dbData.hasOwnProperty('revisionSchedules')) updates.revisionSchedules = dataToSaveToDb.revisionSchedules;
              if (!dbData.hasOwnProperty('activePlan')) updates.activePlan = dataToSaveToDb.activePlan;
              if (!dbData.hasOwnProperty('planDetails')) updates.planDetails = dataToSaveToDb.planDetails;
-             
-             // Explicitly set avatarUrl to null if it was missing and not part of the diff update
-             if (!dbData.hasOwnProperty('avatarUrl') && !updates.hasOwnProperty('avatarUrl')) {
-                updates.avatarUrl = dataToSaveToDb.avatarUrl; // which is appUser.avatarUrl || null
-             }
+             if (!dbData.hasOwnProperty('stripeCustomerId') && !updates.hasOwnProperty('stripeCustomerId')) updates.stripeCustomerId = dataToSaveToDb.stripeCustomerId;
+
 
              if (Object.keys(updates).length > 0) {
                 await update(ref(db, `users/${firebaseUser.uid}`), updates);
@@ -126,19 +118,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } catch (error) {
           console.error("Error fetching/updating user data from RTDB:", error);
           toast({ title: "Erro ao carregar dados", description: "Não foi possível buscar seus dados salvos.", variant: "destructive" });
-          // Fallback to FirebaseUser data if RTDB fails, ensuring AppUser structure
           setUser({
             id: firebaseUser.uid,
             name: firebaseUser.displayName || 'Usuário',
             email: firebaseUser.email || '',
-            avatarUrl: firebaseUser.photoURL || undefined, // Type allows undefined
-            registeredCargoIds: [],
-            studiedTopicIds: [],
-            studyLogs: [],
-            questionLogs: [],
-            revisionSchedules: [],
-            activePlan: null,
-            planDetails: null,
+            avatarUrl: firebaseUser.photoURL || undefined,
+            registeredCargoIds: [], studiedTopicIds: [], studyLogs: [], questionLogs: [], revisionSchedules: [],
+            activePlan: null, planDetails: null, stripeCustomerId: null,
           });
         }
       } else {
@@ -153,7 +139,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, pass: string) => {
     setLoading(true);
     await signInWithEmailAndPassword(firebaseAuthService, email, pass);
-    // User data will be loaded by onAuthStateChanged
   };
 
   const register = async (name: string, email: string, pass: string) => {
@@ -162,16 +147,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await updateProfile(userCredential.user, { displayName: name });
     
     await set(ref(db, `users/${userCredential.user.uid}`), {
-      name: name,
-      email: email,
-      avatarUrl: null, // Explicitly null for new users
-      registeredCargoIds: [],
-      studiedTopicIds: [],
-      studyLogs: [],
-      questionLogs: [],
-      revisionSchedules: [],
-      activePlan: null, 
-      planDetails: null,
+      name: name, email: email, avatarUrl: null,
+      registeredCargoIds: [], studiedTopicIds: [], studyLogs: [], questionLogs: [], revisionSchedules: [],
+      activePlan: null, planDetails: null, stripeCustomerId: null,
     });
   };
   
@@ -192,28 +170,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         const authUpdates: { displayName?: string; photoURL?: string | null } = {};
         if (updatedInfo.hasOwnProperty('name')) authUpdates.displayName = updatedInfo.name;
-        // If avatarUrl is provided (even if it's an empty string intending to clear), use it.
-        // If it's undefined, it means "don't update avatar", so photoURL will not be in authUpdates.
-        // If it's a string (URL or empty string for clear), set it (or null for empty string).
-        if (updatedInfo.hasOwnProperty('avatarUrl')) {
-            authUpdates.photoURL = updatedInfo.avatarUrl || null;
-        }
+        if (updatedInfo.hasOwnProperty('avatarUrl')) authUpdates.photoURL = updatedInfo.avatarUrl || null;
         
-        if (Object.keys(authUpdates).length > 0) {
-          await updateProfile(firebaseCurrentUser, authUpdates);
-        }
+        if (Object.keys(authUpdates).length > 0) await updateProfile(firebaseCurrentUser, authUpdates);
         
         const dbUpdates: Partial<Pick<AppUser, 'name' | 'avatarUrl'>> = {};
-        if (updatedInfo.hasOwnProperty('name') && typeof updatedInfo.name === 'string') {
-          dbUpdates.name = updatedInfo.name;
-        }
-        if (updatedInfo.hasOwnProperty('avatarUrl')) {
-          dbUpdates.avatarUrl = updatedInfo.avatarUrl || null; 
-        }
+        if (updatedInfo.hasOwnProperty('name') && typeof updatedInfo.name === 'string') dbUpdates.name = updatedInfo.name;
+        if (updatedInfo.hasOwnProperty('avatarUrl')) dbUpdates.avatarUrl = updatedInfo.avatarUrl || null; 
 
-        if (Object.keys(dbUpdates).length > 0) {
-          await update(ref(db, `users/${user.id}`), dbUpdates);
-        }
+        if (Object.keys(dbUpdates).length > 0) await update(ref(db, `users/${user.id}`), dbUpdates);
         
         setUser(prevUser => {
           if (!prevUser) return null;
@@ -279,11 +244,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setLoading(true);
       let updatedStudiedTopicIds = [...(user.studiedTopicIds || [])];
       const topicIndex = updatedStudiedTopicIds.indexOf(compositeTopicId);
-      if (topicIndex > -1) {
-        updatedStudiedTopicIds.splice(topicIndex, 1); 
-      } else {
-        updatedStudiedTopicIds.push(compositeTopicId); 
-      }
+      if (topicIndex > -1) updatedStudiedTopicIds.splice(topicIndex, 1); 
+      else updatedStudiedTopicIds.push(compositeTopicId); 
       try {
         await update(ref(db, `users/${user.id}`), { studiedTopicIds: updatedStudiedTopicIds });
         setUser(prevUser => prevUser ? { ...prevUser, studiedTopicIds: updatedStudiedTopicIds } : null);
@@ -299,11 +261,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const addStudyLog = async (compositeTopicId: string, duration: number) => {
     if (user) {
       setLoading(true);
-      const newLog: StudyLogEntry = {
-        compositeTopicId,
-        date: new Date().toISOString(),
-        duration,
-      };
+      const newLog: StudyLogEntry = { compositeTopicId, date: new Date().toISOString(), duration };
       const updatedStudyLogs = [...(user.studyLogs || []), newLog];
       try {
         await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
@@ -320,10 +278,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const addQuestionLog = async (logEntryData: Omit<QuestionLogEntry, 'date'>) => {
     if (user) {
       setLoading(true);
-      const newQuestionLog: QuestionLogEntry = {
-        ...logEntryData,
-        date: new Date().toISOString(),
-      };
+      const newQuestionLog: QuestionLogEntry = { ...logEntryData, date: new Date().toISOString() };
       const updatedQuestionLogs = [...(user.questionLogs || []), newQuestionLog];
       try {
         await update(ref(db, `users/${user.id}`), { questionLogs: updatedQuestionLogs });
@@ -343,18 +298,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const scheduledDate = formatISO(addDays(new Date(), daysToReview));
       let updatedRevisionSchedules = [...(user.revisionSchedules || [])];
       const existingScheduleIndex = updatedRevisionSchedules.findIndex(rs => rs.compositeTopicId === compositeTopicId);
-      const newScheduleEntry: RevisionScheduleEntry = {
-        compositeTopicId,
-        scheduledDate,
-        isReviewed: false,
-        reviewedDate: null,
-      };
+      const newScheduleEntry: RevisionScheduleEntry = { compositeTopicId, scheduledDate, isReviewed: false, reviewedDate: null };
 
-      if (existingScheduleIndex > -1) {
-        updatedRevisionSchedules[existingScheduleIndex] = newScheduleEntry;
-      } else {
-        updatedRevisionSchedules.push(newScheduleEntry);
-      }
+      if (existingScheduleIndex > -1) updatedRevisionSchedules[existingScheduleIndex] = newScheduleEntry;
+      else updatedRevisionSchedules.push(newScheduleEntry);
       try {
         await update(ref(db, `users/${user.id}`), { revisionSchedules: updatedRevisionSchedules });
         setUser(prevUser => prevUser ? { ...prevUser, revisionSchedules: updatedRevisionSchedules } : null);
@@ -392,71 +339,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // This function is now more of a placeholder or for manual admin updates,
+  // as Stripe webhooks should handle live subscription updates.
   const subscribeToPlan = async (planId: PlanId, specificDetails?: { selectedCargoCompositeId?: string; selectedEditalId?: string }) => {
     if (!user) {
-      toast({ title: "Usuário não logado", description: "Você precisa estar logado para assinar um plano.", variant: "destructive" });
-      router.push('/login');
+      toast({ title: "Usuário não logado", variant: "destructive" });
       return;
     }
     setLoading(true);
     const now = new Date();
-    const startDate = formatISO(now);
-    let expiryDate = '';
-    
-    // All plans are now annual
-    if (planId === 'plano_cargo' || planId === 'plano_edital' || planId === 'plano_anual') {
-      expiryDate = formatISO(addDays(now, 365));
-    } else {
-      toast({ title: "Plano Inválido", description: "O plano selecionado não é reconhecido.", variant: "destructive" });
-      setLoading(false);
-      return;
-    }
-
-    const newPlanDetails: PlanDetails = {
+    const planDetails: PlanDetails = {
       planId,
-      startDate,
-      expiryDate,
+      startDate: formatISO(now),
+      expiryDate: formatISO(addDays(now, 365)), // Assuming all plans are annual for this simulation
       ...specificDetails,
     };
-
     try {
-      await update(ref(db, `users/${user.id}`), { 
-        activePlan: planId,
-        planDetails: newPlanDetails 
-      });
-
-      // Automatic registration for Plano Cargo
-      if (planId === 'plano_cargo' && specificDetails?.selectedCargoCompositeId) {
-        const [editalId, cargoId] = specificDetails.selectedCargoCompositeId.split('_');
-        if (editalId && cargoId) {
-          try {
-            await registerForCargo(editalId, cargoId);
-            // Success toast for cargo registration is handled within registerForCargo if needed,
-            // or we can rely on the overall plan subscription success toast.
-          } catch (registrationError) {
-            // Error is logged and toasted within registerForCargo.
-            // We might want to inform the user that the plan is active but cargo registration failed.
-            console.warn("Plano Cargo ativado, mas falha ao registrar cargo automaticamente.", registrationError);
-            toast({ title: "Plano Ativo, Falha na Inscrição do Cargo", description: "Seu plano está ativo, mas houve um problema ao inscrevê-lo no cargo. Por favor, tente se inscrever no cargo manualmente.", variant: "default", duration: 8000 });
-          }
-        } else {
-          console.warn("Plano Cargo assinado, mas selectedCargoCompositeId está malformado ou ausente:", specificDetails?.selectedCargoCompositeId);
-          toast({ title: "Aviso", description: "Seu Plano Cargo está ativo, mas não foi possível identificar o cargo para inscrição automática. Por favor, verifique seus cargos inscritos ou contate o suporte.", variant: "default", duration: 8000 });
-        }
-      }
-      
-      setUser(prevUser => prevUser ? { ...prevUser, activePlan: planId, planDetails: newPlanDetails } : null);
-      
-      let planDisplayName = "Plano Desconhecido";
-      if (planId === 'plano_cargo') planDisplayName = "Plano Cargo";
-      else if (planId === 'plano_edital') planDisplayName = "Plano Edital";
-      else if (planId === 'plano_anual') planDisplayName = "Plano Anual";
-
-      toast({ title: "Assinatura Realizada!", description: `Você assinou o ${planDisplayName}.`, variant: "default", className: "bg-accent text-accent-foreground" });
-      router.push('/perfil'); 
+      await update(ref(db, `users/${user.id}`), { activePlan: planId, planDetails });
+      setUser(prev => prev ? { ...prev, activePlan: planId, planDetails } : null);
+      toast({ title: "Plano (simulado) atualizado!", variant: "default" });
     } catch (error) {
-      console.error("Error subscribing to plan:", error);
-      toast({ title: "Erro na Assinatura", description: "Não foi possível concluir a assinatura do plano.", variant: "destructive" });
+      toast({ title: "Erro ao (simular) atualizar plano", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -464,20 +367,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const cancelSubscription = async () => {
     if (!user || !user.activePlan) {
-      toast({ title: "Nenhuma Assinatura Ativa", description: "Você não possui um plano ativo para cancelar.", variant: "default" });
+      toast({ title: "Nenhuma Assinatura Ativa", variant: "default" });
       return;
     }
     setLoading(true);
     try {
-      await update(ref(db, `users/${user.id}`), { 
-        activePlan: null,
-        planDetails: null 
-      });
+      // If using Stripe, actual cancellation happens via Stripe API / Billing Portal.
+      // This function would then be triggered by a webhook for `customer.subscription.deleted`.
+      // For now, we simulate immediate cancellation in our DB.
+      await update(ref(db, `users/${user.id}`), { activePlan: null, planDetails: null });
       setUser(prevUser => prevUser ? { ...prevUser, activePlan: null, planDetails: null } : null);
-      toast({ title: "Assinatura Cancelada", description: "Seu plano foi cancelado.", variant: "default" });
+      toast({ title: "Assinatura (simulada) Cancelada", variant: "default" });
     } catch (error) {
-      console.error("Error cancelling subscription:", error);
-      toast({ title: "Erro ao Cancelar", description: "Não foi possível cancelar sua assinatura.", variant: "destructive" });
+      console.error("Error cancelling subscription (simulated):", error);
+      toast({ title: "Erro ao Cancelar Assinatura (simulada)", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -485,25 +388,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{ 
-      user, 
-      loading, 
-      login, 
-      register,
-      sendPasswordReset,
-      logout, 
-      updateUser, 
-      registerForCargo, 
-      unregisterFromCargo, 
-      toggleTopicStudyStatus, 
-      addStudyLog, 
-      addQuestionLog,
-      addRevisionSchedule,
-      toggleRevisionReviewedStatus,
-      subscribeToPlan,
-      cancelSubscription
+      user, loading, login, register, sendPasswordReset, logout, updateUser, 
+      registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, 
+      addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
+      subscribeToPlan, cancelSubscription
     }}>
       {children}
     </AuthContext.Provider>
   );
 };
-

@@ -10,35 +10,46 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ArrowLeft, CheckCircle, AlertTriangle, CreditCard, Gem } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertTriangle, CreditCard, Gem } from 'lucide-react';
 import type { PlanId } from '@/types';
+import { createCheckoutSession } from '@/actions/stripe-actions';
+import { loadStripe } from '@stripe/stripe-js';
+
+// Ensure this key is set in your environment variables
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : null;
+
 
 interface PlanDisplayDetails {
   id: PlanId;
   name: string;
   price: string;
   description: string;
-  originalPrice?: string; 
+  stripePriceId?: string; // Placeholder, will be filled from actual env vars or defaults
 }
 
 const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
   plano_cargo: {
     id: 'plano_cargo',
     name: "Plano Cargo",
-    price: "R$ 4,99/ano", // Changed to annual
-    description: "Acesso a 1 cargo específico de 1 edital à sua escolha. Todas as funcionalidades de estudo para o cargo selecionado. Acompanhamento de progresso detalhado."
+    price: "R$ 4,99/ano",
+    description: "Acesso a 1 cargo específico de 1 edital à sua escolha. Todas as funcionalidades de estudo para o cargo selecionado. Acompanhamento de progresso detalhado.",
+    stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_CARGO || 'price_plano_cargo_anual_placeholder',
   },
   plano_edital: {
     id: 'plano_edital',
     name: "Plano Edital",
-    price: "R$ 9,99/ano", // Changed to annual
-    description: "Acesso a todos os cargos de 1 edital específico. Flexibilidade para estudar para múltiplas vagas do mesmo concurso. Todas as funcionalidades de estudo e acompanhamento."
+    price: "R$ 9,99/ano",
+    description: "Acesso a todos os cargos de 1 edital específico. Flexibilidade para estudar para múltiplas vagas do mesmo concurso. Todas as funcionalidades de estudo e acompanhamento.",
+    stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_EDITAL || 'price_plano_edital_anual_placeholder',
   },
   plano_anual: {
     id: 'plano_anual',
     name: "Plano Anual",
-    price: "R$ 39,99/ano", 
-    description: "Acesso a todos os cargos de todos os editais da plataforma. Liberdade total para explorar e se preparar para múltiplos concursos. Todas as funcionalidades premium e atualizações futuras."
+    price: "R$ 39,99/ano",
+    description: "Acesso a todos os cargos de todos os editais da plataforma. Liberdade total para explorar e se preparar para múltiplos concursos. Todas as funcionalidades premium e atualizações futuras.",
+    stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_ANUAL || 'price_plano_anual_ilimitado_placeholder',
   }
 };
 
@@ -46,27 +57,36 @@ function CheckoutPageContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, subscribeToPlan, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } // Removed subscribeToPlan from useAuth, Stripe webhook will handle it
+    = useAuth();
   const { toast } = useToast();
   
   const planIdParam = params.planId as string;
   const [selectedPlanDetails, setSelectedPlanDetails] = useState<PlanDisplayDetails | null>(null);
-  const [isSubscribing, setIsSubscribing] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isValidPlan, setIsValidPlan] = useState(false);
+
+  useEffect(() => {
+    if (!stripePromise) {
+      console.error("Stripe Publishable Key is not set. Payments will not work.");
+      toast({
+        title: "Erro de Configuração",
+        description: "A chave publicável do Stripe não está configurada. Pagamentos não funcionarão.",
+        variant: "destructive",
+        duration: 7000,
+      });
+    }
+  }, [toast]);
 
   useEffect(() => {
     if (planIdParam && (planIdParam === 'plano_cargo' || planIdParam === 'plano_edital' || planIdParam === 'plano_anual')) {
       const planDetails = planDisplayMap[planIdParam as PlanId];
       setSelectedPlanDetails(planDetails);
       setIsValidPlan(true);
-
-      // Removed automatic redirect for plano_cargo and plano_edital as user arrives here after selection.
-      // Validation for required query params will happen before payment simulation.
-
     } else {
       setIsValidPlan(false);
     }
-  }, [planIdParam, router, toast]);
+  }, [planIdParam]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -80,8 +100,11 @@ function CheckoutPageContent() {
     }
   }, [user, authLoading, router, toast, planIdParam, searchParams]);
 
-  const handleSimulatedPayment = async () => {
-    if (!user || !selectedPlanDetails) return;
+  const handleStripeCheckout = async () => {
+    if (!user || !user.email || !selectedPlanDetails || !selectedPlanDetails.stripePriceId || !stripePromise) {
+      toast({ title: "Erro", description: "Informações do usuário ou do plano incompletas para iniciar o pagamento.", variant: "destructive" });
+      return;
+    }
 
     let specificCheckoutDetails: { selectedCargoCompositeId?: string; selectedEditalId?: string } = {};
 
@@ -103,43 +126,55 @@ function CheckoutPageContent() {
         specificCheckoutDetails.selectedEditalId = editalId;
     }
 
-    if (user.activePlan && user.activePlan !== selectedPlanDetails.id) {
-       toast({ title: "Plano Existente", description: `Você já possui o plano ${planDisplayMap[user.activePlan].name} ativo. Cancele-o em seu perfil antes de assinar um novo.`, variant: "default", duration: 7000 });
-      return;
-    }
-    // Check if user has the same specific plan already
-    if (user.activePlan && user.activePlan === selectedPlanDetails.id) {
-        let alreadyHasThisSpecificPlan = false;
-        if (planIdParam === 'plano_anual') {
-            alreadyHasThisSpecificPlan = true; // For annual, just checking planId is enough
-        } else if (planIdParam === 'plano_cargo' && user.planDetails?.selectedCargoCompositeId === specificCheckoutDetails.selectedCargoCompositeId) {
-            alreadyHasThisSpecificPlan = true;
-        } else if (planIdParam === 'plano_edital' && user.planDetails?.selectedEditalId === specificCheckoutDetails.selectedEditalId) {
-            alreadyHasThisSpecificPlan = true;
-        }
-
-        if (alreadyHasThisSpecificPlan) {
-            toast({ title: "Plano Já Ativo", description: `Você já está inscrito no ${selectedPlanDetails.name}${planIdParam !== 'plano_anual' ? ' para este item específico' : ''}.`, variant: "default" });
+    // Check if user has an active plan that is not the one they are trying to buy.
+    // For Stripe, if they already have a subscription, Stripe might handle upgrades/downgrades or parallel subscriptions.
+    // However, the current logic prevents buying a new plan if *any* plan is active.
+    // This might need adjustment based on desired Stripe behavior (e.g., using Stripe Billing Portal for upgrades).
+    // For now, if they have *any* plan, we might want to guide them to their profile or Stripe portal.
+    if (user.activePlan) {
+      if (user.activePlan === selectedPlanDetails.id) {
+         let alreadyHasThisSpecific = false;
+         if (user.activePlan === 'plano_anual') alreadyHasThisSpecific = true;
+         else if (user.activePlan === 'plano_cargo' && user.planDetails?.selectedCargoCompositeId === specificCheckoutDetails.selectedCargoCompositeId) alreadyHasThisSpecific = true;
+         else if (user.activePlan === 'plano_edital' && user.planDetails?.selectedEditalId === specificCheckoutDetails.selectedEditalId) alreadyHasThisSpecific = true;
+         
+         if (alreadyHasThisSpecific) {
+            toast({ title: "Plano Já Ativo", description: `Você já possui o ${selectedPlanDetails.name} ${user.activePlan !== 'plano_anual' ? 'para este item específico' : ''}.`, variant: "default" });
             router.push('/perfil');
             return;
-        }
+         } else {
+             // User has a *different* specific plan (e.g., cargo A, trying to buy cargo B) or different edital.
+             // Or they have cargo/edital and trying to buy Anual. Or Anual and trying to buy cargo/edital.
+             // This logic needs to be decided. For now, we allow them to proceed if it's a *different* selection for cargo/edital,
+             // or if they're upgrading to Anual. If they have Anual, they shouldn't be buying others.
+             if(user.activePlan === 'plano_anual' && selectedPlanDetails.id !== 'plano_anual') {
+                 toast({ title: "Plano Anual Ativo", description: `Você já possui o Plano Anual. Não é necessário assinar um plano inferior.`, variant: "default", duration: 7000 });
+                 return;
+             }
+         }
+      } else { // User has a different plan type active
+         toast({ title: "Plano Existente", description: `Você já possui o plano ${planDisplayMap[user.activePlan].name} ativo. Gerencie sua assinatura no perfil ou contate o suporte para alterações.`, variant: "default", duration: 7000 });
+         // Consider redirecting to /perfil or Stripe Billing Portal if implemented
+         return;
+      }
     }
 
 
-    setIsSubscribing(true);
+    setIsProcessingPayment(true);
     try {
-      await subscribeToPlan(selectedPlanDetails.id, specificCheckoutDetails);
-      // O subscribeToPlan já lida com o toast de sucesso e redirecionamento para /perfil
+      await createCheckoutSession(selectedPlanDetails.id, user.id, user.email, specificCheckoutDetails);
+      // The redirect to Stripe is handled by the server action.
+      // No success toast here, as that will be on the /checkout/success page or handled by webhook.
     } catch (error: any) {
-      toast({ title: "Erro na Assinatura", description: error.message || "Não foi possível concluir a assinatura.", variant: "destructive" });
-    } finally {
-      setIsSubscribing(false);
+      console.error("Stripe Checkout Error:", error);
+      toast({ title: "Erro no Checkout", description: error.message || "Não foi possível iniciar o processo de pagamento.", variant: "destructive" });
+      setIsProcessingPayment(false);
     }
+    // setIsProcessingPayment(false) is called inside catch or if redirect doesn't happen.
+    // If redirect happens, component unmounts.
   };
 
-  if (authLoading || (!isValidPlan && !selectedPlanDetails) || (planIdParam !== 'plano_anual' && !searchParams.get('selectedCargoCompositeId') && !searchParams.get('selectedEditalId') && !selectedPlanDetails)) {
-     // Added check for query params for cargo/edital plans if details not yet loaded.
-     // This avoids premature rendering of "Invalid Plan" if query params are still being processed.
+  if (authLoading || (!isValidPlan && !selectedPlanDetails)) {
     return (
       <PageWrapper>
         <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]">
@@ -182,16 +217,15 @@ function CheckoutPageContent() {
     );
   }
   
-  // Additional check: for cargo/edital plans, ensure the specific ID is present in query params.
   if (selectedPlanDetails.id === 'plano_cargo' && !searchParams.get('selectedCargoCompositeId')) {
     toast({ title: "Seleção Necessária", description: "Por favor, selecione um cargo na página de planos.", variant: "destructive" });
     router.push('/planos');
-    return <PageWrapper><Loader2 className="h-12 w-12 animate-spin text-primary m-auto" /></PageWrapper>; // Show loader during redirect
+    return <PageWrapper><div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div></PageWrapper>;
   }
   if (selectedPlanDetails.id === 'plano_edital' && !searchParams.get('selectedEditalId')) {
     toast({ title: "Seleção Necessária", description: "Por favor, selecione um edital na página de planos.", variant: "destructive" });
     router.push('/planos');
-    return <PageWrapper><Loader2 className="h-12 w-12 animate-spin text-primary m-auto" /></PageWrapper>; // Show loader during redirect
+    return <PageWrapper><div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div></PageWrapper>;
   }
 
 
@@ -243,14 +277,14 @@ function CheckoutPageContent() {
                 </div>
               </div>
               
-              <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-md text-amber-700">
+               <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-md text-blue-700">
                 <div className="flex">
                   <div className="flex-shrink-0">
-                    <AlertTriangle className="h-5 w-5 text-amber-500" aria-hidden="true" />
+                    <AlertTriangle className="h-5 w-5 text-blue-500" aria-hidden="true" />
                   </div>
                   <div className="ml-3">
                     <p className="text-sm">
-                      Este é um <strong>processo de assinatura simulado</strong>. Nenhum pagamento real será processado.
+                      Você será redirecionado para o ambiente seguro do Stripe para concluir o pagamento.
                     </p>
                   </div>
                 </div>
@@ -260,26 +294,24 @@ function CheckoutPageContent() {
               <Button 
                 size="lg" 
                 className="w-full text-lg h-12" 
-                onClick={handleSimulatedPayment}
-                disabled={isSubscribing || authLoading}
+                onClick={handleStripeCheckout}
+                disabled={isProcessingPayment || authLoading || !stripePromise}
               >
-                {isSubscribing || authLoading ? (
+                {isProcessingPayment || authLoading ? (
                   <Loader2 className="mr-2 h-6 w-6 animate-spin" />
                 ) : (
                   <CreditCard className="mr-2 h-6 w-6" />
                 )}
-                Confirmar Assinatura (Simulado)
+                Pagar com Stripe
               </Button>
             </CardFooter>
           </Card>
-
         </div>
       </div>
     </PageWrapper>
   );
 }
 
-// Wrap with Suspense because useSearchParams() needs it
 export default function CheckoutPage() {
   return (
     <Suspense fallback={
@@ -291,6 +323,5 @@ export default function CheckoutPage() {
     }>
       <CheckoutPageContent />
     </Suspense>
-  )
+  );
 }
-
