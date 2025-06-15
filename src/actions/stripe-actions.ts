@@ -30,8 +30,8 @@ export async function createCheckoutSession(
   specificDetails?: { selectedCargoCompositeId?: string; selectedEditalId?: string }
 ) {
   // Log all relevant environment variables at the start of the function
-  console.log('[createCheckoutSession] Initializing checkout session. PlanID:', planId, 'UserID:', userId);
-  console.log(`[createCheckoutSession] ENV_STRIPE_SECRET_KEY_PROD: ${process.env.STRIPE_SECRET_KEY_PROD === undefined ? "undefined" : (process.env.STRIPE_SECRET_KEY_PROD ? "****** (present)" : "EMPTY_STRING_OR_NULL")}`);
+  console.log('[createCheckoutSession] Initializing TEST checkout session. PlanID:', planId, 'UserID:', userId);
+  console.log(`[createCheckoutSession] ENV_STRIPE_SECRET_KEY_TEST: ${process.env.STRIPE_SECRET_KEY_TEST === undefined ? "undefined" : (process.env.STRIPE_SECRET_KEY_TEST ? "****** (present)" : "EMPTY_STRING_OR_NULL")}`);
   console.log(`[createCheckoutSession] ENV_STRIPE_PRICE_ID_PLANO_CARGO: ${process.env.STRIPE_PRICE_ID_PLANO_CARGO === undefined ? "undefined" : (process.env.STRIPE_PRICE_ID_PLANO_CARGO || "EMPTY_STRING")}`);
   console.log(`[createCheckoutSession] ENV_STRIPE_PRICE_ID_PLANO_EDITAL: ${process.env.STRIPE_PRICE_ID_PLANO_EDITAL === undefined ? "undefined" : (process.env.STRIPE_PRICE_ID_PLANO_EDITAL || "EMPTY_STRING")}`);
   console.log(`[createCheckoutSession] ENV_STRIPE_PRICE_ID_PLANO_ANUAL: ${process.env.STRIPE_PRICE_ID_PLANO_ANUAL === undefined ? "undefined" : (process.env.STRIPE_PRICE_ID_PLANO_ANUAL || "EMPTY_STRING")}`);
@@ -42,7 +42,7 @@ export async function createCheckoutSession(
     console.error('[createCheckoutSession] Error: User ID is required.');
     throw new Error('User ID is required to create a checkout session.');
   }
-  const stripe = getStripeClient(); // This will throw if STRIPE_SECRET_KEY_PROD is missing/empty
+  const stripe = getStripeClient(); // This will throw if STRIPE_SECRET_KEY_TEST is missing/empty
 
   const priceId = planToPriceMap[planId];
   const envVarNameForPriceId = `STRIPE_PRICE_ID_${planId.toUpperCase()}`;
@@ -176,15 +176,15 @@ export async function createCheckoutSession(
 }
 
 export async function handleStripeWebhook(req: Request) {
-  console.log('[handleStripeWebhook] Received webhook request.');
+  console.log('[handleStripeWebhook] Received TEST webhook request.');
   const stripe = getStripeClient();
   const headersList = await headers();
   const signature = headersList.get('stripe-signature');
   console.log(`[handleStripeWebhook] Stripe Signature from header: ${signature ? 'present' : 'missing'}`);
 
 
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_PROD;
-  console.log(`[handleStripeWebhook] ENV_STRIPE_WEBHOOK_SECRET_PROD: ${webhookSecret === undefined ? "undefined" : (webhookSecret ? "****** (present)" : "EMPTY_STRING_OR_NULL")}`);
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_TEST; // Alterado para _TEST
+  console.log(`[handleStripeWebhook] ENV_STRIPE_WEBHOOK_SECRET_TEST: ${webhookSecret === undefined ? "undefined" : (webhookSecret ? "****** (present)" : "EMPTY_STRING_OR_NULL")}`);
 
 
   if (!signature) {
@@ -194,7 +194,7 @@ export async function handleStripeWebhook(req: Request) {
   }
   if (!webhookSecret || webhookSecret.trim() === '') {
     const currentWebhookKeyValue = webhookSecret === undefined ? 'undefined' : (webhookSecret === null ? 'null' : `'${webhookSecret}'`);
-    const msg = `CRITICAL: STRIPE_WEBHOOK_SECRET_PROD is not set or is empty in environment variables. This is a server-side configuration issue. Current value: ${currentWebhookKeyValue}. Ensure secret is linked in apphosting.yaml and has a non-empty value.`;
+    const msg = `CRITICAL: STRIPE_WEBHOOK_SECRET_TEST is not set or is empty in environment variables. This is a server-side configuration issue. Current value: ${currentWebhookKeyValue}. Ensure secret is linked in apphosting.yaml and has a non-empty value.`;
     console.error(`[handleStripeWebhook] ${msg}`);
     return new Response('Webhook Error: Webhook secret not configured or is empty. Server configuration issue.', { status: 500 });
   }
@@ -350,5 +350,3 @@ export async function handleStripeWebhook(req: Request) {
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
-
-    

@@ -5,13 +5,19 @@ runConfig:
   maxInstances: 1
 
 env:
-  # ✅ Segredos usados apenas no backend
-  - variable: STRIPE_SECRET_KEY_PROD
-    secret: STRIPE_SECRET_KEY_PROD
+  # ✅ Segredos para o ambiente de TESTE do Stripe
+  - variable: STRIPE_SECRET_KEY_TEST # Alterado de _PROD para _TEST
+    secret: STRIPE_SECRET_KEY_TEST    # Nome do secret no Secret Manager
 
-  - variable: STRIPE_WEBHOOK_SECRET_PROD
-    secret: STRIPE_WEBHOOK_SECRET_PROD
+  - variable: STRIPE_WEBHOOK_SECRET_TEST # Alterado de _PROD para _TEST
+    secret: STRIPE_WEBHOOK_SECRET_TEST  # Nome do secret no Secret Manager
 
+  - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY # A variável de ambiente continua a mesma para o Next.js
+    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY_TEST # Mas agora aponta para um secret de TESTE
+
+  # ✅ IDs de Preço - MANTIDOS COMO ESTAVAM. Crie secrets com esses nomes e valores de TESTE se forem diferentes.
+  # Se seus Price IDs de teste são diferentes, você deve criar secrets com estes nomes e os valores de teste.
+  # Ou, se preferir, podemos adicionar _TEST aqui também e nos arquivos. Por ora, vou manter.
   - variable: STRIPE_PRICE_ID_PLANO_CARGO
     secret: STRIPE_PRICE_ID_PLANO_CARGO
 
@@ -22,10 +28,4 @@ env:
     secret: STRIPE_PRICE_ID_PLANO_ANUAL
 
   - variable: NEXT_PUBLIC_APP_URL
-    value: "https://meuseditais.web.app"
-
-  # ✅ Chave pública do Stripe, necessária no build do frontend
-  # Certifique-se de que um secret chamado NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-  # existe no Google Secret Manager com o valor da sua chave publicável do Stripe.
-  - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY # CORRIGIDO: Referencia o NOME do secret
+    value: "https://meuseditais.web.app" # Mantenha ou altere para seu URL de teste se necessário
