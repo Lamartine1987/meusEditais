@@ -35,7 +35,6 @@ interface AuthContextType {
   addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'date'>) => Promise<void>;
   addRevisionSchedule: (compositeTopicId: string, daysToReview: number) => Promise<void>;
   toggleRevisionReviewedStatus: (compositeTopicId: string) => Promise<void>;
-  // subscribeToPlan is now effectively handled by Stripe webhook, but kept for potential non-Stripe flows or manual admin actions
   subscribeToPlan: (planId: PlanId, specificDetails?: { selectedCargoCompositeId?: string; selectedEditalId?: string }) => Promise<void>;
   cancelSubscription: () => Promise<void>;
 }
@@ -73,11 +72,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             revisionSchedules: dbData.revisionSchedules || [],
             activePlan: dbData.activePlan || null,
             planDetails: dbData.planDetails || null,
-            stripeCustomerId: dbData.stripeCustomerId || null, // Add stripeCustomerId
+            stripeCustomerId: dbData.stripeCustomerId || null,
           };
           setUser(appUser);
 
-          const dataToSaveToDb: any = { // Use 'any' for flexibility during this sync
+          const dataToSaveToDb: any = {
             name: appUser.name,
             email: appUser.email,
             avatarUrl: appUser.avatarUrl || null,
@@ -88,7 +87,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             revisionSchedules: appUser.revisionSchedules,
             activePlan: appUser.activePlan,
             planDetails: appUser.planDetails,
-            stripeCustomerId: appUser.stripeCustomerId // Ensure stripeCustomerId is part of the save
+            stripeCustomerId: appUser.stripeCustomerId
           };
           
           if (!snapshot.exists()) {
@@ -108,7 +107,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
              if (!dbData.hasOwnProperty('activePlan')) updates.activePlan = dataToSaveToDb.activePlan;
              if (!dbData.hasOwnProperty('planDetails')) updates.planDetails = dataToSaveToDb.planDetails;
              if (!dbData.hasOwnProperty('stripeCustomerId') && !updates.hasOwnProperty('stripeCustomerId')) updates.stripeCustomerId = dataToSaveToDb.stripeCustomerId;
-
 
              if (Object.keys(updates).length > 0) {
                 await update(ref(db, `users/${firebaseUser.uid}`), updates);
@@ -225,14 +223,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const unregisterFromCargo = async (editalId: string, cargoId: string) => {
     if (user) {
       setLoading(true);
-      const compositeId = `${editalId}_${cargoId}`;
-      const updatedRegisteredCargoIds = (user.registeredCargoIds || []).filter(id => id !== compositeId);
+      const compositeCargoIdToRemove = `${editalId}_${cargoId}`;
+      const cargoPrefixToRemove = `${compositeCargoIdToRemove}_`; // Para filtrar tópicos, logs, etc.
+
+      const updatedRegisteredCargoIds = (user.registeredCargoIds || []).filter(id => id !== compositeCargoIdToRemove);
+      const updatedStudiedTopicIds = (user.studiedTopicIds || []).filter(id => !id.startsWith(cargoPrefixToRemove));
+      const updatedStudyLogs = (user.studyLogs || []).filter(log => !log.compositeTopicId.startsWith(cargoPrefixToRemove));
+      const updatedQuestionLogs = (user.questionLogs || []).filter(log => !log.compositeTopicId.startsWith(cargoPrefixToRemove));
+      const updatedRevisionSchedules = (user.revisionSchedules || []).filter(schedule => !schedule.compositeTopicId.startsWith(cargoPrefixToRemove));
+      
       try {
-        await update(ref(db, `users/${user.id}`), { registeredCargoIds: updatedRegisteredCargoIds });
-        setUser(prevUser => prevUser ? { ...prevUser, registeredCargoIds: updatedRegisteredCargoIds } : null);
+        await update(ref(db, `users/${user.id}`), { 
+          registeredCargoIds: updatedRegisteredCargoIds,
+          studiedTopicIds: updatedStudiedTopicIds,
+          studyLogs: updatedStudyLogs,
+          questionLogs: updatedQuestionLogs,
+          revisionSchedules: updatedRevisionSchedules,
+        });
+        setUser(prevUser => prevUser ? { 
+          ...prevUser, 
+          registeredCargoIds: updatedRegisteredCargoIds,
+          studiedTopicIds: updatedStudiedTopicIds,
+          studyLogs: updatedStudyLogs,
+          questionLogs: updatedQuestionLogs,
+          revisionSchedules: updatedRevisionSchedules,
+        } : null);
+        toast({ title: "Inscrição Cancelada", description: "Sua inscrição e progresso para este cargo foram removidos." });
       } catch (error) {
-        console.error("Error unregistering from cargo:", error);
-        toast({ title: "Erro ao Cancelar", description: "Não foi possível remover a inscrição do cargo.", variant: "destructive" });
+        console.error("Error unregistering from cargo and deleting progress:", error);
+        toast({ title: "Erro ao Cancelar", description: "Não foi possível remover a inscrição e o progresso do cargo.", variant: "destructive" });
       } finally {
         setLoading(false);
       }
@@ -339,8 +358,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // This function is now more of a placeholder or for manual admin updates,
-  // as Stripe webhooks should handle live subscription updates.
   const subscribeToPlan = async (planId: PlanId, specificDetails?: { selectedCargoCompositeId?: string; selectedEditalId?: string }) => {
     if (!user) {
       toast({ title: "Usuário não logado", variant: "destructive" });
@@ -351,7 +368,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const planDetails: PlanDetails = {
       planId,
       startDate: formatISO(now),
-      expiryDate: formatISO(addDays(now, 365)), // Assuming all plans are annual for this simulation
+      expiryDate: formatISO(addDays(now, 365)), 
       ...specificDetails,
     };
     try {
@@ -372,15 +389,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
     setLoading(true);
     try {
-      // If using Stripe, actual cancellation happens via Stripe API / Billing Portal.
-      // This function would then be triggered by a webhook for `customer.subscription.deleted`.
-      // For now, we simulate immediate cancellation in our DB.
-      await update(ref(db, `users/${user.id}`), { activePlan: null, planDetails: null });
-      setUser(prevUser => prevUser ? { ...prevUser, activePlan: null, planDetails: null } : null);
-      toast({ title: "Assinatura (simulada) Cancelada", variant: "default" });
+      await update(ref(db, `users/${user.id}`), { 
+        activePlan: null, 
+        planDetails: null,
+        // Reset progress associated with having any plan
+        registeredCargoIds: [],
+        studiedTopicIds: [],
+        studyLogs: [],
+        questionLogs: [],
+        revisionSchedules: [],
+      });
+      setUser(prevUser => prevUser ? { 
+        ...prevUser, 
+        activePlan: null, 
+        planDetails: null,
+        registeredCargoIds: [],
+        studiedTopicIds: [],
+        studyLogs: [],
+        questionLogs: [],
+        revisionSchedules: [],
+      } : null);
+      toast({ title: "Assinatura Cancelada", description: "Seu plano e todo o progresso associado foram removidos.", variant: "default" });
     } catch (error) {
-      console.error("Error cancelling subscription (simulated):", error);
-      toast({ title: "Erro ao Cancelar Assinatura (simulada)", variant: "destructive" });
+      console.error("Error cancelling subscription and deleting progress:", error);
+      toast({ title: "Erro ao Cancelar Assinatura", description: "Não foi possível cancelar a assinatura e remover o progresso.", variant: "destructive" });
     } finally {
       setLoading(false);
     }
