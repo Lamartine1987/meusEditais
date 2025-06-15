@@ -34,7 +34,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { parseISO, differenceInCalendarDays } from 'date-fns';
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: "O nome deve ter pelo menos 2 caracteres." }),
@@ -143,6 +142,7 @@ export default function ProfilePage() {
   };
 
   const handleGeneralCancelSubscription = async () => {
+    // This function is now only for 'plano_edital' and 'plano_anual'
     setIsCancellingSubscription(true);
     try {
       await cancelSubscription();
@@ -155,10 +155,11 @@ export default function ProfilePage() {
   };
 
   const handleRefundAndCancelPlanoCargo = async () => {
+    // This is the specific cancellation for 'plano_cargo' within 7 days
     setIsRequestingRefund(true);
     try {
-      await cancelSubscription(); // This function now handles full cancellation and progress wipe
-      toast({ title: "Cancelamento Solicitado", description: "Sua assinatura do Plano Cargo e todo o progresso foram removidos. O reembolso (simulado) seria processado.", duration: 7000 });
+      await cancelSubscription(); 
+      toast({ title: "Cancelamento Solicitado", description: "Sua assinatura do Plano Cargo e todo o progresso foram removidos. O reembolso (simulado) seria processado.", duration: 7000, variant: "default", className: "bg-accent text-accent-foreground"});
     } catch (error) {
        // Erro já tratado no AuthProvider
     } finally {
@@ -382,7 +383,7 @@ export default function ProfilePage() {
             )}
              {user.activePlan === 'plano_cargo' && !planoCargoInGracePeriod && (
                 <p className="text-sm text-orange-600 bg-orange-50 p-3 rounded-md border border-orange-200">
-                    <AlertTriangle className="inline h-4 w-4 mr-1"/> O período de 7 dias para troca de cargo ou cancelamento com reembolso do seu Plano Cargo expirou.
+                    <AlertTriangle className="inline h-4 w-4 mr-1"/> O período de 7 dias para troca de cargo ou cancelamento com reembolso do seu Plano Cargo expirou. Nenhuma alteração ou cancelamento é permitido para este plano agora.
                 </p>
             )}
           </CardContent>
@@ -442,7 +443,8 @@ export default function ProfilePage() {
                 </>
             )}
             
-            {user.activePlan && (! (user.activePlan === 'plano_cargo' && planoCargoInGracePeriod) ) && (
+            {/* General "Cancelar Assinatura" button - only for plano_edital or plano_anual */}
+            {user.activePlan && (user.activePlan === 'plano_edital' || user.activePlan === 'plano_anual') && (
                  <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button 
@@ -534,7 +536,6 @@ export default function ProfilePage() {
                             <RadioGroup value={selectedNewCargoCompositeId || ''} onValueChange={setSelectedNewCargoCompositeId} className="space-y-1 p-2">
                                 {filteredCargosForChangeModal.map(cargo => {
                                     const compositeCargoId = `${selectedEditalIdForChange}_${cargo.id}`;
-                                    // Disable selection if this cargo is already the one in planDetails
                                     const isCurrentPlanCargo = user?.planDetails?.selectedCargoCompositeId === compositeCargoId;
                                     return (
                                         <Label 
