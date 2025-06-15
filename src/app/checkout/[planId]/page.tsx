@@ -65,6 +65,9 @@ function CheckoutPageContent() {
   const [isValidPlan, setIsValidPlan] = useState(false);
 
   useEffect(() => {
+    // Log para depuração no navegador do cliente
+    console.log('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (from client-side process.env):', process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+    
     if (!stripePromise) {
       console.error("Stripe Publishable Key is not set. Payments will not work.");
       toast({
@@ -309,3 +312,5 @@ export default function CheckoutPage() {
     </Suspense>
   );
 }
+
+    
