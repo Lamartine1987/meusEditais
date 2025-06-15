@@ -188,7 +188,7 @@ export default function MyEditaisPage() {
                              </AlertDialogTitle>
                             <AlertDialogDescription>
                               Você tem certeza que deseja cancelar sua inscrição no cargo "{cargo.name}" do edital "{edital.title}"? 
-                              Qualquer progresso de estudo salvo relacionado a este cargo (status de tópicos, logs de tempo, questões, etc.) será mantido, mas a inscrição será removida.
+                              <strong> Todo o progresso de estudo salvo relacionado a este cargo (status de tópicos, logs de tempo, questões, agendamentos de revisão, etc.) será PERMANENTEMENTE APAGADO.</strong> A inscrição no cargo também será removida.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
