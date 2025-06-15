@@ -8,18 +8,18 @@ runConfig:
 
 env:
   - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY # Nome do secret no Secret Manager
+    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY 
   - variable: STRIPE_SECRET_KEY_PROD
-    secret: STRIPE_SECRET_KEY_PROD # Nome do secret no Secret Manager
+    secret: STRIPE_SECRET_KEY_PROD 
   - variable: STRIPE_WEBHOOK_SECRET_PROD
-    secret: STRIPE_WEBHOOK_SECRET_PROD # Nome do secret no Secret Manager
+    secret: STRIPE_WEBHOOK_SECRET_PROD 
   - variable: STRIPE_PRICE_ID_PLANO_CARGO
-    secret: STRIPE_PRICE_ID_PLANO_CARGO # Nome do secret no Secret Manager
+    secret: STRIPE_PRICE_ID_PLANO_CARGO 
   - variable: STRIPE_PRICE_ID_PLANO_EDITAL
-    secret: STRIPE_PRICE_ID_PLANO_EDITAL # Nome do secret no Secret Manager
+    secret: STRIPE_PRICE_ID_PLANO_EDITAL 
   - variable: STRIPE_PRICE_ID_PLANO_ANUAL
-    secret: STRIPE_PRICE_ID_PLANO_ANUAL # Nome do secret no Secret Manager
+    secret: STRIPE_PRICE_ID_PLANO_ANUAL 
   - variable: NEXT_PUBLIC_APP_URL # Necessário para URLs de redirecionamento do Stripe
-    value: "https://meuseditais.firebaseapp.com" # Substitua SE o seu domínio de produção for diferente
+    value: "https://meuseditais.web.app" # Atualizado para o domínio correto
     # Se você tiver um secret para NEXT_PUBLIC_APP_URL, use:
     # secret: NOME_DO_SEU_SECRET_APP_URL
