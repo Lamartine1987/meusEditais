@@ -2,7 +2,7 @@
 # https://firebase.google.com/docs/app-hosting/configure
 
 runConfig:
-  maxInstances: 1  # Você pode ajustar isso conforme a carga esperada
+  maxInstances: 1
 
 env:
   # ✅ Segredos usados apenas no backend
@@ -23,3 +23,9 @@ env:
 
   - variable: NEXT_PUBLIC_APP_URL
     value: "https://meuseditais.web.app"
+
+  # ✅ Chave pública do Stripe, necessária no build do frontend
+  # Certifique-se de que um secret chamado NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  # existe no Google Secret Manager com o valor da sua chave publicável do Stripe.
+  - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY

@@ -13,9 +13,6 @@
           "region": "us-central1"
         }
       }
-    ],
-    "env": {
-      "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_live_51RZvaGHTmnc0kY1cDAdcxoTWOqcK5xQYJR3lXmOOHKue1pm5hsq1RUOYpZu9DFWFntrbRlHVNK1g3i4498Pb0aWb00aap0ToqH" 
-    }
+    ]
   }
 }
