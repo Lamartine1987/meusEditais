@@ -6,7 +6,7 @@ import type { PlanId } from '@/types';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { ref, update, get } from 'firebase/database'; 
+import { ref, update, get } from 'firebase/database';
 import { formatISO } from 'date-fns';
 import type Stripe from 'stripe';
 
@@ -34,21 +34,28 @@ export async function createCheckoutSession(
   const stripe = getStripeClient();
 
   const priceId = planToPriceMap[planId];
+  const envVarNameForPriceId = `STRIPE_PRICE_ID_${planId.toUpperCase()}`;
+  const valueFromEnvForPriceId = process.env[envVarNameForPriceId];
 
-  if (!priceId || FALLBACK_PRICE_IDS.includes(priceId)) {
-    const envVarName = `STRIPE_PRICE_ID_${planId.toUpperCase()}`;
-    const errorMessage = `Configuration error: Stripe Price ID for plan '${planId}' is not correctly set. The application is attempting to use a fallback ID ('${priceId}'). Please ensure the environment variable '${envVarName}' is correctly set in your Firebase App Hosting backend with a valid Price ID from your Stripe dashboard. Also, verify that the backend has permissions to access this secret and that it's properly linked. Value for ${envVarName}: ${process.env[envVarName]}`;
+  if (!priceId || priceId.trim() === '' || FALLBACK_PRICE_IDS.includes(priceId)) {
+    const currentPriceIdValue = priceId === undefined ? 'undefined' : (priceId === null ? 'null' : `'${priceId}'`);
+    const envValueDisplay = valueFromEnvForPriceId === undefined ? 'undefined' : (valueFromEnvForPriceId === null ? 'null' : `'${valueFromEnvForPriceId}'`);
+
+    const errorMessage = `Configuration error: Stripe Price ID for plan '${planId}' (environment variable '${envVarNameForPriceId}') is missing, empty, or a fallback.
+    - Value from process.env.${envVarNameForPriceId}: ${envValueDisplay}
+    - Resolved priceId before check: ${currentPriceIdValue}
+    Please ensure the secret in Google Secret Manager has a valid, non-empty Stripe Price ID (e.g., price_xxxxxxxx) and is correctly linked to your App Hosting backend.`;
     console.error(errorMessage);
-    throw new Error(`Configuration error: Stripe Price ID for plan '${planId}' not found or is a fallback. Check server logs and environment variable '${envVarName}'.`);
+    throw new Error(`Configuration error: Stripe Price ID for plan '${planId}' ('${envVarNameForPriceId}') is invalid or not configured. Check server logs.`);
   }
-  
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
   const successUrl = `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = `${appUrl}/checkout/cancel`;
 
   let stripeCustomerId: string | undefined;
-  const userRef = ref(db, `users/${userId}`);
+  const userRefDb = ref(db, `users/${userId}`); // Changed variable name for clarity
 
   try {
     const existingCustomers = await stripe.customers.list({
@@ -71,21 +78,21 @@ export async function createCheckoutSession(
       const customer = await stripe.customers.create({
         email: userEmail,
         metadata: {
-          firebaseUID: userId, 
+          firebaseUID: userId,
         },
       });
       stripeCustomerId = customer.id;
     }
 
     try {
-      await update(userRef, { stripeCustomerId });
+      await update(userRefDb, { stripeCustomerId });
     } catch (dbError: any) {
       console.warn(`Warning: Could not update Stripe customer ID in Firebase RTDB for user ${userId}. Error: ${dbError.message}. Proceeding with checkout.`);
     }
 
   } catch (error: any) {
     console.error('Error retrieving or creating Stripe customer:', error);
-    if (!stripeCustomerId && error.message.includes('permission_denied')) {
+    if (!stripeCustomerId && (error.message?.includes('permission_denied') || error.code?.includes('PERMISSION_DENIED'))) { // Check for Firebase specific error codes too
          throw new Error(`Could not establish Stripe customer ID due to a database permission issue: ${error.message}`);
     } else if (!stripeCustomerId) {
          throw new Error(`Could not retrieve or create Stripe customer: ${error.message}`);
@@ -93,6 +100,7 @@ export async function createCheckoutSession(
   }
 
   if (!stripeCustomerId) {
+    console.error('Stripe Customer ID could not be established after attempting to retrieve or create. Cannot proceed with checkout.');
     throw new Error('Stripe Customer ID could not be established. Cannot proceed with checkout.');
   }
 
@@ -107,7 +115,7 @@ export async function createCheckoutSession(
   try {
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      mode: 'subscription', 
+      mode: 'subscription',
       customer: stripeCustomerId,
       line_items: [
         {
@@ -119,39 +127,40 @@ export async function createCheckoutSession(
       cancel_url: cancelUrl,
       metadata: metadata,
       subscription_data: {
-        metadata: metadata, 
+        metadata: metadata,
       },
     });
 
     if (session.url) {
       redirect(session.url);
     } else {
-      throw new Error('Could not create Stripe Checkout session.');
+      console.error('Stripe Checkout session was ostensibly created, but session.url is null or undefined. This should not happen if the session was successful.', session);
+      throw new Error('Could not create Stripe Checkout session or the session URL is missing. Check server logs.');
     }
   } catch (error) {
     console.error('Error creating Stripe checkout session:', error);
     if (error instanceof Error) {
-        throw new Error(`Stripe Error: ${error.message}`);
+        throw new Error(`Stripe Error during session creation: ${error.message}`);
     }
-    throw new Error('An unknown error occurred while creating the checkout session.');
+    throw new Error('An unknown error occurred while creating the Stripe checkout session.');
   }
 }
 
 export async function handleStripeWebhook(req: Request) {
   const stripe = getStripeClient();
-  const headersList = await headers(); // Await here as per previous fix
+  const headersList = await headers();
   const signature = headersList.get('stripe-signature');
-  
-  // Use the secret name from Google Secret Manager
+
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_PROD;
 
   if (!signature) {
     console.error("Webhook Error: Missing stripe-signature header");
     return new Response('Webhook Error: Missing stripe-signature header', { status: 400 });
   }
-  if (!webhookSecret) {
-    console.error("CRITICAL: STRIPE_WEBHOOK_SECRET_PROD is not set in environment variables. This is a server-side configuration issue.");
-    return new Response('Webhook Error: Webhook secret not configured. Server configuration issue.', { status: 500 });
+  if (!webhookSecret || webhookSecret.trim() === '') {
+    const currentWebhookKeyValue = webhookSecret === undefined ? 'undefined' : (webhookSecret === null ? 'null' : `'${webhookSecret}'`);
+    console.error(`CRITICAL: STRIPE_WEBHOOK_SECRET_PROD is not set or is empty in environment variables. This is a server-side configuration issue. Current value: ${currentWebhookKeyValue}`);
+    return new Response('Webhook Error: Webhook secret not configured or is empty. Server configuration issue.', { status: 500 });
   }
 
   let event: Stripe.Event;
@@ -163,9 +172,9 @@ export async function handleStripeWebhook(req: Request) {
     console.error(`Webhook signature verification failed: ${err.message}`);
     return new Response(`Webhook Error: ${err.message}`, { status: 400 });
   }
-  
-  if (!event) { // Add this check as per previous fix
-    console.error("Webhook Error: Event not constructed after try/catch block. This should not happen.");
+
+  if (!event) {
+    console.error("Webhook Error: Stripe event object not constructed after signature verification. This indicates a serious issue with the Stripe library or event handling logic.");
     return new Response('Webhook Error: Internal server error processing event.', { status: 500 });
   }
 
@@ -176,7 +185,7 @@ export async function handleStripeWebhook(req: Request) {
       const planId = session.metadata?.planId as PlanId | undefined;
       const selectedCargoCompositeId = session.metadata?.selectedCargoCompositeId;
       const selectedEditalId = session.metadata?.selectedEditalId;
-      const subscriptionId = session.subscription; 
+      const subscriptionId = session.subscription;
       const stripeCustomerIdFromSession = session.customer;
 
 
@@ -184,46 +193,46 @@ export async function handleStripeWebhook(req: Request) {
         console.error('Webhook Error: Missing userId or planId in checkout session metadata.', session.metadata);
         return new Response('Webhook Error: Missing metadata.', { status: 400 });
       }
-      
+
       if (!subscriptionId || typeof subscriptionId !== 'string') {
         console.error('Webhook Error: Missing or invalid subscription ID in checkout session.', session);
         return new Response('Webhook Error: Missing subscription ID.', { status: 400 });
       }
-      
+
       if (!stripeCustomerIdFromSession || typeof stripeCustomerIdFromSession !== 'string') {
         console.error('Webhook Error: Missing or invalid customer ID in checkout session.', session);
         return new Response('Webhook Error: Missing customer ID.', { status: 400 });
       }
 
       const subscriptionDetails = await stripe.subscriptions.retrieve(subscriptionId);
-      const currentPeriodEnd = subscriptionDetails.current_period_end; 
+      const currentPeriodEnd = subscriptionDetails.current_period_end;
 
       const now = new Date();
       const planDetails = {
         planId,
         startDate: formatISO(now),
-        expiryDate: formatISO(new Date(currentPeriodEnd * 1000)), 
+        expiryDate: formatISO(new Date(currentPeriodEnd * 1000)),
         ...(selectedCargoCompositeId && { selectedCargoCompositeId }),
         ...(selectedEditalId && { selectedEditalId }),
-        stripeSubscriptionId: subscriptionId, 
-        stripeCustomerId: stripeCustomerIdFromSession, 
+        stripeSubscriptionId: subscriptionId,
+        stripeCustomerId: stripeCustomerIdFromSession,
       };
 
       try {
-        const userRefDb = ref(db, `users/${userId}`);
-        await update(userRefDb, {
+        const userFirebaseRef = ref(db, `users/${userId}`); // Renamed to avoid conflict
+        await update(userFirebaseRef, {
           activePlan: planId,
           planDetails: planDetails,
-          stripeCustomerId: stripeCustomerIdFromSession 
+          stripeCustomerId: stripeCustomerIdFromSession
         });
         console.log(`Successfully updated plan for user ${userId} to ${planId}`);
 
         if (planId === 'plano_cargo' && selectedCargoCompositeId) {
-            const userSnapshot = await get(userRefDb); 
+            const userSnapshot = await get(userFirebaseRef);
             if (userSnapshot.exists()) {
                 const userData = userSnapshot.val();
                 const updatedRegisteredCargoIds = Array.from(new Set([...(userData.registeredCargoIds || []), selectedCargoCompositeId]));
-                await update(userRefDb, { registeredCargoIds: updatedRegisteredCargoIds });
+                await update(userFirebaseRef, { registeredCargoIds: updatedRegisteredCargoIds });
                 console.log(`Successfully auto-registered user ${userId} for cargo ${selectedCargoCompositeId}`);
             } else {
                 console.warn(`Webhook: User ${userId} not found in DB for auto-registration to cargo.`);
@@ -241,12 +250,12 @@ export async function handleStripeWebhook(req: Request) {
       const stripeCustomerId = subscription.customer;
        if (typeof stripeCustomerId === 'string') {
          const usersRef = ref(db, 'users');
-         const usersSnapshot = await get(usersRef); 
+         const usersSnapshot = await get(usersRef);
          if (usersSnapshot.exists()) {
             const usersData = usersSnapshot.val();
             let userIdToUpdate: string | null = null;
             for (const uid in usersData) {
-                if (usersData[uid].stripeCustomerId === stripeCustomerId || 
+                if (usersData[uid].stripeCustomerId === stripeCustomerId ||
                     (usersData[uid].planDetails && usersData[uid].planDetails.stripeCustomerId === stripeCustomerId)) {
                     userIdToUpdate = uid;
                     break;
@@ -278,4 +287,3 @@ export async function handleStripeWebhook(req: Request) {
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
-
