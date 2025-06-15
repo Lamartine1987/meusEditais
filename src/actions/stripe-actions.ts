@@ -15,6 +15,12 @@ const planToPriceMap: Record<PlanId, string> = {
   plano_anual: process.env.STRIPE_PRICE_ID_PLANO_ANUAL || 'price_plano_anual_fallback_placeholder',
 };
 
+const FALLBACK_PRICE_IDS = [
+  'price_plano_cargo_fallback_placeholder',
+  'price_plano_edital_fallback_placeholder',
+  'price_plano_anual_fallback_placeholder',
+];
+
 export async function createCheckoutSession(
   planId: PlanId,
   userId: string,
@@ -24,11 +30,16 @@ export async function createCheckoutSession(
   if (!userId) {
     throw new Error('User ID is required to create a checkout session.');
   }
-  if (!planId || !planToPriceMap[planId]) {
-    throw new Error('Invalid plan ID or no corresponding Stripe Price ID found.');
-  }
 
   const priceId = planToPriceMap[planId];
+
+  if (!priceId || FALLBACK_PRICE_IDS.includes(priceId)) {
+    const envVarName = `STRIPE_PRICE_ID_${planId.toUpperCase()}`;
+    const errorMessage = `Configuration error: Stripe Price ID for plan '${planId}' is not correctly set. The application is attempting to use a fallback ID ('${priceId}'). Please ensure the environment variable '${envVarName}' is correctly set in your Firebase App Hosting backend with a valid Price ID from your Stripe dashboard. Also, verify that the backend has permissions to access this secret and that it's properly linked.`;
+    console.error(errorMessage);
+    throw new Error(`Configuration error: Stripe Price ID for plan '${planId}' not found or is a fallback. Check server logs and environment variable '${envVarName}'.`);
+  }
+  
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
   const successUrl = `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
@@ -38,7 +49,6 @@ export async function createCheckoutSession(
   const userRef = ref(db, `users/${userId}`);
 
   try {
-    // Attempt to retrieve or create Stripe customer
     const existingCustomers = await stripe.customers.list({
       email: userEmail,
       limit: 1,
@@ -46,7 +56,6 @@ export async function createCheckoutSession(
 
     if (existingCustomers.data.length > 0) {
       stripeCustomerId = existingCustomers.data[0].id;
-      // Optionally ensure FirebaseUID is set on Stripe customer metadata
       if (existingCustomers.data[0].metadata?.firebaseUID !== userId) {
         await stripe.customers.update(stripeCustomerId, {
           metadata: { ...existingCustomers.data[0].metadata, firebaseUID: userId },
@@ -62,7 +71,6 @@ export async function createCheckoutSession(
       stripeCustomerId = customer.id;
     }
 
-    // Attempt to save/update Stripe customer ID to Firebase RTDB
     try {
       await update(userRef, { stripeCustomerId });
     } catch (dbError: any) {
@@ -71,9 +79,14 @@ export async function createCheckoutSession(
 
   } catch (error: any) {
     console.error('Error retrieving or creating Stripe customer:', error);
-    throw new Error(`Could not retrieve or create Stripe customer: ${error.message}`);
+    // Do not throw here if the main issue is RTDB, allow checkout to proceed if customer ID was obtained/created
+    if (!stripeCustomerId && error.message.includes('permission_denied')) {
+        // If Stripe customer ID couldn't be established AND it's a permission error (likely RTDB), then it's a blocker
+         throw new Error(`Could not establish Stripe customer ID due to a database permission issue: ${error.message}`);
+    } else if (!stripeCustomerId) {
+         throw new Error(`Could not retrieve or create Stripe customer: ${error.message}`);
+    }
   }
-
 
   if (!stripeCustomerId) {
     throw new Error('Stripe Customer ID could not be established.');
@@ -127,6 +140,7 @@ export async function handleStripeWebhook(req: Request) {
     return new Response('Webhook Error: Missing stripe-signature header', { status: 400 });
   }
   if (!webhookSecret) {
+    console.error("STRIPE_WEBHOOK_SECRET is not set in environment variables.");
     return new Response('Webhook Error: Webhook secret not configured', { status: 500 });
   }
 
@@ -181,8 +195,8 @@ export async function handleStripeWebhook(req: Request) {
       };
 
       try {
-        const userRef = ref(db, `users/${userId}`);
-        await update(userRef, {
+        const userRefDb = ref(db, `users/${userId}`); // Renamed to avoid conflict with outer userRef
+        await update(userRefDb, {
           activePlan: planId,
           planDetails: planDetails,
           stripeCustomerId: stripeCustomerIdFromSession 
@@ -192,11 +206,11 @@ export async function handleStripeWebhook(req: Request) {
         if (planId === 'plano_cargo' && selectedCargoCompositeId) {
             const [editalIdForReg, cargoIdForReg] = selectedCargoCompositeId.split('_');
             if (editalIdForReg && cargoIdForReg) {
-                const userSnapshot = await get(userRef); 
+                const userSnapshot = await get(userRefDb); 
                 if (userSnapshot.exists()) {
                     const userData = userSnapshot.val();
                     const updatedRegisteredCargoIds = Array.from(new Set([...(userData.registeredCargoIds || []), selectedCargoCompositeId]));
-                    await update(userRef, { registeredCargoIds: updatedRegisteredCargoIds });
+                    await update(userRefDb, { registeredCargoIds: updatedRegisteredCargoIds });
                     console.log(`Successfully auto-registered user ${userId} for cargo ${selectedCargoCompositeId}`);
                 } else {
                     console.warn(`Webhook: User ${userId} not found in DB for auto-registration to cargo.`);
@@ -206,6 +220,9 @@ export async function handleStripeWebhook(req: Request) {
 
       } catch (dbError) {
         console.error(`Webhook Error: Failed to update user ${userId} in database:`, dbError);
+        // It's crucial not to return a 500 here without Stripe retrying.
+        // If the DB update fails, Stripe should retry the webhook.
+        // However, for now, let's keep the 500 to signal an issue.
         return new Response('Webhook Error: Database update failed.', { status: 500 });
       }
       break;
@@ -234,6 +251,7 @@ export async function handleStripeWebhook(req: Request) {
                     console.log(`Successfully cancelled plan for user with Stripe Customer ID ${stripeCustomerId} (Firebase UID: ${userIdToUpdate})`);
                 } catch (dbError) {
                     console.error(`Webhook Error: Failed to cancel subscription for user in DB:`, dbError);
+                     // Let Stripe retry if DB update fails
                 }
             } else {
                  console.warn(`Webhook Info: Received subscription.deleted for Stripe Customer ID ${stripeCustomerId}, but no matching user found in DB by stripeCustomerId field.`);
@@ -250,3 +268,4 @@ export async function handleStripeWebhook(req: Request) {
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
+
