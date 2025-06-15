@@ -2,14 +2,14 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
-import type { Edital, Cargo } from '@/types';
+import type { Edital, Cargo, PlanId } from '@/types';
 import { mockEditais } from '@/lib/mock-data'; 
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Briefcase, Loader2, PlusCircle, Library, UserMinus, AlertTriangle } from 'lucide-react';
+import { Briefcase, Loader2, PlusCircle, Library, UserMinus, AlertTriangle, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -23,12 +23,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 
 interface RegisteredCargoInfo {
   edital: Edital;
   cargo: Cargo;
+  isCargoOfActivePlanoCargo: boolean;
 }
 
 export default function MyEditaisPage() {
@@ -36,7 +38,7 @@ export default function MyEditaisPage() {
   const { toast } = useToast();
   const [loadingData, setLoadingData] = useState(true); 
   const [allEditais, setAllEditais] = useState<Edital[]>([]);
-  const [isCancelling, setIsCancelling] = useState<string | null>(null); // Store compositeId of cargo being cancelled
+  const [isCancelling, setIsCancelling] = useState<string | null>(null); 
 
   useEffect(() => {
     setLoadingData(true);
@@ -59,7 +61,8 @@ export default function MyEditaisPage() {
       if (edital) {
         const cargo = edital.cargos?.find(c => c.id === cargoId);
         if (cargo) {
-          registeredInfos.push({ edital, cargo });
+          const isPartOfPlanoCargo = user.activePlan === 'plano_cargo' && user.planDetails?.selectedCargoCompositeId === compositeId;
+          registeredInfos.push({ edital, cargo, isCargoOfActivePlanoCargo: isPartOfPlanoCargo });
         }
       }
     });
@@ -71,9 +74,9 @@ export default function MyEditaisPage() {
     setIsCancelling(compositeId);
     try {
       await unregisterFromCargo(editalId, cargoId);
-      toast({ title: "Inscrição Cancelada", description: `Sua inscrição no cargo foi cancelada com sucesso.` });
+      // Toast é tratado dentro de unregisterFromCargo
     } catch (error) {
-      toast({ title: "Erro ao Cancelar", description: "Não foi possível cancelar a inscrição no cargo.", variant: "destructive" });
+      // Toast de erro é tratado dentro de unregisterFromCargo
     } finally {
       setIsCancelling(null);
     }
@@ -149,7 +152,7 @@ export default function MyEditaisPage() {
           </div>
         ) : myRegisteredCargos.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {myRegisteredCargos.map(({ edital, cargo }) => {
+            {myRegisteredCargos.map(({ edital, cargo, isCargoOfActivePlanoCargo }) => {
               const compositeId = `${edital.id}_${cargo.id}`;
               const isCurrentCancelling = isCancelling === compositeId;
               return (
@@ -164,6 +167,11 @@ export default function MyEditaisPage() {
                   <Separator className="my-2" />
                   <CardContent className="flex-grow pt-3 pb-2">
                      <p className="text-xs text-muted-foreground line-clamp-3">{cargo.description || "Descrição do cargo não disponível."}</p>
+                     {isCargoOfActivePlanoCargo && (
+                        <p className="text-xs text-blue-600 bg-blue-50 p-2 mt-2 rounded-md border border-blue-200">
+                           Este cargo faz parte do seu Plano Cargo ativo.
+                        </p>
+                     )}
                   </CardContent>
                   <CardFooter className="pt-3 border-t flex flex-col gap-2">
                     <Button variant="outline" className="w-full group" asChild>
@@ -172,7 +180,25 @@ export default function MyEditaisPage() {
                         Ver Matérias
                       </Link>
                     </Button>
-                    <div className="w-full"> {/* Wrapper div for AlertDialog */}
+                    <div className="w-full">
+                    {isCargoOfActivePlanoCargo ? (
+                        <TooltipProvider>
+                            <Tooltip delayDuration={0}>
+                                <TooltipTrigger asChild>
+                                    <span tabIndex={0} className="inline-block w-full"> {/* Span para Tooltip em botão desabilitado */}
+                                        <Button variant="destructive" className="w-full" disabled>
+                                            <Lock className="mr-2 h-4 w-4" />
+                                            Gerenciar no Perfil
+                                        </Button>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                <p>Este cargo é gerenciado pelo seu Plano Cargo.</p>
+                                <p>Acesse seu perfil para opções de troca ou cancelamento.</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    ) : (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="destructive" className="w-full" disabled={isCurrentCancelling}>
@@ -204,6 +230,7 @@ export default function MyEditaisPage() {
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
+                    )}
                     </div>
                   </CardFooter>
                 </Card>

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -14,11 +14,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Replace, RotateCcw, Search as SearchIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
-import { mockEditais } from '@/lib/mock-data'; // Para buscar nomes de editais/cargos
-import type { PlanId } from '@/types';
+import { mockEditais } from '@/lib/mock-data'; 
+import type { PlanId, Edital as EditalType, Cargo as CargoType } from '@/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +30,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { parseISO, differenceInCalendarDays } from 'date-fns';
 
 const profileSchema = z.object({
   name: z.string().min(2, { message: "O nome deve ter pelo menos 2 caracteres." }),
@@ -38,12 +43,21 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export default function ProfilePage() {
-  const { user, updateUser, sendPasswordReset, cancelSubscription, loading: authLoading } = useAuth();
+  const { user, updateUser, sendPasswordReset, cancelSubscription, changeCargoForPlanoCargo, isPlanoCargoWithinGracePeriod, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [isPasswordResetting, setIsPasswordResetting] = useState(false);
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
+  const [isRequestingRefund, setIsRequestingRefund] = useState(false);
   
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ProfileFormValues>({
+  const [isChangeCargoModalOpen, setIsChangeCargoModalOpen] = useState(false);
+  const [allEditaisData, setAllEditaisData] = useState<EditalType[]>([]);
+  const [selectedEditalIdForChange, setSelectedEditalIdForChange] = useState<string | null>(null);
+  const [cargosForSelectedEditalChange, setCargosForSelectedEditalChange] = useState<CargoType[]>([]);
+  const [cargoSearchTermChange, setCargoSearchTermChange] = useState('');
+  const [selectedNewCargoCompositeId, setSelectedNewCargoCompositeId] = useState<string | null>(null);
+  const [isChangingCargo, setIsChangingCargo] = useState(false);
+
+  const { register, handleSubmit, formState: { errors, isSubmitting: isSubmittingName }, reset } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
       name: '',
@@ -51,12 +65,37 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
+    setAllEditaisData(mockEditais);
+  }, []);
+  
+  useEffect(() => {
     if (user) {
       reset({
         name: user.name || '',
       });
     }
   }, [user, reset]);
+
+  const allSelectableEditais = useMemo(() => allEditaisData.sort((a,b) => a.title.localeCompare(b.title)), [allEditaisData]);
+
+  useEffect(() => {
+    if (selectedEditalIdForChange) {
+      const edital = allSelectableEditais.find(e => e.id === selectedEditalIdForChange);
+      setCargosForSelectedEditalChange(edital?.cargos || []);
+      setSelectedNewCargoCompositeId(null); 
+      setCargoSearchTermChange(''); 
+    } else {
+      setCargosForSelectedEditalChange([]);
+    }
+  }, [selectedEditalIdForChange, allSelectableEditais]);
+
+  const filteredCargosForChangeModal = useMemo(() => {
+    if (!cargoSearchTermChange) return cargosForSelectedEditalChange;
+    return cargosForSelectedEditalChange.filter(cargo => 
+      cargo.name.toLowerCase().includes(cargoSearchTermChange.toLowerCase())
+    );
+  }, [cargosForSelectedEditalChange, cargoSearchTermChange]);
+
 
   const onSubmitName: SubmitHandler<ProfileFormValues> = async (data) => {
     if (!user) return;
@@ -103,7 +142,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handleCancelSubscription = async () => {
+  const handleGeneralCancelSubscription = async () => {
     setIsCancellingSubscription(true);
     try {
       await cancelSubscription();
@@ -112,6 +151,42 @@ export default function ProfilePage() {
         // Erro já tratado no AuthProvider
     } finally {
       setIsCancellingSubscription(false);
+    }
+  };
+
+  const handleRefundAndCancelPlanoCargo = async () => {
+    setIsRequestingRefund(true);
+    try {
+      await cancelSubscription(); // This function now handles full cancellation and progress wipe
+      toast({ title: "Cancelamento Solicitado", description: "Sua assinatura do Plano Cargo e todo o progresso foram removidos. O reembolso (simulado) seria processado.", duration: 7000 });
+    } catch (error) {
+       // Erro já tratado no AuthProvider
+    } finally {
+        setIsRequestingRefund(false);
+    }
+  };
+
+  const handleOpenChangeCargoModal = () => {
+    setSelectedEditalIdForChange(null);
+    setCargosForSelectedEditalChange([]);
+    setSelectedNewCargoCompositeId(null);
+    setCargoSearchTermChange('');
+    setIsChangeCargoModalOpen(true);
+  };
+
+  const handleChangeCargo = async () => {
+    if (!selectedNewCargoCompositeId) {
+        toast({ title: "Seleção Necessária", description: "Por favor, selecione um novo cargo.", variant: "destructive" });
+        return;
+    }
+    setIsChangingCargo(true);
+    try {
+        await changeCargoForPlanoCargo(selectedNewCargoCompositeId);
+        setIsChangeCargoModalOpen(false);
+    } catch (error) {
+        // Error toast is handled in changeCargoForPlanoCargo
+    } finally {
+        setIsChangingCargo(false);
     }
   };
   
@@ -136,7 +211,7 @@ export default function ProfilePage() {
   const getPlanDetailsDescription = (): string | null => {
     if (!user || !user.activePlan || !user.planDetails) return null;
 
-    const { planId, selectedCargoCompositeId, selectedEditalId, expiryDate } = user.planDetails;
+    const { planId, selectedCargoCompositeId, selectedEditalId, expiryDate, startDate } = user.planDetails;
     let details = "";
 
     if (planId === 'plano_cargo' && selectedCargoCompositeId) {
@@ -151,13 +226,18 @@ export default function ProfilePage() {
       details = "Acesso ilimitado a todos os editais e cargos.";
     }
 
+    if (startDate) {
+        details += ` Assinado em: ${new Date(startDate).toLocaleDateString('pt-BR')}.`;
+    }
     if (expiryDate) {
       details += ` Expira em: ${new Date(expiryDate).toLocaleDateString('pt-BR')}.`;
     }
     return details.trim() || null;
   };
+  
+  const planoCargoInGracePeriod = user?.activePlan === 'plano_cargo' && isPlanoCargoWithinGracePeriod();
 
-  if (authLoading && !user) { // Show loader only if user data is not yet available
+  if (authLoading && !user) { 
     return (
        <PageWrapper>
         <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]">
@@ -167,7 +247,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (!user) { // If still no user after loading, then show restricted access
+  if (!user) { 
       return (
            <PageWrapper>
             <div className="container mx-auto px-4 py-8 text-center">
@@ -193,7 +273,6 @@ export default function ProfilePage() {
       <div className="container mx-auto px-4 py-8 max-w-2xl space-y-8">
         <PageHeader title="Meu Perfil" description="Gerencie suas informações pessoais e de conta." />
         
-        {/* Card de Informações Pessoais */}
         <Card className="shadow-lg rounded-xl bg-card">
           <CardHeader className="items-center text-center border-b pb-6">
             <Avatar className="h-24 w-24 mb-4 ring-2 ring-primary ring-offset-background ring-offset-2">
@@ -230,8 +309,8 @@ export default function ProfilePage() {
               </div>
             </CardContent>
             <CardFooter className="border-t pt-6">
-              <Button type="submit" disabled={isSubmitting || authLoading} className="w-full sm:w-auto min-w-[150px] h-11 text-base">
-                {(isSubmitting || authLoading) ? (
+              <Button type="submit" disabled={isSubmittingName || authLoading} className="w-full sm:w-auto min-w-[150px] h-11 text-base">
+                {(isSubmittingName || authLoading) ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     Salvando...
@@ -247,7 +326,6 @@ export default function ProfilePage() {
           </form>
         </Card>
 
-        {/* Card de Segurança da Conta */}
         <Card className="shadow-lg rounded-xl bg-card">
           <CardHeader>
             <CardTitle className="text-xl flex items-center"><ShieldCheck className="mr-3 h-6 w-6 text-primary"/>Segurança da Conta</CardTitle>
@@ -281,7 +359,6 @@ export default function ProfilePage() {
           </CardFooter>
         </Card>
 
-        {/* Card de Plano Atual */}
         <Card className="shadow-lg rounded-xl bg-card">
           <CardHeader>
             <CardTitle className="text-xl flex items-center"><Gem className="mr-3 h-6 w-6 text-primary"/>Meu Plano</CardTitle>
@@ -298,16 +375,75 @@ export default function ProfilePage() {
                 Você ainda não possui um plano ativo. Considere assinar um para desbloquear todos os recursos!
               </p>
             )}
+            {user.activePlan === 'plano_cargo' && planoCargoInGracePeriod && (
+                <p className="text-sm text-blue-600 bg-blue-50 p-3 rounded-md border border-blue-200">
+                    <AlertTriangle className="inline h-4 w-4 mr-1"/> Você está no período de 7 dias para trocar o cargo do seu Plano Cargo ou solicitar cancelamento com reembolso.
+                </p>
+            )}
+             {user.activePlan === 'plano_cargo' && !planoCargoInGracePeriod && (
+                <p className="text-sm text-orange-600 bg-orange-50 p-3 rounded-md border border-orange-200">
+                    <AlertTriangle className="inline h-4 w-4 mr-1"/> O período de 7 dias para troca de cargo ou cancelamento com reembolso do seu Plano Cargo expirou.
+                </p>
+            )}
           </CardContent>
-          <CardFooter className="flex flex-col sm:flex-row gap-2 items-center justify-start">
-            <Button asChild variant="default" className="w-full sm:w-auto h-11 text-base">
-              <Link href="/planos">
-                {user.activePlan ? "Gerenciar Plano" : "Ver Planos Disponíveis"}
-                <ExternalLink className="ml-2 h-4 w-4"/>
-              </Link>
-            </Button>
-            {user.activePlan && (
-                <AlertDialog>
+          <CardFooter className="flex flex-col sm:flex-row gap-2 items-center justify-start flex-wrap">
+            {!user.activePlan && (
+                <Button asChild variant="default" className="w-full sm:w-auto h-11 text-base">
+                <Link href="/planos">
+                    Ver Planos Disponíveis
+                    <ExternalLink className="ml-2 h-4 w-4"/>
+                </Link>
+                </Button>
+            )}
+
+            {user.activePlan === 'plano_cargo' && planoCargoInGracePeriod && (
+                <>
+                    <Button 
+                        onClick={handleOpenChangeCargoModal}
+                        variant="outline" 
+                        className="w-full sm:w-auto h-11 text-base"
+                        disabled={authLoading || isChangingCargo}
+                    >
+                        <Replace className="mr-2 h-5 w-5" />
+                        Trocar Cargo (Plano Cargo)
+                    </Button>
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button 
+                            variant="destructive" 
+                            className="w-full sm:w-auto h-11 text-base"
+                            disabled={isRequestingRefund || authLoading}
+                            >
+                            {isRequestingRefund ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <RotateCcw className="mr-2 h-5 w-5" />}
+                            Solicitar Cancelamento e Reembolso
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>Confirmar Cancelamento com Reembolso</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Você tem certeza que deseja cancelar sua assinatura do {getPlanDisplayName(user.activePlan)} e solicitar um reembolso (simulado)? 
+                                Seu acesso ao plano e todo o progresso associado serão removidos imediatamente.
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel disabled={isRequestingRefund}>Manter Plano</AlertDialogCancel>
+                            <AlertDialogAction 
+                                onClick={handleRefundAndCancelPlanoCargo} 
+                                disabled={isRequestingRefund || authLoading}
+                                className="bg-destructive hover:bg-destructive/90"
+                            >
+                                {isRequestingRefund && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Sim, Cancelar e Solicitar Reembolso
+                            </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </>
+            )}
+            
+            {user.activePlan && (! (user.activePlan === 'plano_cargo' && planoCargoInGracePeriod) ) && (
+                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button 
                       variant="destructive" 
@@ -320,16 +456,16 @@ export default function ProfilePage() {
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
+                      <AlertDialogTitle>Confirmar Cancelamento de Assinatura</AlertDialogTitle>
                       <AlertDialogDescription>
                         Você tem certeza que deseja cancelar sua assinatura do {getPlanDisplayName(user.activePlan)}? 
-                        Você perderá o acesso aos benefícios do plano ao final do período de cobrança atual (simulado aqui como imediato).
+                        Seu acesso aos benefícios do plano e todo o progresso associado serão removidos imediatamente (simulado).
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel disabled={isCancellingSubscription}>Manter Plano</AlertDialogCancel>
                       <AlertDialogAction 
-                        onClick={handleCancelSubscription} 
+                        onClick={handleGeneralCancelSubscription} 
                         disabled={isCancellingSubscription || authLoading}
                         className="bg-destructive hover:bg-destructive/90"
                       >
@@ -340,11 +476,101 @@ export default function ProfilePage() {
                   </AlertDialogContent>
                 </AlertDialog>
             )}
+             {user.activePlan && (
+                <Button asChild variant="outline" className="w-full sm:w-auto h-11 text-base">
+                    <Link href="/planos">
+                        Ver Outros Planos
+                        <ExternalLink className="ml-2 h-4 w-4"/>
+                    </Link>
+                </Button>
+            )}
           </CardFooter>
         </Card>
-
       </div>
+
+      {/* Modal para Trocar Cargo (Plano Cargo) */}
+      <Dialog open={isChangeCargoModalOpen} onOpenChange={setIsChangeCargoModalOpen}>
+        <DialogContent className="sm:max-w-[525px]">
+          <DialogHeader>
+            <DialogTitle>Trocar Cargo do Plano Cargo</DialogTitle>
+            <DialogDescription>
+              Selecione o novo edital e cargo para o seu Plano Cargo. Esta ação é permitida apenas uma vez nos primeiros 7 dias da sua assinatura. O progresso do cargo atual será removido.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+                <Label htmlFor="edital-select-change-modal">1. Selecione o Edital:</Label>
+                <Select 
+                    value={selectedEditalIdForChange || ""} 
+                    onValueChange={(value) => setSelectedEditalIdForChange(value)}
+                >
+                    <SelectTrigger id="edital-select-change-modal">
+                        <SelectValue placeholder="Escolha um edital..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {allSelectableEditais.map(edital => (
+                            <SelectItem key={edital.id} value={edital.id}>{edital.title}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {selectedEditalIdForChange && (
+                <div className="space-y-2">
+                    <Label htmlFor="cargo-search-change-input">2. Busque e Selecione o Novo Cargo:</Label>
+                    <div className="relative">
+                        <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                            id="cargo-search-change-input"
+                            type="search"
+                            placeholder="Buscar cargo..."
+                            value={cargoSearchTermChange}
+                            onChange={(e) => setCargoSearchTermChange(e.target.value)}
+                            className="pl-8"
+                        />
+                    </div>
+                    {filteredCargosForChangeModal.length > 0 ? (
+                        <ScrollArea className="h-[200px] pr-3 border rounded-md">
+                            <RadioGroup value={selectedNewCargoCompositeId || ''} onValueChange={setSelectedNewCargoCompositeId} className="space-y-1 p-2">
+                                {filteredCargosForChangeModal.map(cargo => {
+                                    const compositeCargoId = `${selectedEditalIdForChange}_${cargo.id}`;
+                                    // Disable selection if this cargo is already the one in planDetails
+                                    const isCurrentPlanCargo = user?.planDetails?.selectedCargoCompositeId === compositeCargoId;
+                                    return (
+                                        <Label 
+                                            htmlFor={`change-${compositeCargoId}`} 
+                                            key={compositeCargoId} 
+                                            className={`flex items-center space-x-3 p-2.5 border rounded-md hover:bg-muted/50 transition-colors ${isCurrentPlanCargo ? "cursor-not-allowed opacity-50 bg-muted/30" : "cursor-pointer has-[:checked]:bg-accent has-[:checked]:text-accent-foreground has-[:checked]:border-primary"}`}
+                                        >
+                                            <RadioGroupItem value={compositeCargoId} id={`change-${compositeCargoId}`} className="border-muted-foreground" disabled={isCurrentPlanCargo}/>
+                                            <span className="font-medium">{cargo.name}</span>
+                                        </Label>
+                                    );
+                                })}
+                            </RadioGroup>
+                        </ScrollArea>
+                    ) : (
+                         <p className="text-muted-foreground text-sm text-center py-4">
+                            {cargoSearchTermChange ? "Nenhum cargo encontrado com este termo." : (cargosForSelectedEditalChange.length === 0 ? "Nenhum cargo disponível para este edital." : "Nenhum cargo encontrado.")}
+                        </p>
+                    )}
+                </div>
+            )}
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={isChangingCargo}>Cancelar</Button>
+            </DialogClose>
+            <Button type="button" onClick={handleChangeCargo} disabled={!selectedNewCargoCompositeId || isChangingCargo || authLoading}>
+              {isChangingCargo && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirmar Troca de Cargo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </PageWrapper>
   );
 }
 
+    

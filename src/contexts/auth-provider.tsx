@@ -13,9 +13,9 @@ import {
   updateProfile,
   type User as FirebaseUser 
 } from 'firebase/auth';
-import { auth as firebaseAuthService, db } from '@/lib/firebase'; // Import db from firebase
-import { ref, set, get, update, remove } from "firebase/database"; // Firebase Realtime Database functions
-import { addDays, formatISO } from 'date-fns';
+import { auth as firebaseAuthService, db } from '@/lib/firebase';
+import { ref, set, get, update, remove } from "firebase/database";
+import { addDays, formatISO, parseISO, differenceInCalendarDays } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
 
@@ -37,6 +37,8 @@ interface AuthContextType {
   toggleRevisionReviewedStatus: (compositeTopicId: string) => Promise<void>;
   subscribeToPlan: (planId: PlanId, specificDetails?: { selectedCargoCompositeId?: string; selectedEditalId?: string }) => Promise<void>;
   cancelSubscription: () => Promise<void>;
+  changeCargoForPlanoCargo: (newCargoCompositeId: string) => Promise<void>;
+  isPlanoCargoWithinGracePeriod: () => boolean;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,6 +46,44 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 interface AuthProviderProps {
   children: ReactNode;
 }
+
+const clearProgressDataForCargo = (
+  currentProgress: {
+    studiedTopicIds?: string[];
+    studyLogs?: StudyLogEntry[];
+    questionLogs?: QuestionLogEntry[];
+    revisionSchedules?: RevisionScheduleEntry[];
+  },
+  cargoCompositeIdToRemove: string // Format: editalId_cargoId
+): {
+  studiedTopicIds: string[];
+  studyLogs: StudyLogEntry[];
+  questionLogs: QuestionLogEntry[];
+  revisionSchedules: RevisionScheduleEntry[];
+} => {
+  const cargoPrefixToRemove = `${cargoCompositeIdToRemove}_`; 
+
+  const updatedStudiedTopicIds = (currentProgress.studiedTopicIds || []).filter(
+    (id) => !id.startsWith(cargoPrefixToRemove)
+  );
+  const updatedStudyLogs = (currentProgress.studyLogs || []).filter(
+    (log) => !log.compositeTopicId.startsWith(cargoPrefixToRemove)
+  );
+  const updatedQuestionLogs = (currentProgress.questionLogs || []).filter(
+    (log) => !log.compositeTopicId.startsWith(cargoPrefixToRemove)
+  );
+  const updatedRevisionSchedules = (currentProgress.revisionSchedules || []).filter(
+    (schedule) => !schedule.compositeTopicId.startsWith(cargoPrefixToRemove)
+  );
+
+  return {
+    studiedTopicIds: updatedStudiedTopicIds,
+    studyLogs: updatedStudyLogs,
+    questionLogs: updatedQuestionLogs,
+    revisionSchedules: updatedRevisionSchedules,
+  };
+};
+
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -222,39 +262,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const unregisterFromCargo = async (editalId: string, cargoId: string) => {
     if (user) {
-      setLoading(true);
-      const compositeCargoIdToRemove = `${editalId}_${cargoId}`;
-      const cargoPrefixToRemove = `${compositeCargoIdToRemove}_`; // Para filtrar tópicos, logs, etc.
+        setLoading(true);
+        const compositeCargoIdToRemove = `${editalId}_${cargoId}`;
+        
+        // Cannot unregister from cargo if it's part of an active Plano Cargo
+        if (user.activePlan === 'plano_cargo' && user.planDetails?.selectedCargoCompositeId === compositeCargoIdToRemove) {
+            toast({ title: "Ação Não Permitida", description: "Este cargo faz parte do seu Plano Cargo ativo. Gerencie seu plano na página de perfil.", variant: "destructive", duration: 7000 });
+            setLoading(false);
+            return;
+        }
 
-      const updatedRegisteredCargoIds = (user.registeredCargoIds || []).filter(id => id !== compositeCargoIdToRemove);
-      const updatedStudiedTopicIds = (user.studiedTopicIds || []).filter(id => !id.startsWith(cargoPrefixToRemove));
-      const updatedStudyLogs = (user.studyLogs || []).filter(log => !log.compositeTopicId.startsWith(cargoPrefixToRemove));
-      const updatedQuestionLogs = (user.questionLogs || []).filter(log => !log.compositeTopicId.startsWith(cargoPrefixToRemove));
-      const updatedRevisionSchedules = (user.revisionSchedules || []).filter(schedule => !schedule.compositeTopicId.startsWith(cargoPrefixToRemove));
+        const updatedRegisteredCargoIds = (user.registeredCargoIds || []).filter(id => id !== compositeCargoIdToRemove);
+        const progressCleared = clearProgressDataForCargo(user, compositeCargoIdToRemove);
       
-      try {
-        await update(ref(db, `users/${user.id}`), { 
-          registeredCargoIds: updatedRegisteredCargoIds,
-          studiedTopicIds: updatedStudiedTopicIds,
-          studyLogs: updatedStudyLogs,
-          questionLogs: updatedQuestionLogs,
-          revisionSchedules: updatedRevisionSchedules,
-        });
-        setUser(prevUser => prevUser ? { 
-          ...prevUser, 
-          registeredCargoIds: updatedRegisteredCargoIds,
-          studiedTopicIds: updatedStudiedTopicIds,
-          studyLogs: updatedStudyLogs,
-          questionLogs: updatedQuestionLogs,
-          revisionSchedules: updatedRevisionSchedules,
-        } : null);
-        toast({ title: "Inscrição Cancelada", description: "Sua inscrição e progresso para este cargo foram removidos." });
-      } catch (error) {
-        console.error("Error unregistering from cargo and deleting progress:", error);
-        toast({ title: "Erro ao Cancelar", description: "Não foi possível remover a inscrição e o progresso do cargo.", variant: "destructive" });
-      } finally {
-        setLoading(false);
-      }
+        try {
+            await update(ref(db, `users/${user.id}`), { 
+                registeredCargoIds: updatedRegisteredCargoIds,
+                ...progressCleared
+            });
+            setUser(prevUser => prevUser ? { 
+                ...prevUser, 
+                registeredCargoIds: updatedRegisteredCargoIds,
+                ...progressCleared
+            } : null);
+            toast({ title: "Inscrição Cancelada", description: "Sua inscrição e progresso para este cargo foram removidos." });
+        } catch (error) {
+            console.error("Error unregistering from cargo and deleting progress:", error);
+            toast({ title: "Erro ao Cancelar", description: "Não foi possível remover a inscrição e o progresso do cargo.", variant: "destructive" });
+        } finally {
+            setLoading(false);
+        }
     }
   };
 
@@ -367,7 +404,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const now = new Date();
     const planDetails: PlanDetails = {
       planId,
-      startDate: formatISO(now),
+      startDate: formatISO(now), // startDate is crucial for the 7-day rule
       expiryDate: formatISO(addDays(now, 365)), 
       ...specificDetails,
     };
@@ -389,43 +426,110 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
     setLoading(true);
     try {
-      await update(ref(db, `users/${user.id}`), { 
-        activePlan: null, 
-        planDetails: null,
-        // Reset progress associated with having any plan
-        registeredCargoIds: [],
-        studiedTopicIds: [],
-        studyLogs: [],
-        questionLogs: [],
-        revisionSchedules: [],
-      });
-      setUser(prevUser => prevUser ? { 
-        ...prevUser, 
-        activePlan: null, 
+      // Logic for removing plan and all associated progress
+      const updates = {
+        activePlan: null,
         planDetails: null,
         registeredCargoIds: [],
         studiedTopicIds: [],
         studyLogs: [],
         questionLogs: [],
         revisionSchedules: [],
-      } : null);
+      };
+      await update(ref(db, `users/${user.id}`), updates);
+      setUser(prevUser => prevUser ? { ...prevUser, ...updates } : null);
       toast({ title: "Assinatura Cancelada", description: "Seu plano e todo o progresso associado foram removidos.", variant: "default" });
     } catch (error) {
       console.error("Error cancelling subscription and deleting progress:", error);
       toast({ title: "Erro ao Cancelar Assinatura", description: "Não foi possível cancelar a assinatura e remover o progresso.", variant: "destructive" });
+      throw error;
     } finally {
       setLoading(false);
     }
   };
+
+  const isPlanoCargoWithinGracePeriod = (): boolean => {
+    if (user?.activePlan === 'plano_cargo' && user.planDetails?.startDate) {
+      try {
+        const startDate = parseISO(user.planDetails.startDate);
+        // differenceInCalendarDays returns the number of full calendar days.
+        // If today is the 7th day, diff will be 6. If today is 8th day, diff will be 7.
+        // So, if diff < 7, it's within the 7-day grace period (0-6 days inclusive).
+        return differenceInCalendarDays(new Date(), startDate) < 7;
+      } catch (e) {
+        console.error("Error parsing plan start date:", e);
+        return false;
+      }
+    }
+    return false;
+  };
+
+  const changeCargoForPlanoCargo = async (newCargoCompositeId: string) => {
+    if (!user || user.activePlan !== 'plano_cargo' || !user.planDetails?.selectedCargoCompositeId) {
+      toast({ title: "Ação Inválida", description: "Não há um Plano Cargo ativo para trocar.", variant: "destructive" });
+      return;
+    }
+    if (!isPlanoCargoWithinGracePeriod()) {
+      toast({ title: "Prazo Expirado", description: "A troca de cargo só é permitida nos primeiros 7 dias da assinatura.", variant: "destructive" });
+      return;
+    }
+    setLoading(true);
+    const oldCargoCompositeId = user.planDetails.selectedCargoCompositeId;
+
+    try {
+      // 1. Clear progress for the old cargo
+      const clearedProgress = clearProgressDataForCargo(user, oldCargoCompositeId);
+      
+      // 2. Update planDetails with the new cargo ID (startDate remains the same)
+      const updatedPlanDetails: PlanDetails = {
+        ...user.planDetails,
+        selectedCargoCompositeId: newCargoCompositeId,
+      };
+
+      // 3. Update registeredCargoIds: remove old, add new
+      const updatedRegisteredCargoIds = (user.registeredCargoIds || []).filter(id => id !== oldCargoCompositeId);
+      if (!updatedRegisteredCargoIds.includes(newCargoCompositeId)) {
+          updatedRegisteredCargoIds.push(newCargoCompositeId);
+      }
+      
+      const updatesToDB = {
+        planDetails: updatedPlanDetails,
+        registeredCargoIds: updatedRegisteredCargoIds,
+        ...clearedProgress, 
+      };
+
+      await update(ref(db, `users/${user.id}`), updatesToDB);
+      
+      setUser(prevUser => {
+        if (!prevUser) return null;
+        return {
+          ...prevUser,
+          planDetails: updatedPlanDetails,
+          registeredCargoIds: updatedRegisteredCargoIds,
+          ...clearedProgress,
+        };
+      });
+      toast({ title: "Cargo Alterado!", description: "Seu Plano Cargo foi atualizado para o novo cargo selecionado. O progresso do cargo anterior foi removido.", variant: "default", className: "bg-accent text-accent-foreground" });
+    } catch (error) {
+      console.error("Error changing cargo for Plano Cargo:", error);
+      toast({ title: "Erro ao Trocar Cargo", description: "Não foi possível atualizar seu plano para o novo cargo.", variant: "destructive" });
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   return (
     <AuthContext.Provider value={{ 
       user, loading, login, register, sendPasswordReset, logout, updateUser, 
       registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, 
       addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
-      subscribeToPlan, cancelSubscription
+      subscribeToPlan, cancelSubscription, changeCargoForPlanoCargo, isPlanoCargoWithinGracePeriod
     }}>
       {children}
     </AuthContext.Provider>
   );
 };
+
+    
