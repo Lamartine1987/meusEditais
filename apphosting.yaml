@@ -28,4 +28,4 @@ env:
   # Certifique-se de que um secret chamado NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   # existe no Google Secret Manager com o valor da sua chave publicável do Stripe.
   - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY # CORRIGIDO: Referencia o NOME do secret
