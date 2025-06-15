@@ -154,7 +154,8 @@ export async function createCheckoutSession(
 
 export async function handleStripeWebhook(req: Request) {
   const stripe = getStripeClient();
-  const signature = headers().get('stripe-signature');
+  const headersList = await headers();
+  const signature = headersList.get('stripe-signature');
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
   if (!signature) {
@@ -174,9 +175,7 @@ export async function handleStripeWebhook(req: Request) {
     console.error(`Webhook signature verification failed: ${err.message}`);
     return new Response(`Webhook Error: ${err.message}`, { status: 400 });
   }
-
-  // Explicitly check if event is defined. This should always be true if the catch block above didn't return.
-  // This helps satisfy TypeScript's strict checks.
+  
   if (!event) {
     console.error("Webhook Error: Event not constructed after try/catch block. This should not happen.");
     return new Response('Webhook Error: Internal server error processing event.', { status: 500 });
@@ -305,4 +304,3 @@ export async function handleStripeWebhook(req: Request) {
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
-
