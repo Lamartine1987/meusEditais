@@ -59,7 +59,7 @@ export async function createCheckoutSession(
     throw new Error(`Configuration error: Stripe Price ID for plan '${planId}' ('${envVarNameForPriceId}') is invalid or not configured. Check server logs.`);
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'; // For production, NEXT_PUBLIC_APP_URL must be set
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'; 
   if (appUrl === 'http://localhost:9002' && process.env.NODE_ENV === 'production') {
     console.warn(`[createCheckoutSession] Warning: NEXT_PUBLIC_APP_URL is not set for production. Using default ${appUrl}. This might cause issues with Stripe redirects. Ensure it's set in apphosting.yaml.`);
   }
@@ -160,20 +160,15 @@ export async function createCheckoutSession(
       throw new Error('Could not create Stripe Checkout session or the session URL is missing. Check server logs.');
     }
   } catch (error: any) {
-    // Check for Next.js redirect error. The `digest` is the most reliable.
-    // The error message might also contain "NEXT_REDIRECT".
-    // Using toUpperCase() for case-insensitive matching of "NEXT_REDIRECT".
     if (
       (error && typeof error.digest === 'string' && error.digest.toUpperCase().includes('NEXT_REDIRECT')) ||
       (error && typeof error.message === 'string' && error.message.toUpperCase().includes('NEXT_REDIRECT'))
     ) {
-      throw error; // Re-throw the original error for Next.js to handle the redirect
+      throw error; 
     }
 
-    // If it's not a redirect error, then log and handle as a Stripe or other error
     console.error('[createCheckoutSession] Error creating Stripe checkout session (not a redirect error):', error);
     if (error instanceof Error) {
-        // Use a more generic message if error.message is not helpful or too specific (like "NEXT_REDIRECT")
         const displayMessage = error.message && !error.message.toUpperCase().includes('NEXT_REDIRECT')
             ? error.message
             : 'An issue occurred with the payment provider.';
@@ -191,7 +186,7 @@ export async function handleStripeWebhook(req: Request) {
   console.log(`[handleStripeWebhook] Stripe Signature from header: ${signature ? 'present' : 'missing'}`);
 
 
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_PROD; // Changed back to _PROD
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_PROD;
   console.log(`[handleStripeWebhook] ENV_STRIPE_WEBHOOK_SECRET_PROD: ${webhookSecret === undefined ? "undefined" : (webhookSecret ? "****** (present)" : "EMPTY_STRING_OR_NULL")}`);
 
 
@@ -229,7 +224,7 @@ export async function handleStripeWebhook(req: Request) {
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
-      console.log(`[handleStripeWebhook] checkout.session.completed: Session ID ${session.id}`);
+      console.log(`[handleStripeWebhook] checkout.session.completed: Session ID ${session.id}, Full session metadata: ${JSON.stringify(session.metadata)}`);
       const userId = session.metadata?.userId;
       const planId = session.metadata?.planId as PlanId | undefined;
       const selectedCargoCompositeId = session.metadata?.selectedCargoCompositeId;
@@ -252,11 +247,18 @@ export async function handleStripeWebhook(req: Request) {
         console.error('[handleStripeWebhook] Webhook Error: Missing or invalid customer ID in checkout session.', session);
         return new Response('Webhook Error: Missing customer ID.', { status: 400 });
       }
-      console.log(`[handleStripeWebhook] checkout.session.completed: UserID ${userId}, PlanID ${planId}, SubscriptionID ${subscriptionId}, CustomerID ${stripeCustomerIdFromSession}`);
+      console.log(`[handleStripeWebhook] checkout.session.completed: UserID ${userId}, PlanID ${planId}, SubscriptionID ${subscriptionId}, CustomerID ${stripeCustomerIdFromSession}, SelectedCargoID: ${selectedCargoCompositeId}`);
 
-      const subscriptionDetails = await stripe.subscriptions.retrieve(subscriptionId);
+      let subscriptionDetails: Stripe.Subscription;
+      try {
+        subscriptionDetails = await stripe.subscriptions.retrieve(subscriptionId);
+        console.log(`[handleStripeWebhook] Subscription details retrieved. Current_period_end: ${new Date(subscriptionDetails.current_period_end * 1000).toISOString()}`);
+      } catch (stripeError: any) {
+        console.error(`[handleStripeWebhook] Error retrieving subscription ${subscriptionId} from Stripe:`, stripeError.message);
+        return new Response(`Webhook Error: Could not retrieve subscription details from Stripe. ${stripeError.message}`, { status: 500 });
+      }
+      
       const currentPeriodEnd = subscriptionDetails.current_period_end;
-      console.log(`[handleStripeWebhook] Subscription current_period_end: ${new Date(currentPeriodEnd * 1000).toISOString()}`);
 
 
       const now = new Date();
@@ -271,9 +273,8 @@ export async function handleStripeWebhook(req: Request) {
       };
       console.log(`[handleStripeWebhook] Plan details to save:`, planDetails);
 
-
+      const userFirebaseRef = ref(db, `users/${userId}`);
       try {
-        const userFirebaseRef = ref(db, `users/${userId}`);
         await update(userFirebaseRef, {
           activePlan: planId,
           planDetails: planDetails,
@@ -282,15 +283,36 @@ export async function handleStripeWebhook(req: Request) {
         console.log(`[handleStripeWebhook] Successfully updated plan for user ${userId} to ${planId}`);
 
         if (planId === 'plano_cargo' && selectedCargoCompositeId) {
-            console.log(`[handleStripeWebhook] Plano Cargo: Attempting to auto-register user ${userId} for cargo ${selectedCargoCompositeId}`);
-            const userSnapshot = await get(userFirebaseRef);
-            if (userSnapshot.exists()) {
+            console.log(`[handleStripeWebhook] Entered auto-registration block for Plano Cargo. User: ${userId}, CargoID: ${selectedCargoCompositeId}`);
+            try {
+              const userSnapshot = await get(userFirebaseRef);
+              if (userSnapshot.exists()) {
                 const userData = userSnapshot.val();
-                const updatedRegisteredCargoIds = Array.from(new Set([...(userData.registeredCargoIds || []), selectedCargoCompositeId]));
+                console.log(`[handleStripeWebhook] Plano Cargo: Fetched userData for ${userId}. Keys: ${Object.keys(userData).join(', ')}`);
+
+                const currentRegistered = userData.registeredCargoIds;
+                let updatedRegisteredCargoIds;
+
+                if (Array.isArray(currentRegistered)) {
+                  updatedRegisteredCargoIds = Array.from(new Set([...currentRegistered, selectedCargoCompositeId]));
+                  console.log(`[handleStripeWebhook] Plano Cargo: Merged with existing array. New array length: ${updatedRegisteredCargoIds.length}`);
+                } else {
+                  if (currentRegistered !== undefined && currentRegistered !== null) {
+                    console.warn(`[handleStripeWebhook] Plano Cargo: registeredCargoIds for user ${userId} was not an array but type ${typeof currentRegistered}. Initializing with new cargo: ${selectedCargoCompositeId}`);
+                  } else {
+                    console.log(`[handleStripeWebhook] Plano Cargo: registeredCargoIds was undefined or null. Initializing with new cargo: ${selectedCargoCompositeId}`);
+                  }
+                  updatedRegisteredCargoIds = [selectedCargoCompositeId];
+                }
+
+                console.log(`[handleStripeWebhook] Plano Cargo: Attempting to update registeredCargoIds for ${userId}. New array length: ${updatedRegisteredCargoIds.length}`);
                 await update(userFirebaseRef, { registeredCargoIds: updatedRegisteredCargoIds });
-                console.log(`[handleStripeWebhook] Successfully auto-registered user ${userId} for cargo ${selectedCargoCompositeId}`);
-            } else {
-                console.warn(`[handleStripeWebhook] Webhook: User ${userId} not found in DB for auto-registration to cargo.`);
+                console.log(`[handleStripeWebhook] Successfully auto-registered user ${userId} for cargo ${selectedCargoCompositeId}.`);
+              } else {
+                console.warn(`[handleStripeWebhook] Webhook (Plano Cargo auto-reg): User ${userId} not found in DB after plan update.`);
+              }
+            } catch (autoRegError: any) {
+              console.error(`[handleStripeWebhook] Webhook Error (Plano Cargo auto-reg): Failed to auto-register user ${userId} for cargo ${selectedCargoCompositeId}. Error:`, autoRegError.message, autoRegError);
             }
         }
 
@@ -347,3 +369,5 @@ export async function handleStripeWebhook(req: Request) {
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
+
+    
