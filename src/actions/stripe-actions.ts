@@ -1,13 +1,13 @@
 
 'use server';
 
-import { stripe } from '@/lib/stripe';
+import { getStripeClient } from '@/lib/stripe';
 import type { PlanId } from '@/types';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { ref, update, get } from 'firebase/database'; 
-import { formatISO, addDays } from 'date-fns';
+import { formatISO } from 'date-fns'; // Removed addDays as it's not used here directly
 
 const planToPriceMap: Record<PlanId, string> = {
   plano_cargo: process.env.STRIPE_PRICE_ID_PLANO_CARGO || 'price_plano_cargo_fallback_placeholder',
@@ -30,6 +30,7 @@ export async function createCheckoutSession(
   if (!userId) {
     throw new Error('User ID is required to create a checkout session.');
   }
+  const stripe = getStripeClient();
 
   const priceId = planToPriceMap[planId];
 
@@ -79,9 +80,7 @@ export async function createCheckoutSession(
 
   } catch (error: any) {
     console.error('Error retrieving or creating Stripe customer:', error);
-    // Do not throw here if the main issue is RTDB, allow checkout to proceed if customer ID was obtained/created
     if (!stripeCustomerId && error.message.includes('permission_denied')) {
-        // If Stripe customer ID couldn't be established AND it's a permission error (likely RTDB), then it's a blocker
          throw new Error(`Could not establish Stripe customer ID due to a database permission issue: ${error.message}`);
     } else if (!stripeCustomerId) {
          throw new Error(`Could not retrieve or create Stripe customer: ${error.message}`);
@@ -133,6 +132,7 @@ export async function createCheckoutSession(
 }
 
 export async function handleStripeWebhook(req: Request) {
+  const stripe = getStripeClient();
   const signature = headers().get('stripe-signature');
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -180,8 +180,8 @@ export async function handleStripeWebhook(req: Request) {
         return new Response('Webhook Error: Missing customer ID.', { status: 400 });
       }
 
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      const currentPeriodEnd = subscription.current_period_end; 
+      const subscriptionDetails = await stripe.subscriptions.retrieve(subscriptionId);
+      const currentPeriodEnd = subscriptionDetails.current_period_end; 
 
       const now = new Date();
       const planDetails = {
@@ -195,7 +195,7 @@ export async function handleStripeWebhook(req: Request) {
       };
 
       try {
-        const userRefDb = ref(db, `users/${userId}`); // Renamed to avoid conflict with outer userRef
+        const userRefDb = ref(db, `users/${userId}`);
         await update(userRefDb, {
           activePlan: planId,
           planDetails: planDetails,
@@ -220,9 +220,6 @@ export async function handleStripeWebhook(req: Request) {
 
       } catch (dbError) {
         console.error(`Webhook Error: Failed to update user ${userId} in database:`, dbError);
-        // It's crucial not to return a 500 here without Stripe retrying.
-        // If the DB update fails, Stripe should retry the webhook.
-        // However, for now, let's keep the 500 to signal an issue.
         return new Response('Webhook Error: Database update failed.', { status: 500 });
       }
       break;
@@ -251,7 +248,6 @@ export async function handleStripeWebhook(req: Request) {
                     console.log(`Successfully cancelled plan for user with Stripe Customer ID ${stripeCustomerId} (Firebase UID: ${userIdToUpdate})`);
                 } catch (dbError) {
                     console.error(`Webhook Error: Failed to cancel subscription for user in DB:`, dbError);
-                     // Let Stripe retry if DB update fails
                 }
             } else {
                  console.warn(`Webhook Info: Received subscription.deleted for Stripe Customer ID ${stripeCustomerId}, but no matching user found in DB by stripeCustomerId field.`);
@@ -268,4 +264,3 @@ export async function handleStripeWebhook(req: Request) {
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
-
