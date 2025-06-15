@@ -15,7 +15,6 @@ import type { PlanId } from '@/types';
 import { createCheckoutSession } from '@/actions/stripe-actions';
 import { loadStripe } from '@stripe/stripe-js';
 
-// Ensure this key is set in your environment variables
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
@@ -26,7 +25,7 @@ interface PlanDisplayDetails {
   name: string;
   price: string;
   description: string;
-  stripePriceId?: string; // Placeholder, will be filled from actual env vars or defaults
+  stripePriceId?: string; 
 }
 
 const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
@@ -35,21 +34,21 @@ const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
     name: "Plano Cargo",
     price: "R$ 4,99/ano",
     description: "Acesso a 1 cargo específico de 1 edital à sua escolha. Todas as funcionalidades de estudo para o cargo selecionado. Acompanhamento de progresso detalhado.",
-    stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_CARGO || 'price_plano_cargo_anual_placeholder',
+    stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_CARGO || 'price_plano_cargo_fallback_placeholder',
   },
   plano_edital: {
     id: 'plano_edital',
     name: "Plano Edital",
     price: "R$ 9,99/ano",
     description: "Acesso a todos os cargos de 1 edital específico. Flexibilidade para estudar para múltiplas vagas do mesmo concurso. Todas as funcionalidades de estudo e acompanhamento.",
-    stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_EDITAL || 'price_plano_edital_anual_placeholder',
+    stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_EDITAL || 'price_plano_edital_fallback_placeholder',
   },
   plano_anual: {
     id: 'plano_anual',
     name: "Plano Anual",
     price: "R$ 39,99/ano",
     description: "Acesso a todos os cargos de todos os editais da plataforma. Liberdade total para explorar e se preparar para múltiplos concursos. Todas as funcionalidades premium e atualizações futuras.",
-    stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_ANUAL || 'price_plano_anual_ilimitado_placeholder',
+    stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_ANUAL || 'price_plano_anual_fallback_placeholder',
   }
 };
 
@@ -57,8 +56,7 @@ function CheckoutPageContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading: authLoading } // Removed subscribeToPlan from useAuth, Stripe webhook will handle it
-    = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
   const planIdParam = params.planId as string;
@@ -126,11 +124,6 @@ function CheckoutPageContent() {
         specificCheckoutDetails.selectedEditalId = editalId;
     }
 
-    // Check if user has an active plan that is not the one they are trying to buy.
-    // For Stripe, if they already have a subscription, Stripe might handle upgrades/downgrades or parallel subscriptions.
-    // However, the current logic prevents buying a new plan if *any* plan is active.
-    // This might need adjustment based on desired Stripe behavior (e.g., using Stripe Billing Portal for upgrades).
-    // For now, if they have *any* plan, we might want to guide them to their profile or Stripe portal.
     if (user.activePlan) {
       if (user.activePlan === selectedPlanDetails.id) {
          let alreadyHasThisSpecific = false;
@@ -143,18 +136,13 @@ function CheckoutPageContent() {
             router.push('/perfil');
             return;
          } else {
-             // User has a *different* specific plan (e.g., cargo A, trying to buy cargo B) or different edital.
-             // Or they have cargo/edital and trying to buy Anual. Or Anual and trying to buy cargo/edital.
-             // This logic needs to be decided. For now, we allow them to proceed if it's a *different* selection for cargo/edital,
-             // or if they're upgrading to Anual. If they have Anual, they shouldn't be buying others.
              if(user.activePlan === 'plano_anual' && selectedPlanDetails.id !== 'plano_anual') {
                  toast({ title: "Plano Anual Ativo", description: `Você já possui o Plano Anual. Não é necessário assinar um plano inferior.`, variant: "default", duration: 7000 });
                  return;
              }
          }
-      } else { // User has a different plan type active
+      } else { 
          toast({ title: "Plano Existente", description: `Você já possui o plano ${planDisplayMap[user.activePlan].name} ativo. Gerencie sua assinatura no perfil ou contate o suporte para alterações.`, variant: "default", duration: 7000 });
-         // Consider redirecting to /perfil or Stripe Billing Portal if implemented
          return;
       }
     }
@@ -163,15 +151,11 @@ function CheckoutPageContent() {
     setIsProcessingPayment(true);
     try {
       await createCheckoutSession(selectedPlanDetails.id, user.id, user.email, specificCheckoutDetails);
-      // The redirect to Stripe is handled by the server action.
-      // No success toast here, as that will be on the /checkout/success page or handled by webhook.
     } catch (error: any) {
       console.error("Stripe Checkout Error:", error);
       toast({ title: "Erro no Checkout", description: error.message || "Não foi possível iniciar o processo de pagamento.", variant: "destructive" });
       setIsProcessingPayment(false);
     }
-    // setIsProcessingPayment(false) is called inside catch or if redirect doesn't happen.
-    // If redirect happens, component unmounts.
   };
 
   if (authLoading || (!isValidPlan && !selectedPlanDetails)) {
