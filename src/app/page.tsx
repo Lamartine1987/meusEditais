@@ -7,12 +7,13 @@ import { mockEditais } from '@/lib/mock-data';
 import { Input } from '@/components/ui/input';
 import { EditalCard } from '@/components/edital-card';
 import { PageWrapper } from '@/components/layout/page-wrapper';
-import { Search, Filter, NewspaperIcon, MapPin } from 'lucide-react';
+import { Search, Filter, NewspaperIcon, MapPin, Sparkles, ArrowRight } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import Link from 'next/link';
 
 const brazilStatesAbbreviations = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 
@@ -59,6 +60,27 @@ export default function HomePage() {
   return (
     <PageWrapper>
       <div className="container mx-auto px-0 sm:px-4 py-8">
+        <div className="mb-6 p-4 bg-gradient-to-r from-primary via-purple-600 to-pink-600 text-primary-foreground rounded-lg shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3 text-center sm:text-left">
+            <Sparkles className="h-10 w-10 sm:h-12 sm:w-12 shrink-0" />
+            <div>
+              <h3 className="text-xl sm:text-2xl font-semibold">Experimente Grátis por 5 Dias!</h3>
+              <p className="text-sm sm:text-base opacity-90">Explore todos os recursos da plataforma sem compromisso.</p>
+            </div>
+          </div>
+          <Button 
+            asChild 
+            variant="outline" 
+            className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 hover:text-primary active:bg-primary-foreground/80 shrink-0 py-3 px-6 text-base"
+            size="lg"
+          >
+            <Link href="/planos">
+              Ver Planos
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Link>
+          </Button>
+        </div>
+
         <Card className="mb-8 shadow-lg rounded-xl">
           <CardHeader>
             <CardTitle className="text-2xl md:text-3xl font-bold text-center text-primary">Encontre seu Próximo Edital</CardTitle>
