@@ -21,7 +21,7 @@ export interface RevisionScheduleEntry {
   reviewedDate: string | null; // ISO string date for when it was marked as reviewed
 }
 
-export type PlanId = 'plano_cargo' | 'plano_edital' | 'plano_anual';
+export type PlanId = 'plano_cargo' | 'plano_edital' | 'plano_anual' | 'plano_trial';
 
 export interface PlanDetails {
   planId: PlanId;
@@ -33,7 +33,7 @@ export interface PlanDetails {
   selectedEditalId?: string; // e.g., "edital1"
   // Stripe specific fields
   stripeSubscriptionId?: string | null;
-  stripeCustomerId?: string | null; // Added here as well for completeness, primarily on User type
+  stripeCustomerId?: string | null; 
 }
 
 export interface User {
@@ -48,7 +48,8 @@ export interface User {
   revisionSchedules?: RevisionScheduleEntry[];
   activePlan?: PlanId | null;
   planDetails?: PlanDetails | null;
-  stripeCustomerId?: string | null; // To store Stripe's customer ID
+  stripeCustomerId?: string | null; 
+  hasHadFreeTrial?: boolean; // Tracks if the user has used the free trial
 }
 
 export interface Topic {
@@ -68,7 +69,7 @@ export interface Cargo {
   description: string;
   requirements: string[];
   salary?: number;
-  subjects?: Subject[]; // Novo campo para matérias
+  subjects?: Subject[]; 
 }
 
 export interface Edital {

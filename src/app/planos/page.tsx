@@ -5,7 +5,7 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, ArrowRight, Search as SearchIcon, Info } from 'lucide-react';
+import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, ArrowRight, Search as SearchIcon, Info, Sparkles, Star } from 'lucide-react'; 
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert"; 
 
 
 const PlanFeature = ({ children }: { children: React.ReactNode }) => (
@@ -37,7 +38,7 @@ const InfoFeature = ({ children }: { children: React.ReactNode }) => (
 );
 
 export default function PlanosPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, startFreeTrial } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
 
@@ -53,6 +54,7 @@ export default function PlanosPage() {
   const [selectedItemInModal, setSelectedItemInModal] = useState<string | null>(null);
   
   const [isProcessingModalSelection, setIsProcessingModalSelection] = useState(false);
+  const [isStartingTrial, setIsStartingTrial] = useState(false);
 
   useEffect(() => {
     setAllEditaisData(mockEditais);
@@ -97,6 +99,15 @@ export default function PlanosPage() {
        toast({ title: "Plano Anual Ativo", description: "Você já possui o Plano Anual, que dá acesso a tudo. Não é necessário assinar um plano inferior.", variant: "default", duration: 7000 });
       return;
     }
+    if (user.hasHadFreeTrial && user.activePlan === 'plano_trial') {
+        toast({ title: "Teste Gratuito Ativo", description: "Você já está no período de teste gratuito.", variant: "default" });
+        return;
+    }
+    if (user.activePlan && user.activePlan !== 'plano_trial') {
+        toast({ title: "Plano Pago Ativo", description: `Você já possui o ${user.activePlan === 'plano_cargo' ? 'Plano Cargo' : user.activePlan === 'plano_edital' ? 'Plano Edital' : 'Plano Anual'}. Não é possível selecionar outro plano pago simultaneamente.`, variant: "default", duration: 7000 });
+        return;
+    }
+
 
     setModalPlanType(planType);
     setSelectedItemInModal(null); 
@@ -123,6 +134,9 @@ export default function PlanosPage() {
 
     if (redirectUrl) {
       router.push(redirectUrl);
+      // setIsModalOpen(false); // Modal will close on redirect
+    } else {
+        setIsProcessingModalSelection(false);
     }
   };
 
@@ -136,8 +150,28 @@ export default function PlanosPage() {
         toast({ title: "Plano Já Ativo", description: `Você já está inscrito no Plano Anual.`, variant: "default" });
         return;
     }
+     if (user.activePlan && user.activePlan !== 'plano_trial') {
+        toast({ title: "Plano Pago Ativo", description: `Você já possui o ${user.activePlan === 'plano_cargo' ? 'Plano Cargo' : 'Plano Edital'}. Não é possível selecionar outro plano pago simultaneamente.`, variant: "default", duration: 7000 });
+        return;
+    }
     router.push('/checkout/plano_anual');
   };
+
+  const handleInitiateFreeTrial = async () => {
+    setIsStartingTrial(true);
+    try {
+        await startFreeTrial();
+        // Toast e redirect são tratados dentro de startFreeTrial no AuthProvider
+    } catch (error: any) {
+        // Erros também são tratados no AuthProvider, mas podemos logar aqui se necessário
+        console.error("Error initiating free trial from PlanosPage:", error);
+    } finally {
+        setIsStartingTrial(false);
+    }
+  };
+
+  const canStartTrial = user && !user.hasHadFreeTrial && (!user.activePlan || user.activePlan === 'plano_trial');
+  const hasActivePaidPlan = user && user.activePlan && user.activePlan !== 'plano_trial';
 
 
   return (
@@ -148,108 +182,145 @@ export default function PlanosPage() {
           description="Escolha o plano ideal para sua jornada de aprovação."
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {/* Plano Cargo */}
-          <Card className="shadow-lg rounded-xl flex flex-col transform hover:scale-105 transition-transform duration-300">
+        <div className="mb-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Plano Teste Gratuito */}
+          <Card className="shadow-lg rounded-xl flex flex-col lg:col-span-1 border-2 border-green-500 bg-green-50 dark:bg-green-900/20 transform hover:scale-105 transition-transform duration-300">
             <CardHeader className="items-center text-center pb-4">
-              <Briefcase className="h-12 w-12 text-primary mb-3" />
-              <CardTitle className="text-2xl font-semibold">Plano Cargo</CardTitle>
-              <CardDescription className="text-base text-muted-foreground">Foco total em uma oportunidade!</CardDescription>
+              <Star className="h-12 w-12 text-green-500 mb-3" />
+              <CardTitle className="text-2xl font-semibold text-green-700 dark:text-green-300">Teste Gratuito</CardTitle>
+              <CardDescription className="text-base text-green-600 dark:text-green-400">Experimente a plataforma!</CardDescription>
             </CardHeader>
             <CardContent className="flex-grow space-y-4 pt-2">
-              <p className="text-center text-3xl font-bold text-primary">
-                R$ 4<span className="text-xl font-normal">,99/ano</span>
+              <p className="text-center text-3xl font-bold text-green-600 dark:text-green-400">
+                Grátis
+              </p>
+              <p className="text-center text-sm font-medium text-muted-foreground -mt-2">
+                Durante 5 dias
               </p>
               <ul className="space-y-2 text-sm">
-                <PlanFeature>Acesso a <strong>1 cargo específico</strong> de <strong>1 edital</strong> à sua escolha.</PlanFeature>
-                <PlanFeature>Todas as funcionalidades de estudo para o cargo selecionado.</PlanFeature>
-                <PlanFeature>Acompanhamento de progresso detalhado.</PlanFeature>
-                <PlanFeature>Ideal para quem tem um objetivo claro.</PlanFeature>
-                <InfoFeature>Flexibilidade para trocar de cargo nos primeiros 7 dias da assinatura.</InfoFeature>
+                <PlanFeature>Acesso a <strong>todas as funcionalidades</strong> da plataforma.</PlanFeature>
+                <PlanFeature>Explore todos os editais e cargos disponíveis.</PlanFeature>
+                <PlanFeature>Sem necessidade de cartão de crédito.</PlanFeature>
+                <PlanFeature>Perfeito para conhecer antes de assinar.</PlanFeature>
               </ul>
             </CardContent>
             <CardFooter className="pt-6">
               <Button 
                 size="lg" 
-                className="w-full text-base" 
-                onClick={() => handleOpenSelectionModal('cargo')}
-                disabled={authLoading}
-                variant="outline"
+                className="w-full text-base bg-green-500 hover:bg-green-600 text-white dark:bg-green-600 dark:hover:bg-green-700"
+                onClick={handleInitiateFreeTrial}
+                disabled={authLoading || isStartingTrial || !canStartTrial || hasActivePaidPlan}
               >
-                {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
-                Selecionar Cargo
+                {(authLoading || isStartingTrial) && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                {user?.activePlan === 'plano_trial' ? 'Teste Ativo' : user?.hasHadFreeTrial ? 'Teste Utilizado' : hasActivePaidPlan ? 'Plano Pago Ativo' : 'Iniciar Teste Gratuito'}
               </Button>
             </CardFooter>
           </Card>
+          
+          {/* Planos Pagos - Ocupando 3 colunas */}
+          <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Plano Cargo */}
+            <Card className="shadow-lg rounded-xl flex flex-col transform hover:scale-105 transition-transform duration-300">
+              <CardHeader className="items-center text-center pb-4">
+                <Briefcase className="h-12 w-12 text-primary mb-3" />
+                <CardTitle className="text-2xl font-semibold">Plano Cargo</CardTitle>
+                <CardDescription className="text-base text-muted-foreground">Foco total em uma oportunidade!</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-grow space-y-4 pt-2">
+                <p className="text-center text-3xl font-bold text-primary">
+                  R$ 4<span className="text-xl font-normal">,99/ano</span>
+                </p>
+                <ul className="space-y-2 text-sm">
+                  <PlanFeature>Acesso a <strong>1 cargo específico</strong> de <strong>1 edital</strong> à sua escolha.</PlanFeature>
+                  <PlanFeature>Todas as funcionalidades de estudo para o cargo selecionado.</PlanFeature>
+                  <PlanFeature>Acompanhamento de progresso detalhado.</PlanFeature>
+                  <PlanFeature>Ideal para quem tem um objetivo claro.</PlanFeature>
+                  <InfoFeature>Flexibilidade para trocar de cargo nos primeiros 7 dias da assinatura.</InfoFeature>
+                </ul>
+              </CardContent>
+              <CardFooter className="pt-6">
+                <Button 
+                  size="lg" 
+                  className="w-full text-base" 
+                  onClick={() => handleOpenSelectionModal('cargo')}
+                  disabled={authLoading || (!!user?.activePlan && user.activePlan !== 'plano_trial')}
+                  variant="outline"
+                >
+                  {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
+                  Selecionar Cargo
+                </Button>
+              </CardFooter>
+            </Card>
 
-          {/* Plano Edital */}
-          <Card className="shadow-xl rounded-xl flex flex-col border-2 border-primary relative transform hover:scale-105 transition-transform duration-300">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-primary text-primary-foreground">
-                    Mais Popular
-                </span>
-            </div>
-            <CardHeader className="items-center text-center pb-4 pt-10">
-              <Library className="h-12 w-12 text-primary mb-3" />
-              <CardTitle className="text-2xl font-semibold">Plano Edital</CardTitle>
-              <CardDescription className="text-base text-muted-foreground">Explore todas as vagas de um edital.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex-grow space-y-4 pt-2">
-              <p className="text-center text-3xl font-bold text-primary">
-                R$ 9<span className="text-xl font-normal">,99/ano</span>
-              </p>
-              <ul className="space-y-2 text-sm">
-                <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>1 edital específico</strong>.</PlanFeature>
-                <PlanFeature>Flexibilidade para estudar para múltiplas vagas do mesmo concurso.</PlanFeature>
-                <PlanFeature>Todas as funcionalidades de estudo e acompanhamento.</PlanFeature>
-                <PlanFeature>Perfeito para quem quer maximizar chances em um concurso.</PlanFeature>
-                <InfoFeature>Flexibilidade para trocar de edital nos primeiros 7 dias da assinatura.</InfoFeature>
-              </ul>
-            </CardContent>
-            <CardFooter className="pt-6">
-               <Button 
-                size="lg" 
-                className="w-full text-base" 
-                onClick={() => handleOpenSelectionModal('edital')}
-                disabled={authLoading}
-                variant="outline"
-              >
-                 {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
-                Selecionar Edital
-              </Button>
-            </CardFooter>
-          </Card>
+            {/* Plano Edital */}
+            <Card className="shadow-xl rounded-xl flex flex-col border-2 border-primary relative transform hover:scale-105 transition-transform duration-300">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-primary text-primary-foreground">
+                      Mais Popular
+                  </span>
+              </div>
+              <CardHeader className="items-center text-center pb-4 pt-10">
+                <Library className="h-12 w-12 text-primary mb-3" />
+                <CardTitle className="text-2xl font-semibold">Plano Edital</CardTitle>
+                <CardDescription className="text-base text-muted-foreground">Explore todas as vagas de um edital.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-grow space-y-4 pt-2">
+                <p className="text-center text-3xl font-bold text-primary">
+                  R$ 9<span className="text-xl font-normal">,99/ano</span>
+                </p>
+                <ul className="space-y-2 text-sm">
+                  <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>1 edital específico</strong>.</PlanFeature>
+                  <PlanFeature>Flexibilidade para estudar para múltiplas vagas do mesmo concurso.</PlanFeature>
+                  <PlanFeature>Todas as funcionalidades de estudo e acompanhamento.</PlanFeature>
+                  <PlanFeature>Perfeito para quem quer maximizar chances em um concurso.</PlanFeature>
+                  <InfoFeature>Flexibilidade para trocar de edital nos primeiros 7 dias da assinatura.</InfoFeature>
+                </ul>
+              </CardContent>
+              <CardFooter className="pt-6">
+                 <Button 
+                  size="lg" 
+                  className="w-full text-base" 
+                  onClick={() => handleOpenSelectionModal('edital')}
+                  disabled={authLoading || (!!user?.activePlan && user.activePlan !== 'plano_trial')}
+                  variant="outline"
+                >
+                   {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
+                  Selecionar Edital
+                </Button>
+              </CardFooter>
+            </Card>
 
-          {/* Plano Anual */}
-          <Card className="shadow-lg rounded-xl flex flex-col transform hover:scale-105 transition-transform duration-300">
-            <CardHeader className="items-center text-center pb-4">
-              <Zap className="h-12 w-12 text-primary mb-3" />
-              <CardTitle className="text-2xl font-semibold">Plano Anual</CardTitle>
-              <CardDescription className="text-base text-muted-foreground">Acesso total e ilimitado!</CardDescription>
-            </CardHeader>
-            <CardContent className="flex-grow space-y-4 pt-2">
-              <p className="text-center text-3xl font-bold text-primary">
-                R$ 39<span className="text-xl font-normal">,99/ano</span>
-              </p>
-              <ul className="space-y-2 text-sm">
-                <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>todos os editais</strong> da plataforma.</PlanFeature>
-                <PlanFeature>Liberdade total para explorar e se preparar para múltiplos concursos.</PlanFeature>
-                <PlanFeature>Todas as funcionalidades premium e atualizações futuras.</PlanFeature>
-                <PlanFeature>O melhor custo-benefício para concurseiros dedicados.</PlanFeature>
-              </ul>
-            </CardContent>
-            <CardFooter className="pt-6">
-              <Button 
-                size="lg" 
-                className="w-full text-base" 
-                onClick={handleSelectAnualPlan}
-                disabled={authLoading}
-              >
-                {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Gem className="mr-2 h-5 w-5" />}
-                Assinar Plano Anual
-              </Button>
-            </CardFooter>
-          </Card>
+            {/* Plano Anual */}
+            <Card className="shadow-lg rounded-xl flex flex-col transform hover:scale-105 transition-transform duration-300">
+              <CardHeader className="items-center text-center pb-4">
+                <Zap className="h-12 w-12 text-primary mb-3" />
+                <CardTitle className="text-2xl font-semibold">Plano Anual</CardTitle>
+                <CardDescription className="text-base text-muted-foreground">Acesso total e ilimitado!</CardDescription>
+              </CardHeader>
+              <CardContent className="flex-grow space-y-4 pt-2">
+                <p className="text-center text-3xl font-bold text-primary">
+                  R$ 39<span className="text-xl font-normal">,99/ano</span>
+                </p>
+                <ul className="space-y-2 text-sm">
+                  <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>todos os editais</strong> da plataforma.</PlanFeature>
+                  <PlanFeature>Liberdade total para explorar e se preparar para múltiplos concursos.</PlanFeature>
+                  <PlanFeature>Todas as funcionalidades premium e atualizações futuras.</PlanFeature>
+                  <PlanFeature>O melhor custo-benefício para concurseiros dedicados.</PlanFeature>
+                </ul>
+              </CardContent>
+              <CardFooter className="pt-6">
+                <Button 
+                  size="lg" 
+                  className="w-full text-base" 
+                  onClick={handleSelectAnualPlan}
+                  disabled={authLoading || (!!user?.activePlan && user.activePlan !== 'plano_trial' && user.activePlan !== 'plano_anual')}
+                >
+                  {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Gem className="mr-2 h-5 w-5" />}
+                  {user?.activePlan === 'plano_anual' ? 'Plano Anual Ativo' : 'Assinar Plano Anual'}
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
         </div>
 
         {/* Modal para Seleção de Cargo */}
@@ -258,7 +329,7 @@ export default function PlanosPage() {
             <AlertDialogContent className="max-w-lg w-full">
               <AlertDialogHeader>
                 <AlertDialogTitle>Selecionar Cargo para Assinatura</AlertDialogTitle>
-                <AlertDialogDescription>Escolha o edital e depois o cargo específico que você deseja incluir no seu Plano Cargo.</AlertDialogDescription>
+                <UiAlertDescription>Escolha o edital e depois o cargo específico que você deseja incluir no seu Plano Cargo.</UiAlertDescription>
               </AlertDialogHeader>
               <Separator />
               <div className="space-y-4 py-2">
@@ -337,7 +408,7 @@ export default function PlanosPage() {
             <AlertDialogContent className="max-w-lg w-full">
               <AlertDialogHeader>
                 <AlertDialogTitle>Selecionar Edital para Assinatura</AlertDialogTitle>
-                <AlertDialogDescription>Escolha o edital ao qual você deseja ter acesso completo com o Plano Edital.</AlertDialogDescription>
+                <UiAlertDescription>Escolha o edital ao qual você deseja ter acesso completo com o Plano Edital.</UiAlertDescription>
               </AlertDialogHeader>
                <Separator />
                <div className="py-2 space-y-2">
@@ -391,9 +462,10 @@ export default function PlanosPage() {
                 <CardTitle className="text-xl text-center">Como funciona a assinatura?</CardTitle>
             </CardHeader>
             <CardContent className="text-center text-muted-foreground space-y-3">
-                <p>Para o <strong>Plano Anual</strong>, você será direcionado ao checkout.</p>
-                <p>Para os <strong>Planos Cargo e Edital</strong>, selecione o item desejado no modal para prosseguir ao checkout.</p>
-                <p><strong>Atenção:</strong> No momento, a integração com pagamentos reais (Stripe) é simulada. As funcionalidades de estudo requerem um plano ativo (simulado).</p>
+                <p><strong>Plano Teste Gratuito:</strong> Clique em "Iniciar Teste Gratuito" para acesso imediato por 5 dias. Não requer pagamento.</p>
+                <p>Para os <strong>Planos Cargo e Edital</strong>, selecione o item desejado no modal para prosseguir ao checkout via Stripe.</p>
+                <p>Para o <strong>Plano Anual</strong>, você será direcionado ao checkout via Stripe.</p>
+                 <p className="font-semibold text-primary">Todos os planos pagos também incluem 5 dias de teste gratuito no primeiro pagamento!</p>
             </CardContent>
              <CardFooter className="justify-center pt-4">
                 {user ? (
@@ -412,4 +484,3 @@ export default function PlanosPage() {
     </PageWrapper>
   );
 }
-
