@@ -49,6 +49,12 @@ const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
     price: "R$ 39,99/ano",
     description: "Acesso a todos os cargos de todos os editais da plataforma. Liberdade total para explorar e se preparar para múltiplos concursos. Todas as funcionalidades premium e atualizações futuras.",
     stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_ANUAL || 'price_plano_anual_fallback_placeholder',
+  },
+  plano_trial: { // Adicionado para referência, embora não seja comprado aqui
+    id: 'plano_trial',
+    name: "Teste Gratuito",
+    price: "Grátis",
+    description: "Acesso completo por 5 dias para avaliação.",
   }
 };
 
@@ -65,7 +71,6 @@ function CheckoutPageContent() {
   const [isValidPlan, setIsValidPlan] = useState(false);
 
   useEffect(() => {
-    // Log para depuração no navegador do cliente
     console.log('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (from client-side process.env):', process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
     
     if (!stripePromise) {
@@ -127,7 +132,7 @@ function CheckoutPageContent() {
         specificCheckoutDetails.selectedEditalId = editalId;
     }
 
-    if (user.activePlan) {
+    if (user.activePlan && user.activePlan !== 'plano_trial') { // MODIFICADO AQUI: Só verifica planos pagos existentes
       if (user.activePlan === selectedPlanDetails.id) {
          let alreadyHasThisSpecific = false;
          if (user.activePlan === 'plano_anual') alreadyHasThisSpecific = true;
@@ -138,18 +143,20 @@ function CheckoutPageContent() {
             toast({ title: "Plano Já Ativo", description: `Você já possui o ${selectedPlanDetails.name} ${user.activePlan !== 'plano_anual' ? 'para este item específico' : ''}.`, variant: "default" });
             router.push('/perfil');
             return;
-         } else {
-             if(user.activePlan === 'plano_anual' && selectedPlanDetails.id !== 'plano_anual') {
-                 toast({ title: "Plano Anual Ativo", description: `Você já possui o Plano Anual. Não é necessário assinar um plano inferior.`, variant: "default", duration: 7000 });
-                 return;
-             }
          }
-      } else { 
-         toast({ title: "Plano Existente", description: `Você já possui o plano ${planDisplayMap[user.activePlan].name} ativo. Gerencie sua assinatura no perfil ou contate o suporte para alterações.`, variant: "default", duration: 7000 });
+      } else { // activePlan existe, é PAGO, e é DIFERENTE do selecionado
+         if(user.activePlan === 'plano_anual' && selectedPlanDetails.id !== 'plano_anual') { // Tenta comprar algo inferior ao anual
+             toast({ title: "Plano Anual Ativo", description: `Você já possui o Plano Anual. Não é necessário assinar um plano inferior.`, variant: "default", duration: 7000 });
+             return;
+         }
+         // Se tem outro plano pago ativo (cargo ou edital) e tenta comprar um diferente (cargo, edital ou anual)
+         // A regra aqui é que ele não pode ter dois planos pagos simultâneos.
+         // A troca deve ser gerenciada pelo perfil (se permitido).
+         toast({ title: "Plano Pago Existente", description: `Você já possui o plano ${planDisplayMap[user.activePlan!].name} ativo. Gerencie sua assinatura no perfil ou contate o suporte para alterações.`, variant: "default", duration: 7000 });
          return;
       }
     }
-
+    // Se user.activePlan for 'plano_trial' ou null, o código prossegue para o checkout.
 
     setIsProcessingPayment(true);
     try {

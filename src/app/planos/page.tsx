@@ -37,6 +37,19 @@ const InfoFeature = ({ children }: { children: React.ReactNode }) => (
   </li>
 );
 
+interface PlanDisplayInfo {
+  id: PlanId;
+  name: string;
+}
+
+const planDisplayMap: Record<PlanId, PlanDisplayInfo> = {
+  plano_cargo: { id: 'plano_cargo', name: "Plano Cargo"},
+  plano_edital: { id: 'plano_edital', name: "Plano Edital"},
+  plano_anual: { id: 'plano_anual', name: "Plano Anual"},
+  plano_trial: { id: 'plano_trial', name: "Teste Gratuito"},
+};
+
+
 export default function PlanosPage() {
   const { user, loading: authLoading, startFreeTrial } = useAuth();
   const { toast } = useToast();
@@ -95,20 +108,24 @@ export default function PlanosPage() {
       router.push('/login?redirect=/planos');
       return;
     }
-     if (user.activePlan && user.activePlan !== planType && user.activePlan === 'plano_anual') {
-       toast({ title: "Plano Anual Ativo", description: "Você já possui o Plano Anual, que dá acesso a tudo. Não é necessário assinar um plano inferior.", variant: "default", duration: 7000 });
-      return;
-    }
-    if (user.hasHadFreeTrial && user.activePlan === 'plano_trial') {
-        toast({ title: "Teste Gratuito Ativo", description: "Você já está no período de teste gratuito.", variant: "default" });
-        return;
-    }
+
+    // Check if user has an active PAID plan (not trial) that would conflict.
     if (user.activePlan && user.activePlan !== 'plano_trial') {
-        toast({ title: "Plano Pago Ativo", description: `Você já possui o ${user.activePlan === 'plano_cargo' ? 'Plano Cargo' : user.activePlan === 'plano_edital' ? 'Plano Edital' : 'Plano Anual'}. Não é possível selecionar outro plano pago simultaneamente.`, variant: "default", duration: 7000 });
+      if (user.activePlan === 'plano_anual') {
+         toast({ title: "Plano Anual Ativo", description: "Você já possui o Plano Anual, que dá acesso a tudo. Não é necessário assinar um plano inferior.", variant: "default", duration: 7000 });
+         return;
+      }
+      // If they have plano_cargo or plano_edital, they cannot select another cargo/edital plan.
+      if (user.activePlan === 'plano_cargo' || user.activePlan === 'plano_edital') {
+        const currentPlanName = planDisplayMap[user.activePlan]?.name || "pago específico";
+        toast({ title: "Plano Pago Específico Ativo", description: `Você já possui o ${currentPlanName}. Para adquirir um novo plano cargo/edital, primeiro cancele o atual em seu perfil ou opte pelo Plano Anual.`, variant: "default", duration: 7000 });
         return;
+      }
     }
-
-
+    // If we reach here, user either has no plan, or is on 'plano_trial'.
+    // Or they have plano_cargo/edital and are trying to upgrade to Anual (which is handled by a different button).
+    // So, it's safe to open the modal for 'cargo' or 'edital' selection.
+    
     setModalPlanType(planType);
     setSelectedItemInModal(null); 
     if (planType === 'cargo') {
@@ -150,10 +167,7 @@ export default function PlanosPage() {
         toast({ title: "Plano Já Ativo", description: `Você já está inscrito no Plano Anual.`, variant: "default" });
         return;
     }
-     if (user.activePlan && user.activePlan !== 'plano_trial') {
-        toast({ title: "Plano Pago Ativo", description: `Você já possui o ${user.activePlan === 'plano_cargo' ? 'Plano Cargo' : 'Plano Edital'}. Não é possível selecionar outro plano pago simultaneamente.`, variant: "default", duration: 7000 });
-        return;
-    }
+    // If user has 'plano_trial', 'plano_cargo', 'plano_edital', or null, they can proceed to 'plano_anual'.
     router.push('/checkout/plano_anual');
   };
 
@@ -484,3 +498,4 @@ export default function PlanosPage() {
     </PageWrapper>
   );
 }
+
