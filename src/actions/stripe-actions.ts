@@ -5,8 +5,7 @@ import { getStripeClient } from '@/lib/stripe';
 import type { PlanId } from '@/types';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { db } from '@/lib/firebase';
-import { ref, update, get } from 'firebase/database';
+import { adminDb } from '@/lib/firebase-admin'; // Use Admin DB
 import { formatISO } from 'date-fns';
 import type Stripe from 'stripe';
 
@@ -73,7 +72,7 @@ export async function createCheckoutSession(
   console.log(`[createCheckoutSession] SuccessURL: ${successUrl}, CancelURL: ${cancelUrl}`);
 
   let stripeCustomerId: string | undefined;
-  const userRefDb = ref(db, `users/${userId}`);
+  const userRefDb = adminDb.ref(`users/${userId}`); // Use adminDb ref
   console.log(`[createCheckoutSession] User Firebase DB Ref: users/${userId}`);
 
   try {
@@ -109,7 +108,7 @@ export async function createCheckoutSession(
     }
 
     try {
-      await update(userRefDb, { stripeCustomerId });
+      await userRefDb.update({ stripeCustomerId }); // Use admin ref update
       console.log(`[createCheckoutSession] Updated Firebase RTDB for user ${userId} with stripeCustomerId: ${stripeCustomerId}`);
     } catch (dbError: any) {
        console.warn(`[createCheckoutSession] Warning: Could not update Stripe customer ID in Firebase RTDB for user ${userId}. Error: ${dbError.message}. Proceeding with checkout.`);
@@ -204,7 +203,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   }
   if (!webhookSecret || webhookSecret.trim() === '') {
     const currentWebhookKeyValue = webhookSecret === undefined ? 'undefined' : (webhookSecret === null ? 'null' : `'${webhookSecret}'`);
-    const msg = `CRITICAL: STRIPE_WEBHOOK_SECRET_PROD is not set or is empty in environment variables. This is a server-side configuration issue. Current value: ${currentKeyValue}. Ensure secret is linked in apphosting.yaml and has a non-empty value.`;
+    const msg = `CRITICAL: STRIPE_WEBHOOK_SECRET_PROD is not set or is empty in environment variables. This is a server-side configuration issue. Current value: ${currentWebhookKeyValue}. Ensure secret is linked in apphosting.yaml and has a non-empty value.`;
     console.error(`[handleStripeWebhook] ${msg}`);
     return new Response('Webhook Error: Webhook secret not configured or is empty. Server configuration issue.', { status: 500 });
   }
@@ -266,10 +265,10 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         
         console.log(`[handleStripeWebhook] All critical IDs seem present. Proceeding to retrieve subscription details.`);
         
-        const userFirebaseRef = ref(db, `users/${userId}`);
+        const userFirebaseRef = adminDb.ref(`users/${userId}`); // Use adminDb ref
         let currentUserDataBeforeUpdate: any = {};
         try {
-            const userSnapshotBeforeUpdate = await get(userFirebaseRef);
+            const userSnapshotBeforeUpdate = await userFirebaseRef.get(); // Use admin ref get
             if (userSnapshotBeforeUpdate.exists()) {
                 currentUserDataBeforeUpdate = userSnapshotBeforeUpdate.val();
                 console.log(`[handleStripeWebhook] User ${userId} data BEFORE plan update: activePlan: ${currentUserDataBeforeUpdate.activePlan}, planDetails: ${JSON.stringify(currentUserDataBeforeUpdate.planDetails)}, registeredCargoIds: ${JSON.stringify(currentUserDataBeforeUpdate.registeredCargoIds)}`);
@@ -322,7 +321,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             hasHadFreeTrial: newHasHadFreeTrialValue,
           };
           
-          await update(userFirebaseRef, mainUpdatePayload);
+          await userFirebaseRef.update(mainUpdatePayload); // Use admin ref update
           console.log(`[handleStripeWebhook] Successfully updated main plan info for user ${userId} to ${planIdFromMetadata} in Firebase.`);
 
           if (planIdFromMetadata === 'plano_cargo' && selectedCargoCompositeId) {
@@ -333,7 +332,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
                 
                 console.log(`[handleStripeWebhook] PLANO_CARGO: currentRegisteredCargoIds: ${JSON.stringify(currentRegisteredCargoIds)}, updatedRegisteredCargoIds: ${JSON.stringify(updatedRegisteredCargoIds)}`);
                 
-                await update(userFirebaseRef, { registeredCargoIds: updatedRegisteredCargoIds });
+                await userFirebaseRef.update({ registeredCargoIds: updatedRegisteredCargoIds }); // Use admin ref update
                 console.log(`[handleStripeWebhook] PLANO_CARGO: Successfully auto-registered user ${userId} for cargo ${selectedCargoCompositeId} in Firebase.`);
             } catch (autoRegError: any) {
                 console.error(`[handleStripeWebhook] PLANO_CARGO: Error during auto-registration for cargo ${selectedCargoCompositeId} for user ${userId}:`, autoRegError);
@@ -357,9 +356,9 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const stripeCustomerId = subscription.customer;
          if (typeof stripeCustomerId === 'string') {
            console.log(`[handleStripeWebhook] Finding user by Stripe Customer ID: ${stripeCustomerId}`);
-           const usersRef = ref(db, 'users');
+           const usersRef = adminDb.ref('users'); // Use adminDb ref
            try {
-               const usersSnapshot = await get(usersRef);
+               const usersSnapshot = await usersRef.get(); // Use admin ref get
                if (usersSnapshot.exists()) {
                   const usersData = usersSnapshot.val();
                   let userIdToUpdate: string | null = null;
@@ -375,7 +374,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
                   if (userIdToUpdate) {
                       try {
                           console.log(`[handleStripeWebhook] Attempting to update Firebase for subscription deletion for user: ${userIdToUpdate}`);
-                          await update(ref(db, `users/${userIdToUpdate}`), {
+                          await adminDb.ref(`users/${userIdToUpdate}`).update({ // Use adminDb ref
                               activePlan: null,
                               planDetails: null,
                           });
@@ -410,4 +409,3 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   console.log(`[handleStripeWebhook] Successfully processed event type: ${event.type}. Event ID: ${event.id}. Returning 200 OK to Stripe.`);
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
-    
