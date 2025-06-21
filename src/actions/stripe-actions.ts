@@ -204,7 +204,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   }
   if (!webhookSecret || webhookSecret.trim() === '') {
     const currentWebhookKeyValue = webhookSecret === undefined ? 'undefined' : (webhookSecret === null ? 'null' : `'${webhookSecret}'`);
-    const msg = `CRITICAL: STRIPE_WEBHOOK_SECRET_PROD is not set or is empty in environment variables. This is a server-side configuration issue. Current value: ${currentWebhookKeyValue}. Ensure secret is linked in apphosting.yaml and has a non-empty value.`;
+    const msg = `CRITICAL: STRIPE_WEBHOOK_SECRET_PROD is not set or is empty in environment variables. This is a server-side configuration issue. Current value: ${currentKeyValue}. Ensure secret is linked in apphosting.yaml and has a non-empty value.`;
     console.error(`[handleStripeWebhook] ${msg}`);
     return new Response('Webhook Error: Webhook secret not configured or is empty. Server configuration issue.', { status: 500 });
   }
@@ -328,9 +328,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           if (planIdFromMetadata === 'plano_cargo' && selectedCargoCompositeId) {
             console.log(`[handleStripeWebhook] PLANO_CARGO: Attempting to auto-register user ${userId} for cargo ${selectedCargoCompositeId}`);
             try {
-                // Read current user data again, or use a transaction if atomicity is critical
-                // For simplicity, we'll re-read or assume mainUpdatePayload can be merged with.
-                // A better approach if `registeredCargoIds` is frequently updated elsewhere would be a transaction.
                 const currentRegisteredCargoIds = currentUserDataBeforeUpdate.registeredCargoIds || [];
                 const updatedRegisteredCargoIds = Array.from(new Set([...currentRegisteredCargoIds, selectedCargoCompositeId]));
                 
@@ -340,7 +337,8 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
                 console.log(`[handleStripeWebhook] PLANO_CARGO: Successfully auto-registered user ${userId} for cargo ${selectedCargoCompositeId} in Firebase.`);
             } catch (autoRegError: any) {
                 console.error(`[handleStripeWebhook] PLANO_CARGO: Error during auto-registration for cargo ${selectedCargoCompositeId} for user ${userId}:`, autoRegError);
-                return new Response(`Webhook Error: Failed during auto-registration for cargo. ${autoRegError.message}`, { status: 500 });
+                // Return 500 but note that main plan was likely set. This is a partial failure.
+                return new Response(`Webhook Error: Failed during auto-registration for cargo. Main plan was set, but cargo registration failed. ${autoRegError.message}`, { status: 500 });
             }
           } else {
             if (planIdFromMetadata === 'plano_cargo') {
@@ -412,10 +410,4 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   console.log(`[handleStripeWebhook] Successfully processed event type: ${event.type}. Event ID: ${event.id}. Returning 200 OK to Stripe.`);
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
-    
-
-    
-
-    
-
     
