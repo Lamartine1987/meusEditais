@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
@@ -109,7 +108,8 @@ export default function ProfilePage() {
         return {
             name: getPlanDisplayName(null),
             accessDescription: null,
-            combinedInfo: null
+            gracePeriodInfo: null,
+            expiryInfo: null,
         };
     }
 
@@ -141,12 +141,11 @@ export default function ProfilePage() {
         accessDescription = "Acesso completo à plataforma para avaliação.";
     }
 
-    const combinedInfo = [gracePeriodInfo, expiryInfo].filter(Boolean).join(' ');
-
     return {
         name: getPlanDisplayName(planId),
         accessDescription,
-        combinedInfo: combinedInfo || null,
+        gracePeriodInfo: gracePeriodInfo || null,
+        expiryInfo: expiryInfo || null,
     };
   }, [user, allEditaisData, isPlanoCargoWithinGracePeriod]);
 
@@ -365,18 +364,23 @@ export default function ProfilePage() {
              <CardDescription>Informações sobre sua assinatura atual.</CardDescription>
           </CardHeader>
           <Separator className="mb-1" />
-           <CardContent className="pt-6 space-y-2">
+           <CardContent className="pt-6 space-y-3">
             <h3 className="text-lg font-semibold text-foreground">{planInfo.name}</h3>
             {planInfo.accessDescription && (
               <p className="text-sm text-muted-foreground">{planInfo.accessDescription}</p>
             )}
-            {planInfo.combinedInfo && (
-              <p className="text-sm text-muted-foreground">{planInfo.combinedInfo}</p>
+            {planInfo.gracePeriodInfo && (
+              <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">{planInfo.gracePeriodInfo}</p>
+            )}
+            {planInfo.expiryInfo && (
+              <p className="text-sm text-muted-foreground">{planInfo.expiryInfo}</p>
             )}
             {!user.activePlan && (
-              <p className="text-sm text-muted-foreground">
-                Você ainda não possui um plano ativo. Considere assinar um para desbloquear todos os recursos!
-              </p>
+              <div className="pt-2">
+                <p className="text-sm text-muted-foreground">
+                  Você ainda não possui um plano ativo. Considere assinar um para desbloquear todos os recursos!
+                </p>
+              </div>
             )}
           </CardContent>
           <CardFooter className="flex flex-col sm:flex-row gap-2 items-center justify-start flex-wrap">
@@ -599,4 +603,3 @@ export default function ProfilePage() {
     </PageWrapper>
   );
 }
-
