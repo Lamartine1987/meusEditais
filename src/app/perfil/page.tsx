@@ -33,6 +33,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from '@/components/ui/badge';
 
 
 const profileSchema = z.object({
@@ -383,7 +384,7 @@ export default function ProfilePage() {
           </CardHeader>
           <Separator className="mb-1" />
            <CardContent className="pt-6 space-y-4">
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <h3 className="text-lg font-semibold text-foreground">{planInfo.name}</h3>
                 {planInfo.accessDescription && (
                   <p className="text-sm text-muted-foreground">{planInfo.accessDescription}</p>
@@ -551,17 +552,27 @@ export default function ProfilePage() {
             <CardContent className="pt-6 space-y-4">
                 {user.planHistory && user.planHistory.length > 0 ? (
                     <ul className="space-y-3">
-                        {user.planHistory.map((plan, index) => (
-                            <li key={index} className="p-3 border rounded-md text-sm">
-                                <p className="font-semibold">{getPlanDisplayName(plan.planId)}</p>
-                                {plan.startDate && (
-                                    <p className="text-xs text-muted-foreground">
-                                        Período: {new Date(plan.startDate).toLocaleDateString('pt-BR')}
-                                        {plan.expiryDate ? ` - ${new Date(plan.expiryDate).toLocaleDateString('pt-BR')}` : ''}
-                                    </p>
-                                )}
-                            </li>
-                        ))}
+                        {user.planHistory.map((plan, index) => {
+                            const isLastInHistory = index === user.planHistory.length - 1;
+                            const status = isLastInHistory && !user.activePlan ? "Cancelado" : "Upgrade";
+
+                            return (
+                                <li key={index} className="p-3 border rounded-md text-sm">
+                                    <div className="flex justify-between items-center mb-1">
+                                      <p className="font-semibold">{getPlanDisplayName(plan.planId)}</p>
+                                      <Badge variant={status === 'Cancelado' ? 'destructive' : 'secondary'}>
+                                        {status}
+                                      </Badge>
+                                    </div>
+                                    {plan.startDate && (
+                                        <p className="text-xs text-muted-foreground">
+                                            Período: {new Date(plan.startDate).toLocaleDateString('pt-BR')}
+                                            {plan.expiryDate ? ` - ${new Date(plan.expiryDate).toLocaleDateString('pt-BR')}` : ''}
+                                        </p>
+                                    )}
+                                </li>
+                            );
+                        })}
                     </ul>
                 ) : (
                     <p className="text-sm text-muted-foreground text-center">Nenhum plano anterior encontrado.</p>
