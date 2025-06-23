@@ -49,6 +49,13 @@ const planDisplayMap: Record<PlanId, PlanDisplayInfo> = {
   plano_trial: { id: 'plano_trial', name: "Teste Gratuito"},
 };
 
+const planRank: Record<PlanId, number> = {
+  plano_trial: 0,
+  plano_cargo: 1,
+  plano_edital: 2,
+  plano_anual: 3,
+};
+
 
 export default function PlanosPage() {
   const { user, loading: authLoading, startFreeTrial } = useAuth();
@@ -68,6 +75,8 @@ export default function PlanosPage() {
   
   const [isProcessingModalSelection, setIsProcessingModalSelection] = useState(false);
   const [isStartingTrial, setIsStartingTrial] = useState(false);
+
+  const currentUserPlanRank = useMemo(() => user?.activePlan ? planRank[user.activePlan] : 0, [user]);
 
   useEffect(() => {
     setAllEditaisData(mockEditais);
@@ -109,22 +118,12 @@ export default function PlanosPage() {
       return;
     }
 
-    // Check if user has an active PAID plan (not trial) that would conflict.
-    if (user.activePlan && user.activePlan !== 'plano_trial') {
-      if (user.activePlan === 'plano_anual') {
-         toast({ title: "Plano Anual Ativo", description: "Você já possui o Plano Anual, que dá acesso a tudo. Não é necessário assinar um plano inferior.", variant: "default", duration: 7000 });
-         return;
-      }
-      // If they have plano_cargo or plano_edital, they cannot select another cargo/edital plan.
-      if (user.activePlan === 'plano_cargo' || user.activePlan === 'plano_edital') {
-        const currentPlanName = planDisplayMap[user.activePlan]?.name || "pago específico";
-        toast({ title: "Plano Pago Específico Ativo", description: `Você já possui o ${currentPlanName}. Para adquirir um novo plano cargo/edital, primeiro cancele o atual em seu perfil ou opte pelo Plano Anual.`, variant: "default", duration: 7000 });
+    const targetRank = planType === 'cargo' ? planRank.plano_cargo : planRank.plano_edital;
+
+    if (currentUserPlanRank >= targetRank) {
+        toast({ title: "Ação Inválida", description: "Você já possui este plano ou um plano superior.", variant: "default", duration: 7000 });
         return;
-      }
     }
-    // If we reach here, user either has no plan, or is on 'plano_trial'.
-    // Or they have plano_cargo/edital and are trying to upgrade to Anual (which is handled by a different button).
-    // So, it's safe to open the modal for 'cargo' or 'edital' selection.
     
     setModalPlanType(planType);
     setSelectedItemInModal(null); 
@@ -151,33 +150,29 @@ export default function PlanosPage() {
 
     if (redirectUrl) {
       router.push(redirectUrl);
-      // setIsModalOpen(false); // Modal will close on redirect
     } else {
         setIsProcessingModalSelection(false);
     }
   };
 
   const handleSelectAnualPlan = () => {
-     if (!user) {
-      toast({ title: "Login Necessário", description: "Você precisa estar logado para selecionar um plano.", variant: "destructive" });
-      router.push('/login?redirect=/planos');
-      return;
-    }
-     if (user.activePlan && user.activePlan === 'plano_anual') {
-        toast({ title: "Plano Já Ativo", description: `Você já está inscrito no Plano Anual.`, variant: "default" });
-        return;
-    }
-    // If user has 'plano_trial', 'plano_cargo', 'plano_edital', or null, they can proceed to 'plano_anual'.
-    router.push('/checkout/plano_anual');
-  };
+    if (!user) {
+     toast({ title: "Login Necessário", description: "Você precisa estar logado para selecionar um plano.", variant: "destructive" });
+     router.push('/login?redirect=/planos');
+     return;
+   }
+    if (currentUserPlanRank >= planRank.plano_anual) {
+       toast({ title: "Plano Já Ativo", description: `Você já está inscrito no Plano Anual.`, variant: "default" });
+       return;
+   }
+   router.push('/checkout/plano_anual');
+ };
 
   const handleInitiateFreeTrial = async () => {
     setIsStartingTrial(true);
     try {
         await startFreeTrial();
-        // Toast e redirect são tratados dentro de startFreeTrial no AuthProvider
     } catch (error: any) {
-        // Erros também são tratados no AuthProvider, mas podemos logar aqui se necessário
         console.error("Error initiating free trial from PlanosPage:", error);
     } finally {
         setIsStartingTrial(false);
@@ -186,6 +181,20 @@ export default function PlanosPage() {
 
   const canStartTrial = user && !user.hasHadFreeTrial && (!user.activePlan || user.activePlan === 'plano_trial');
   const hasActivePaidPlan = user && user.activePlan && user.activePlan !== 'plano_trial';
+
+  // --- Button Logic ---
+  const cargoButtonDisabled = authLoading || currentUserPlanRank >= planRank.plano_cargo;
+
+  const isEditalUpgrade = currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_edital;
+  const editalButtonText = isEditalUpgrade ? "Fazer Upgrade" : "Selecionar Edital";
+  const editalButtonVariant = isEditalUpgrade ? "default" : "outline";
+  const editalButtonIcon = isEditalUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <ArrowRight className="mr-2 h-5 w-5" />;
+  const editalButtonDisabled = authLoading || currentUserPlanRank >= planRank.plano_edital;
+
+  const isAnualUpgrade = currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_anual;
+  const anualButtonText = isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Anual";
+  const anualButtonIcon = isAnualUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <Gem className="mr-2 h-5 w-5" />;
+  const anualButtonDisabled = authLoading || currentUserPlanRank >= planRank.plano_anual;
 
 
   return (
@@ -223,7 +232,7 @@ export default function PlanosPage() {
                 size="lg" 
                 className="w-full text-base bg-green-500 hover:bg-green-600 text-white dark:bg-green-600 dark:hover:bg-green-700"
                 onClick={handleInitiateFreeTrial}
-                disabled={!!authLoading || !!isStartingTrial || !canStartTrial || !!hasActivePaidPlan}
+                disabled={!!(authLoading || isStartingTrial || !canStartTrial || hasActivePaidPlan)}
               >
                 {(authLoading || isStartingTrial) && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
                 {user?.activePlan === 'plano_trial' ? 'Teste Ativo' : user?.hasHadFreeTrial ? 'Teste Utilizado' : hasActivePaidPlan ? 'Plano Pago Ativo' : 'Iniciar Teste Gratuito'}
@@ -257,7 +266,7 @@ export default function PlanosPage() {
                   size="lg" 
                   className="w-full text-base" 
                   onClick={() => handleOpenSelectionModal('cargo')}
-                  disabled={authLoading || (!!user?.activePlan && user.activePlan !== 'plano_trial')}
+                  disabled={cargoButtonDisabled}
                   variant="outline"
                 >
                   {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
@@ -295,11 +304,11 @@ export default function PlanosPage() {
                   size="lg" 
                   className="w-full text-base" 
                   onClick={() => handleOpenSelectionModal('edital')}
-                  disabled={authLoading || (!!user?.activePlan && user.activePlan !== 'plano_trial')}
-                  variant="outline"
+                  disabled={editalButtonDisabled}
+                  variant={editalButtonVariant}
                 >
-                   {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <ArrowRight className="mr-2 h-5 w-5" />}
-                  Selecionar Edital
+                   {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : editalButtonIcon}
+                  {editalButtonText}
                 </Button>
               </CardFooter>
             </Card>
@@ -327,10 +336,10 @@ export default function PlanosPage() {
                   size="lg" 
                   className="w-full text-base" 
                   onClick={handleSelectAnualPlan}
-                  disabled={authLoading || (!!user?.activePlan && user.activePlan !== 'plano_trial' && user.activePlan !== 'plano_anual')}
+                  disabled={anualButtonDisabled}
                 >
-                  {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Gem className="mr-2 h-5 w-5" />}
-                  {user?.activePlan === 'plano_anual' ? 'Plano Anual Ativo' : 'Assinar Plano Anual'}
+                  {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : anualButtonIcon}
+                  {anualButtonText}
                 </Button>
               </CardFooter>
             </Card>
@@ -498,4 +507,3 @@ export default function PlanosPage() {
     </PageWrapper>
   );
 }
-
