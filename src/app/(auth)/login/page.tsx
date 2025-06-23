@@ -71,8 +71,8 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password" className="font-semibold">Senha</Label>
-                <Link href="/forgot-password" passHref legacyBehavior>
-                  <a className="text-sm text-primary hover:underline">Esqueceu a senha?</a>
+                <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+                  Esqueceu a senha?
                 </Link>
               </div>
               <Input 
@@ -94,8 +94,8 @@ export default function LoginPage() {
             </Button>
             <p className="text-center text-sm text-muted-foreground">
               Não tem uma conta?{' '}
-              <Link href="/register" passHref legacyBehavior>
-                <a className="font-semibold text-primary hover:underline">Cadastre-se</a>
+              <Link href="/register" className="font-semibold text-primary hover:underline">
+                Cadastre-se
               </Link>
             </p>
           </CardFooter>

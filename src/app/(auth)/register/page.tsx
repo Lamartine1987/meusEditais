@@ -109,8 +109,8 @@ export default function RegisterPage() {
             </Button>
             <p className="text-center text-sm text-muted-foreground">
               Já tem uma conta?{' '}
-              <Link href="/login" passHref legacyBehavior>
-                <a className="font-semibold text-primary hover:underline">Entrar</a>
+              <Link href="/login" className="font-semibold text-primary hover:underline">
+                Entrar
               </Link>
             </p>
           </CardFooter>
