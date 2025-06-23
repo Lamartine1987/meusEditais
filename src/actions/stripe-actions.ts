@@ -312,6 +312,10 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         console.log(`[handleStripeWebhook] Plan details payload to be saved to Firebase:`, planDetailsPayload);
         console.log(`[handleStripeWebhook] User ${userId} - Old activePlan: ${currentUserDataBeforeUpdate.activePlan}, New activePlan: ${planIdFromMetadata}, Old hasHadFreeTrial: ${currentUserDataBeforeUpdate.hasHadFreeTrial}, New hasHadFreeTrial: ${newHasHadFreeTrialValue}`);
 
+        const oldPlanDetails = currentUserDataBeforeUpdate.planDetails;
+        const oldPlanHistory = currentUserDataBeforeUpdate.planHistory || [];
+        const newPlanHistory = oldPlanDetails ? [...oldPlanHistory, oldPlanDetails] : oldPlanHistory;
+        
         try {
           console.log(`[handleStripeWebhook] Attempting to update Firebase RTDB for user ${userId} at path users/${userId}`);
           const mainUpdatePayload: any = {
@@ -319,6 +323,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             planDetails: planDetailsPayload,
             stripeCustomerId: stripeCustomerIdFromSession,
             hasHadFreeTrial: newHasHadFreeTrialValue,
+            planHistory: newPlanHistory,
           };
           
           await userFirebaseRef.update(mainUpdatePayload); // Use admin ref update
@@ -362,21 +367,28 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
                if (usersSnapshot.exists()) {
                   const usersData = usersSnapshot.val();
                   let userIdToUpdate: string | null = null;
+                  let userDataToUpdate: any | null = null;
                   for (const uid in usersData) {
                       if (usersData[uid].stripeCustomerId === stripeCustomerId ||
                           (usersData[uid].planDetails && usersData[uid].planDetails.stripeCustomerId === stripeCustomerId)) {
                           userIdToUpdate = uid;
+                          userDataToUpdate = usersData[uid];
                           console.log(`[handleStripeWebhook] Found matching Firebase UID: ${userIdToUpdate} for Stripe Customer ID ${stripeCustomerId}`);
                           break;
                       }
                   }
 
-                  if (userIdToUpdate) {
+                  if (userIdToUpdate && userDataToUpdate) {
                       try {
                           console.log(`[handleStripeWebhook] Attempting to update Firebase for subscription deletion for user: ${userIdToUpdate}`);
+                          const oldPlanDetails = userDataToUpdate.planDetails;
+                          const oldPlanHistory = userDataToUpdate.planHistory || [];
+                          const newPlanHistory = oldPlanDetails ? [...oldPlanHistory, oldPlanDetails] : oldPlanHistory;
+                          
                           await adminDb.ref(`users/${userIdToUpdate}`).update({ // Use adminDb ref
                               activePlan: null,
                               planDetails: null,
+                              planHistory: newPlanHistory,
                           });
                           console.log(`[handleStripeWebhook] Successfully cancelled plan for user with Stripe Customer ID ${stripeCustomerId} (Firebase UID: ${userIdToUpdate})`);
                       } catch (dbUpdateError: any) {

@@ -50,6 +50,7 @@ export interface User {
   planDetails?: PlanDetails | null;
   stripeCustomerId?: string | null; 
   hasHadFreeTrial?: boolean; // Tracks if the user has used the free trial
+  planHistory?: PlanDetails[];
 }
 
 export interface Topic {

@@ -96,6 +96,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 planDetails: null,
                 stripeCustomerId: null,
                 hasHadFreeTrial: false,
+                planHistory: [],
               };
               await set(userRef, dbData); // Persist this initial structure
             } else {
@@ -128,6 +129,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               planDetails: dbData.planDetails || null,
               stripeCustomerId: dbData.stripeCustomerId || null,
               hasHadFreeTrial: dbData.hasHadFreeTrial || false,
+              planHistory: dbData.planHistory || [],
             };
 
             let trialExpiredToastShown = false;
@@ -161,7 +163,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser({ // Fallback minimal user
               id: firebaseUser.uid, name: firebaseUser.displayName || 'Usuário', email: firebaseUser.email || '',
               registeredCargoIds: [], studiedTopicIds: [], studyLogs: [], questionLogs: [], revisionSchedules: [],
-              activePlan: null, planDetails: null, stripeCustomerId: null, hasHadFreeTrial: false,
+              activePlan: null, planDetails: null, stripeCustomerId: null, hasHadFreeTrial: false, planHistory: [],
             });
           } finally {
             setLoading(false); // Ensure loading is set to false
@@ -476,6 +478,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         activePlan: null,
         planDetails: null,
     };
+    
+    const oldPlanDetails = user.planDetails;
+    const oldPlanHistory = user.planHistory || [];
+    if (oldPlanDetails) {
+        updates.planHistory = [...oldPlanHistory, oldPlanDetails];
+    }
 
     // If cancelling a specific plan that ties to a cargo/edital, and we want to clear related progress
     if (user.activePlan === 'plano_cargo' && user.planDetails?.selectedCargoCompositeId) {

@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { mockEditais } from '@/lib/mock-data'; 
@@ -383,18 +383,18 @@ export default function ProfilePage() {
           </CardHeader>
           <Separator className="mb-1" />
            <CardContent className="pt-6 space-y-4">
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">{planInfo.name}</h3>
-            </div>
-            {planInfo.accessDescription && (
-              <p className="text-sm text-muted-foreground">{planInfo.accessDescription}</p>
-            )}
-            {planInfo.gracePeriodInfo && (
-              <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">{planInfo.gracePeriodInfo}</p>
-            )}
-            {planInfo.expiryInfo && (
-              <p className="text-sm text-muted-foreground">{planInfo.expiryInfo}</p>
-            )}
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-foreground">{planInfo.name}</h3>
+                {planInfo.accessDescription && (
+                  <p className="text-sm text-muted-foreground">{planInfo.accessDescription}</p>
+                )}
+                {planInfo.gracePeriodInfo && (
+                  <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">{planInfo.gracePeriodInfo}</p>
+                )}
+                {planInfo.expiryInfo && (
+                  <p className="text-sm text-muted-foreground">{planInfo.expiryInfo}</p>
+                )}
+              </div>
             {!user.activePlan && (
               <div className="pt-2">
                 <p className="text-sm text-muted-foreground">
@@ -540,6 +540,33 @@ export default function ProfilePage() {
                 </AlertDialog>
             )}
           </CardFooter>
+        </Card>
+
+        <Card className="shadow-lg rounded-xl bg-card">
+            <CardHeader>
+                <CardTitle className="text-xl flex items-center"><History className="mr-3 h-6 w-6 text-primary"/>Histórico de Assinaturas</CardTitle>
+                <CardDescription>Seus planos anteriores.</CardDescription>
+            </CardHeader>
+            <Separator className="mb-1" />
+            <CardContent className="pt-6 space-y-4">
+                {user.planHistory && user.planHistory.length > 0 ? (
+                    <ul className="space-y-3">
+                        {user.planHistory.map((plan, index) => (
+                            <li key={index} className="p-3 border rounded-md text-sm">
+                                <p className="font-semibold">{getPlanDisplayName(plan.planId)}</p>
+                                {plan.startDate && (
+                                    <p className="text-xs text-muted-foreground">
+                                        Período: {new Date(plan.startDate).toLocaleDateString('pt-BR')}
+                                        {plan.expiryDate ? ` - ${new Date(plan.expiryDate).toLocaleDateString('pt-BR')}` : ''}
+                                    </p>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="text-sm text-muted-foreground text-center">Nenhum plano anterior encontrado.</p>
+                )}
+            </CardContent>
         </Card>
 
       </div>
