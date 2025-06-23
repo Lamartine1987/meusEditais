@@ -83,7 +83,7 @@ export function UserNav() {
         <Button variant="ghost" className="relative h-auto py-1 px-2 space-x-2 rounded-full flex items-center">
             <div className="hidden sm:flex flex-col items-end text-right">
                 {user.name && <span className="text-sm font-medium leading-none">{getDisplayName(user.name)}</span>}
-                {user.activePlan && <span className="text-xs text-muted-foreground leading-none">{getPlanDisplayName(user.activePlan)}</span>}
+                {user.activePlan && <span className="text-xs font-semibold leading-none bg-gradient-to-r from-purple-500 to-pink-500 text-transparent bg-clip-text">{getPlanDisplayName(user.activePlan)}</span>}
             </div>
           <Avatar className="h-8 w-8">
             <AvatarImage src={user.avatarUrl} alt={user.name || 'Avatar'} data-ai-hint="user avatar" />
