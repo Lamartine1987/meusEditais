@@ -39,7 +39,7 @@ const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
   plano_edital: {
     id: 'plano_edital',
     name: "Plano Edital",
-    price: "R$ 9,99/ano",
+    price: "R$ 14,99/ano",
     description: "Acesso a todos os cargos de 1 edital específico. Flexibilidade para estudar para múltiplas vagas do mesmo concurso. Todas as funcionalidades de estudo e acompanhamento.",
     stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_EDITAL || 'price_plano_edital_fallback_placeholder',
   },

@@ -289,7 +289,7 @@ export default function PlanosPage() {
               </CardHeader>
               <CardContent className="flex-grow space-y-4 pt-2">
                 <p className="text-center text-3xl font-bold text-primary">
-                  R$ 9<span className="text-xl font-normal">,99/ano</span>
+                  R$ 14<span className="text-xl font-normal">,99/ano</span>
                 </p>
                 <ul className="space-y-2 text-sm">
                   <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>1 edital específico</strong>.</PlanFeature>
