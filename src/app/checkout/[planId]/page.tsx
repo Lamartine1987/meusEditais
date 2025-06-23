@@ -58,6 +58,13 @@ const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
   }
 };
 
+const planRank: Record<PlanId, number> = {
+  plano_trial: 0,
+  plano_cargo: 1,
+  plano_edital: 2,
+  plano_anual: 3,
+};
+
 function CheckoutPageContent() {
   const params = useParams();
   const router = useRouter();
@@ -132,31 +139,35 @@ function CheckoutPageContent() {
         specificCheckoutDetails.selectedEditalId = editalId;
     }
 
-    if (user.activePlan && user.activePlan !== 'plano_trial') { // MODIFICADO AQUI: Só verifica planos pagos existentes
-      if (user.activePlan === selectedPlanDetails.id) {
-         let alreadyHasThisSpecific = false;
-         if (user.activePlan === 'plano_anual') alreadyHasThisSpecific = true;
-         else if (user.activePlan === 'plano_cargo' && user.planDetails?.selectedCargoCompositeId === specificCheckoutDetails.selectedCargoCompositeId) alreadyHasThisSpecific = true;
-         else if (user.activePlan === 'plano_edital' && user.planDetails?.selectedEditalId === specificCheckoutDetails.selectedEditalId) alreadyHasThisSpecific = true;
-         
-         if (alreadyHasThisSpecific) {
-            toast({ title: "Plano Já Ativo", description: `Você já possui o ${selectedPlanDetails.name} ${user.activePlan !== 'plano_anual' ? 'para este item específico' : ''}.`, variant: "default" });
-            router.push('/perfil');
-            return;
-         }
-      } else { // activePlan existe, é PAGO, e é DIFERENTE do selecionado
-         if(user.activePlan === 'plano_anual' && selectedPlanDetails.id !== 'plano_anual') { // Tenta comprar algo inferior ao anual
-             toast({ title: "Plano Anual Ativo", description: `Você já possui o Plano Anual. Não é necessário assinar um plano inferior.`, variant: "default", duration: 7000 });
-             return;
-         }
-         // Se tem outro plano pago ativo (cargo ou edital) e tenta comprar um diferente (cargo, edital ou anual)
-         // A regra aqui é que ele não pode ter dois planos pagos simultâneos.
-         // A troca deve ser gerenciada pelo perfil (se permitido).
-         toast({ title: "Plano Pago Existente", description: `Você já possui o plano ${planDisplayMap[user.activePlan!].name} ativo. Gerencie sua assinatura no perfil ou contate o suporte para alterações.`, variant: "default", duration: 7000 });
-         return;
+    if (user.activePlan && user.activePlan !== 'plano_trial') {
+      const currentPlanRank = planRank[user.activePlan] || 0;
+      const selectedPlanRank = planRank[selectedPlanDetails.id] || 0;
+
+      if (selectedPlanRank < currentPlanRank) {
+          toast({
+              title: `Plano ${planDisplayMap[user.activePlan!].name} Ativo`,
+              description: `Você já possui um plano superior. Não é necessário assinar um plano inferior.`,
+              variant: "default",
+              duration: 7000
+          });
+          return;
+      }
+
+      if (selectedPlanRank === currentPlanRank) {
+          let alreadyHasThisSpecific = false;
+          if (user.activePlan === 'plano_cargo' && user.planDetails?.selectedCargoCompositeId === specificCheckoutDetails.selectedCargoCompositeId) alreadyHasThisSpecific = true;
+          if (user.activePlan === 'plano_edital' && user.planDetails?.selectedEditalId === specificCheckoutDetails.selectedEditalId) alreadyHasThisSpecific = true;
+          
+          if (alreadyHasThisSpecific) {
+              toast({ title: "Plano Já Ativo", description: `Você já possui o ${selectedPlanDetails.name} para este item específico.`, variant: "default" });
+              router.push('/perfil');
+              return;
+          }
       }
     }
-    // Se user.activePlan for 'plano_trial' ou null, o código prossegue para o checkout.
+    // Se o usuário tem 'plano_trial' ou nenhum plano, o código prossegue.
+    // Se for um upgrade (selectedPlanRank > currentPlanRank), o código prossegue.
+    // O webhook irá tratar a substituição do plano antigo pelo novo.
 
     setIsProcessingPayment(true);
     try {
@@ -319,5 +330,3 @@ export default function CheckoutPage() {
     </Suspense>
   );
 }
-
-    

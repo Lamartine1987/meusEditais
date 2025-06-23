@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
@@ -13,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import { mockEditais } from '@/lib/mock-data'; 
@@ -106,7 +107,7 @@ export default function ProfilePage() {
   const planInfo = useMemo(() => {
     if (!user?.activePlan || !user.planDetails) {
         return {
-            name: getPlanDisplayName(null),
+            name: getPlanDisplayName(user?.activePlan),
             accessDescription: null,
             gracePeriodInfo: null,
             expiryInfo: null,
@@ -114,7 +115,7 @@ export default function ProfilePage() {
     }
 
     const { planId, selectedCargoCompositeId, selectedEditalId, expiryDate, startDate } = user.planDetails;
-    let accessDescription: string | null = null;
+    let accessDescription: React.ReactNode = null;
     let gracePeriodInfo: string | null = null;
     let expiryInfo: string | null = null;
 
@@ -126,15 +127,25 @@ export default function ProfilePage() {
         const [editalId, cargoId] = selectedCargoCompositeId.split('_');
         const edital = allEditaisData.find(e => e.id === editalId);
         const cargo = edital?.cargos?.find(c => c.id === cargoId);
-        accessDescription = cargo ? `Acesso ao cargo: ${cargo.name} (${edital?.title || 'Edital Desc.'})` : `Acesso a um cargo específico.`;
+        accessDescription = cargo ? (
+            <>
+                Acesso ao cargo: <Link href={`/editais/${editalId}/cargos/${cargoId}`} className="font-semibold text-primary hover:underline">{cargo.name}</Link>
+                <span className="text-muted-foreground/80"> ({edital?.title || 'Edital Desc.'})</span>
+            </>
+        ) : `Acesso a um cargo específico.`;
+
         if (startDate && isPlanoCargoWithinGracePeriod()) {
             const gracePeriodEnds = new Date(startDate);
             gracePeriodEnds.setDate(gracePeriodEnds.getDate() + 7);
-            gracePeriodInfo = `Troca de cargo ou reembolso disponíveis até ${gracePeriodEnds.toLocaleDateString('pt-BR')}.`;
+            gracePeriodInfo = `Troca de cargo, upgrade ou reembolso disponíveis até ${gracePeriodEnds.toLocaleDateString('pt-BR')}.`;
         }
     } else if (planId === 'plano_edital' && selectedEditalId) {
         const edital = allEditaisData.find(e => e.id === selectedEditalId);
-        accessDescription = edital ? `Acesso a todos os cargos do edital: ${edital.title}` : `Acesso a um edital específico.`;
+        accessDescription = edital ? (
+            <>
+              Acesso a todos os cargos do edital: <Link href={`/editais/${selectedEditalId}`} className="font-semibold text-primary hover:underline">{edital.title}</Link>
+            </>
+        ) : `Acesso a um edital específico.`;
     } else if (planId === 'plano_anual') {
         accessDescription = "Acesso ilimitado a todos os editais e cargos.";
     } else if (planId === 'plano_trial') {
@@ -144,10 +155,17 @@ export default function ProfilePage() {
     return {
         name: getPlanDisplayName(planId),
         accessDescription,
-        gracePeriodInfo: gracePeriodInfo || null,
-        expiryInfo: expiryInfo || null,
+        gracePeriodInfo,
+        expiryInfo,
     };
-  }, [user, allEditaisData, isPlanoCargoWithinGracePeriod]);
+}, [user, allEditaisData, isPlanoCargoWithinGracePeriod]);
+
+  const editalIdForUpgrade = useMemo(() => {
+    if (user?.planDetails?.selectedCargoCompositeId) {
+        return user.planDetails.selectedCargoCompositeId.split('_')[0];
+    }
+    return null;
+  }, [user?.planDetails?.selectedCargoCompositeId]);
 
 
   const onSubmitName: SubmitHandler<ProfileFormValues> = async (data) => {
@@ -364,8 +382,10 @@ export default function ProfilePage() {
              <CardDescription>Informações sobre sua assinatura atual.</CardDescription>
           </CardHeader>
           <Separator className="mb-1" />
-           <CardContent className="pt-6 space-y-3">
-            <h3 className="text-lg font-semibold text-foreground">{planInfo.name}</h3>
+           <CardContent className="pt-6 space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">{planInfo.name}</h3>
+            </div>
             {planInfo.accessDescription && (
               <p className="text-sm text-muted-foreground">{planInfo.accessDescription}</p>
             )}
@@ -390,7 +410,7 @@ export default function ProfilePage() {
                 <ExternalLink className="ml-2 h-4 w-4"/>
               </Link>
             </Button>
-
+            
             {showPlanoCargoGracePeriodOptions && (
               <>
                 <Button 
@@ -400,8 +420,22 @@ export default function ProfilePage() {
                   disabled={authLoading}
                 >
                   <RotateCcw className="mr-2 h-4 w-4"/>
-                  Trocar Cargo (Plano Cargo)
+                  Trocar Cargo
                 </Button>
+                
+                {editalIdForUpgrade && (
+                  <Button 
+                    variant="outline" 
+                    className="w-full sm:w-auto h-11 text-base border-purple-500 text-purple-600 hover:bg-purple-50 hover:text-purple-700 dark:border-purple-400 dark:text-purple-400 dark:hover:bg-purple-900/20 dark:hover:text-purple-300"
+                    asChild
+                    disabled={authLoading}
+                  >
+                    <Link href={`/checkout/plano_edital?selectedEditalId=${editalIdForUpgrade}`}>
+                      <Zap className="mr-2 h-4 w-4"/>
+                      Upgrade: Plano Edital
+                    </Link>
+                  </Button>
+                )}
 
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -411,7 +445,7 @@ export default function ProfilePage() {
                       disabled={isCancellingSubscription || authLoading}
                     >
                       <XCircle className="mr-2 h-5 w-5" />
-                      Solicitar Reembolso (Plano Cargo)
+                      Solicitar Reembolso
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
