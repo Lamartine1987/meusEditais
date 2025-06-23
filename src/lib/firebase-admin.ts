@@ -13,7 +13,11 @@ try {
   // In Firebase App Hosting and other Google Cloud environments,
   // initializeApp() with no arguments automatically uses the service account
   // credentials and the FIREBASE_CONFIG environment variable.
-  const adminApp = existingAdminApp || initializeAdminApp(undefined, ADMIN_APP_NAME);
+  // However, during build time, this might not be available. We explicitly provide
+  // the databaseURL to prevent initialization errors during `next build`.
+  const adminApp = existingAdminApp || initializeAdminApp({
+    databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/"
+  }, ADMIN_APP_NAME);
 
   adminDb = getAdminDatabase(adminApp);
 

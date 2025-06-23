@@ -223,7 +223,7 @@ export default function PlanosPage() {
                 size="lg" 
                 className="w-full text-base bg-green-500 hover:bg-green-600 text-white dark:bg-green-600 dark:hover:bg-green-700"
                 onClick={handleInitiateFreeTrial}
-                disabled={authLoading || isStartingTrial || !canStartTrial || hasActivePaidPlan}
+                disabled={!!authLoading || !!isStartingTrial || !canStartTrial || !!hasActivePaidPlan}
               >
                 {(authLoading || isStartingTrial) && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
                 {user?.activePlan === 'plano_trial' ? 'Teste Ativo' : user?.hasHadFreeTrial ? 'Teste Utilizado' : hasActivePaidPlan ? 'Plano Pago Ativo' : 'Iniciar Teste Gratuito'}
