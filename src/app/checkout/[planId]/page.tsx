@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useMemo } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { PageWrapper } from '@/components/layout/page-wrapper';
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ArrowLeft, AlertTriangle, CreditCard, Gem } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertTriangle, CreditCard, Gem, Zap } from 'lucide-react';
 import type { PlanId } from '@/types';
 import { createCheckoutSession } from '@/actions/stripe-actions';
 import { loadStripe } from '@stripe/stripe-js';
@@ -76,6 +76,16 @@ function CheckoutPageContent() {
   const [selectedPlanDetails, setSelectedPlanDetails] = useState<PlanDisplayDetails | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isValidPlan, setIsValidPlan] = useState(false);
+
+  const isUpgrade = useMemo(() => {
+    if (!user?.activePlan || user.activePlan === 'plano_trial' || !selectedPlanDetails) {
+      return false;
+    }
+    const currentRank = planRank[user.activePlan] || 0;
+    const selectedRank = planRank[selectedPlanDetails.id] || 0;
+    return selectedRank > currentRank;
+  }, [user, selectedPlanDetails]);
+
 
   useEffect(() => {
     console.log('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (from client-side process.env):', process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
@@ -264,6 +274,25 @@ function CheckoutPageContent() {
               <CardDescription className="pt-2">{selectedPlanDetails.description}</CardDescription>
             </CardHeader>
             <CardContent className="pt-6 space-y-4">
+              {isUpgrade && (
+                <div className="mb-4 bg-primary/10 border-l-4 border-primary p-4 rounded-r-md">
+                    <div className="flex">
+                        <div className="flex-shrink-0">
+                            <Zap className="h-5 w-5 text-primary" aria-hidden="true" />
+                        </div>
+                        <div className="ml-3">
+                            <h3 className="text-sm font-semibold text-primary">
+                                Upgrade de Plano!
+                            </h3>
+                            <div className="mt-2 text-sm text-foreground">
+                                <p>
+                                    Você está fazendo um upgrade do seu <strong>{user?.activePlan && planDisplayMap[user.activePlan] ? planDisplayMap[user.activePlan].name : 'plano atual'}</strong>. O valor será ajustado proporcionalmente.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+              )}
               <div>
                 <h3 className="text-lg font-semibold mb-2">Resumo do Pedido</h3>
                 <div className="flex justify-between items-center py-2 border-b">

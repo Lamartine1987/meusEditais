@@ -425,8 +425,8 @@ export default function ProfilePage() {
                 
                 {editalIdForUpgrade && (
                   <Button 
-                    variant="outline" 
-                    className="w-full sm:w-auto h-11 text-base border-purple-500 text-purple-600 hover:bg-purple-50 hover:text-purple-700 dark:border-purple-400 dark:text-purple-400 dark:hover:bg-purple-900/20 dark:hover:text-purple-300"
+                    variant="premium"
+                    className="w-full sm:w-auto h-11 text-base"
                     asChild
                     disabled={authLoading}
                   >
