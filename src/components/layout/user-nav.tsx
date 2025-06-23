@@ -18,6 +18,7 @@ import { LogOut, User as UserIcon, LogIn } from 'lucide-react';
 import { Skeleton } from '../ui/skeleton';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import type { PlanId } from '@/types';
 
 export function UserNav() {
   const { user, logout, loading } = useAuth();
@@ -66,11 +67,24 @@ export function UserNav() {
     return nameParts.slice(0, 2).join(' ');
   }
 
+  const getPlanDisplayName = (planId: PlanId): string => {
+    switch (planId) {
+      case 'plano_cargo': return "Plano Cargo";
+      case 'plano_edital': return "Plano Edital";
+      case 'plano_anual': return "Plano Anual";
+      case 'plano_trial': return "Teste Gratuito";
+      default: return "Plano";
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-10 w-auto px-2 space-x-2 rounded-full">
-          {user.name && <span className="text-sm font-medium hidden sm:inline-block">{getDisplayName(user.name)}</span>}
+        <Button variant="ghost" className="relative h-auto py-1 px-2 space-x-2 rounded-full flex items-center">
+            <div className="hidden sm:flex flex-col items-end text-right">
+                {user.name && <span className="text-sm font-medium leading-none">{getDisplayName(user.name)}</span>}
+                {user.activePlan && <span className="text-xs text-muted-foreground leading-none">{getPlanDisplayName(user.activePlan)}</span>}
+            </div>
           <Avatar className="h-8 w-8">
             <AvatarImage src={user.avatarUrl} alt={user.name || 'Avatar'} data-ai-hint="user avatar" />
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
