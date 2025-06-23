@@ -93,6 +93,64 @@ export default function ProfilePage() {
     );
   }, [cargosForSelectedEdital, cargoSearchTerm]);
 
+  const getPlanDisplayName = (planId?: PlanId | null): string => {
+    if (!planId) return "Nenhum plano ativo";
+    switch (planId) {
+      case 'plano_cargo': return "Plano Cargo";
+      case 'plano_edital': return "Plano Edital";
+      case 'plano_anual': return "Plano Anual";
+      case 'plano_trial': return "Plano Teste Gratuito"; // Ajuste aqui
+      default: return "Plano Desconhecido";
+    }
+  };
+
+  const planInfo = useMemo(() => {
+    if (!user?.activePlan || !user.planDetails) {
+        return {
+            name: getPlanDisplayName(null),
+            accessDescription: null,
+            combinedInfo: null
+        };
+    }
+
+    const { planId, selectedCargoCompositeId, selectedEditalId, expiryDate, startDate } = user.planDetails;
+    let accessDescription: string | null = null;
+    let gracePeriodInfo: string | null = null;
+    let expiryInfo: string | null = null;
+
+    if (expiryDate) {
+        expiryInfo = `Expira em: ${new Date(expiryDate).toLocaleDateString('pt-BR')}.`;
+    }
+
+    if (planId === 'plano_cargo' && selectedCargoCompositeId) {
+        const [editalId, cargoId] = selectedCargoCompositeId.split('_');
+        const edital = allEditaisData.find(e => e.id === editalId);
+        const cargo = edital?.cargos?.find(c => c.id === cargoId);
+        accessDescription = cargo ? `Acesso ao cargo: ${cargo.name} (${edital?.title || 'Edital Desc.'})` : `Acesso a um cargo específico.`;
+        if (startDate && isPlanoCargoWithinGracePeriod()) {
+            const gracePeriodEnds = new Date(startDate);
+            gracePeriodEnds.setDate(gracePeriodEnds.getDate() + 7);
+            gracePeriodInfo = `Troca de cargo ou reembolso disponíveis até ${gracePeriodEnds.toLocaleDateString('pt-BR')}.`;
+        }
+    } else if (planId === 'plano_edital' && selectedEditalId) {
+        const edital = allEditaisData.find(e => e.id === selectedEditalId);
+        accessDescription = edital ? `Acesso a todos os cargos do edital: ${edital.title}` : `Acesso a um edital específico.`;
+    } else if (planId === 'plano_anual') {
+        accessDescription = "Acesso ilimitado a todos os editais e cargos.";
+    } else if (planId === 'plano_trial') {
+        accessDescription = "Acesso completo à plataforma para avaliação.";
+    }
+
+    const combinedInfo = [gracePeriodInfo, expiryInfo].filter(Boolean).join(' ');
+
+    return {
+        name: getPlanDisplayName(planId),
+        accessDescription,
+        combinedInfo: combinedInfo || null,
+    };
+  }, [user, allEditaisData, isPlanoCargoWithinGracePeriod]);
+
+
   const onSubmitName: SubmitHandler<ProfileFormValues> = async (data) => {
     if (!user) return;
     try {
@@ -176,48 +234,6 @@ export default function ProfilePage() {
     return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
   };
 
-  const getPlanDisplayName = (planId?: PlanId | null): string => {
-    if (!planId) return "Nenhum plano ativo";
-    switch (planId) {
-      case 'plano_cargo': return "Plano Cargo";
-      case 'plano_edital': return "Plano Edital";
-      case 'plano_anual': return "Plano Anual";
-      case 'plano_trial': return "Plano Teste Gratuito"; // Ajuste aqui
-      default: return "Plano Desconhecido";
-    }
-  };
-
-  const getPlanDetailsDescription = (): string | null => {
-    if (!user || !user.activePlan || !user.planDetails) return null;
-
-    const { planId, selectedCargoCompositeId, selectedEditalId, expiryDate, startDate } = user.planDetails;
-    let details = "";
-
-    if (planId === 'plano_cargo' && selectedCargoCompositeId) {
-      const [editalId, cargoId] = selectedCargoCompositeId.split('_');
-      const edital = mockEditais.find(e => e.id === editalId);
-      const cargo = edital?.cargos?.find(c => c.id === cargoId);
-      details = cargo ? `Acesso ao cargo: ${cargo.name} (${edital?.title || 'Edital Desc.'})` : `Acesso a um cargo específico.`;
-      if (startDate && isPlanoCargoWithinGracePeriod()) {
-        const gracePeriodEnds = new Date(startDate);
-        gracePeriodEnds.setDate(gracePeriodEnds.getDate() + 7);
-        details += ` Troca de cargo ou reembolso disponíveis até ${gracePeriodEnds.toLocaleDateString('pt-BR')}.`;
-      }
-    } else if (planId === 'plano_edital' && selectedEditalId) {
-      const edital = mockEditais.find(e => e.id === selectedEditalId);
-      details = edital ? `Acesso a todos os cargos do edital: ${edital.title}` : `Acesso a um edital específico.`;
-    } else if (planId === 'plano_anual') {
-      details = "Acesso ilimitado a todos os editais e cargos.";
-    } else if (planId === 'plano_trial') {
-      details = "Acesso completo à plataforma para avaliação.";
-    }
-
-
-    if (expiryDate) {
-      details += ` Expira em: ${new Date(expiryDate).toLocaleDateString('pt-BR')}.`;
-    }
-    return details.trim() || null;
-  };
 
   if (authLoading && !user) { 
     return (
@@ -349,10 +365,13 @@ export default function ProfilePage() {
              <CardDescription>Informações sobre sua assinatura atual.</CardDescription>
           </CardHeader>
           <Separator className="mb-1" />
-          <CardContent className="pt-6 space-y-3">
-            <h3 className="text-lg font-semibold text-foreground">{getPlanDisplayName(user.activePlan)}</h3>
-            {user.activePlan && user.planDetails && (
-              <p className="text-sm text-muted-foreground">{getPlanDetailsDescription()}</p>
+           <CardContent className="pt-6 space-y-2">
+            <h3 className="text-lg font-semibold text-foreground">{planInfo.name}</h3>
+            {planInfo.accessDescription && (
+              <p className="text-sm text-muted-foreground">{planInfo.accessDescription}</p>
+            )}
+            {planInfo.combinedInfo && (
+              <p className="text-sm text-muted-foreground">{planInfo.combinedInfo}</p>
             )}
             {!user.activePlan && (
               <p className="text-sm text-muted-foreground">
