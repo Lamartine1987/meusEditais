@@ -3,8 +3,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import type { Edital } from '@/types';
-import { db } from '@/lib/firebase'; // Import Firebase db instance
-import { ref, get } from 'firebase/database'; // Import Firebase database functions
 import { Input } from '@/components/ui/input';
 import { EditalCard } from '@/components/edital-card';
 import { PageWrapper } from '@/components/layout/page-wrapper';
@@ -38,24 +36,20 @@ export default function HomePage() {
       setLoading(true);
       setError(null);
       try {
-        const editaisRef = ref(db, 'editais/editais');
-        const snapshot = await get(editaisRef);
-        if (snapshot.exists()) {
-          const data = snapshot.val();
-          const editaisArray: Edital[] = Object.keys(data).map(key => ({
-            id: key,
-            ...data[key]
-          }));
-          setAllEditais(editaisArray);
-        } else {
-          setAllEditais([]);
+        const response = await fetch('/api/editais');
+        if (!response.ok) {
+          // Try to get a more specific error message from the response body
+          const errorBody = await response.json().catch(() => ({ error: 'Failed to fetch data from API.' }));
+          throw new Error(errorBody.error || `HTTP error! status: ${response.status}`);
         }
-      } catch (err) {
-        console.error("Firebase fetch error:", err);
+        const data: Edital[] = await response.json();
+        setAllEditais(data);
+      } catch (err: any) {
+        console.error("API fetch error:", err);
         setError("Não foi possível carregar os editais. Tente novamente mais tarde.");
         toast({
           title: "Erro ao Carregar Dados",
-          description: "Não foi possível buscar os editais do banco de dados.",
+          description: err.message || "Não foi possível buscar os editais.",
           variant: "destructive"
         });
       } finally {
