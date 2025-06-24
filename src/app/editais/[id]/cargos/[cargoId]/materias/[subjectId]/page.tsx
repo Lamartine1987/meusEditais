@@ -71,7 +71,29 @@ export default function SubjectTopicsPage() {
   const [currentTopicIdForRevisionModal, setCurrentTopicIdForRevisionModal] = useState<string | null>(null);
   const [daysToReviewInput, setDaysToReviewInput] = useState<string>('');
 
-  const hasActivePlan = !!user?.activePlan;
+  const [hasAccess, setHasAccess] = useState(false);
+
+  useEffect(() => {
+    if (!user || authLoading) return;
+
+    const currentCargoCompositeId = `${editalId}_${cargoId}`;
+    let canAccess = false;
+    switch (user.activePlan) {
+      case 'plano_anual':
+      case 'plano_trial':
+        canAccess = true;
+        break;
+      case 'plano_edital':
+        canAccess = user.planDetails?.selectedEditalId === editalId;
+        break;
+      case 'plano_cargo':
+        canAccess = user.planDetails?.selectedCargoCompositeId === currentCargoCompositeId;
+        break;
+      default:
+        canAccess = false;
+    }
+    setHasAccess(canAccess);
+  }, [user, authLoading, editalId, cargoId]);
 
   useEffect(() => {
     if (editalId && cargoId && subjectId) {
@@ -104,7 +126,7 @@ export default function SubjectTopicsPage() {
     let intervalId: NodeJS.Timeout | null = null;
     const activeTopicId = activeAccordionItem; 
 
-    if (activeTopicId && timerStates[activeTopicId]?.isRunning && hasActivePlan) {
+    if (activeTopicId && timerStates[activeTopicId]?.isRunning && hasAccess) {
       intervalId = setInterval(() => {
         setTimerStates(prev => ({
           ...prev,
@@ -118,11 +140,11 @@ export default function SubjectTopicsPage() {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [activeAccordionItem, timerStates, hasActivePlan]);
+  }, [activeAccordionItem, timerStates, hasAccess]);
 
 
   const handleToggleTopicCheckbox = useCallback(async (topicId: string) => {
-    if (!user || !editalId || !cargoId || !subjectId || !hasActivePlan) return;
+    if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
     try {
       await toggleTopicStudyStatus(compositeTopicId);
@@ -133,10 +155,10 @@ export default function SubjectTopicsPage() {
         variant: "destructive",
       });
     }
-  }, [user, editalId, cargoId, subjectId, toggleTopicStudyStatus, toast, hasActivePlan]);
+  }, [user, editalId, cargoId, subjectId, toggleTopicStudyStatus, toast, hasAccess]);
 
   const handleTimerPlayPause = (topicId: string) => {
-    if (!timerStates[topicId] || !hasActivePlan) return;
+    if (!timerStates[topicId] || !hasAccess) return;
      Object.keys(timerStates).forEach(id => {
         if (id !== topicId && timerStates[id].isRunning) {
             setTimerStates(prev => ({...prev, [id]: {...prev[id], isRunning: false}}));
@@ -149,7 +171,7 @@ export default function SubjectTopicsPage() {
   };
 
   const handleTimerReset = (topicId: string) => {
-    if(!hasActivePlan) return;
+    if(!hasAccess) return;
     setTimerStates(prev => ({
       ...prev,
       [topicId]: { time: 0, isRunning: false },
@@ -157,9 +179,9 @@ export default function SubjectTopicsPage() {
   };
 
   const handleTimerSave = async (topicId: string) => {
-    if (!user || !editalId || !cargoId || !subjectId || !timerStates[topicId] || timerStates[topicId].time === 0 || !hasActivePlan) {
-      if (!hasActivePlan) {
-        toast({ title: "Plano Necessário", description: "Assine um plano para salvar seu tempo de estudo.", variant: "default" });
+    if (!user || !editalId || !cargoId || !subjectId || !timerStates[topicId] || timerStates[topicId].time === 0 || !hasAccess) {
+      if (!hasAccess) {
+        toast({ title: "Acesso Restrito", description: "Seu plano não cobre esta ação.", variant: "default" });
       } else {
         toast({ title: "Nenhum tempo para salvar", description: "Inicie o cronômetro para registrar tempo de estudo.", variant: "default" });
       }
@@ -191,7 +213,7 @@ export default function SubjectTopicsPage() {
   }, [user, editalId, cargoId, subjectId]);
 
   const handleOpenQuestionModal = (topicId: string) => {
-    if (!hasActivePlan) return;
+    if (!hasAccess) return;
     setCurrentTopicIdForModal(topicId);
     setQuestionFormData(initialQuestionFormData);
     setIsQuestionModalOpen(true);
@@ -203,7 +225,7 @@ export default function SubjectTopicsPage() {
   };
 
   const handleSaveQuestionLog = async () => {
-    if (!user || !currentTopicIdForModal || !editalId || !cargoId || !subjectId || !hasActivePlan) return;
+    if (!user || !currentTopicIdForModal || !editalId || !cargoId || !subjectId || !hasAccess) return;
 
     const total = parseInt(questionFormData.totalQuestions, 10);
     const correct = parseInt(questionFormData.correctQuestions, 10);
@@ -249,14 +271,14 @@ export default function SubjectTopicsPage() {
   }, [user, editalId, cargoId, subjectId]);
 
   const handleOpenRevisionModal = (topicId: string) => {
-    if (!hasActivePlan) return;
+    if (!hasAccess) return;
     setCurrentTopicIdForRevisionModal(topicId);
     setDaysToReviewInput('');
     setIsRevisionModalOpen(true);
   };
 
   const handleSaveRevisionSchedule = async () => {
-    if (!user || !currentTopicIdForRevisionModal || !editalId || !cargoId || !subjectId || !hasActivePlan) return;
+    if (!user || !currentTopicIdForRevisionModal || !editalId || !cargoId || !subjectId || !hasAccess) return;
     const days = parseInt(daysToReviewInput, 10);
     if (isNaN(days) || days <= 0) {
       toast({ title: "Número de Dias Inválido", description: "Por favor, insira um número de dias válido para a revisão.", variant: "destructive" });
@@ -274,7 +296,7 @@ export default function SubjectTopicsPage() {
   };
   
   const handleToggleRevisionReviewed = async (topicId: string) => {
-    if (!user || !editalId || !cargoId || !subjectId || !hasActivePlan) return;
+    if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
     try {
       await toggleRevisionReviewedStatus(compositeTopicId);
@@ -300,6 +322,51 @@ export default function SubjectTopicsPage() {
       <PageWrapper>
         <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+      </PageWrapper>
+    );
+  }
+
+  if (!authLoading && !loadingData && !hasAccess) {
+    return (
+      <PageWrapper>
+        <div className="container mx-auto px-0 sm:px-4 py-8">
+          <div className="mb-6">
+            <Button variant="outline" asChild>
+              <Link href={`/editais/${editalId}/cargos/${cargoId}`}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Voltar para Matérias do Cargo
+              </Link>
+            </Button>
+          </div>
+          <PageHeader 
+            title={subject?.name ?? "Acesso Restrito"}
+            description={subject ? `Tópicos de estudo para ${subject.name} do cargo ${cargo?.name ?? ''}.` : 'Este conteúdo não está disponível para seu plano atual.'}
+          />
+          <Card className="shadow-lg rounded-xl bg-card text-center">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center justify-center">
+                <AlertTriangle className="mr-3 h-6 w-6 text-destructive" />
+                Acesso Restrito ao Conteúdo
+              </CardTitle>
+            </CardHeader>
+            <Separator />
+            <CardContent className="pt-6">
+              <Alert variant="destructive" className="text-left">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Seu plano não cobre este conteúdo</AlertTitle>
+                <AlertDescription>
+                  Para acessar os tópicos e registrar seu progresso para este cargo, por favor, verifique seu plano atual ou considere fazer um upgrade.
+                </AlertDescription>
+              </Alert>
+              <Button asChild className="mt-6" size="lg">
+                <Link href="/planos">
+                  <Gem className="mr-2 h-4 w-4" />
+                  Ver Planos Disponíveis
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </PageWrapper>
     );
@@ -346,19 +413,6 @@ export default function SubjectTopicsPage() {
           </CardHeader>
           <Separator className="mb-1" />
           <CardContent className="pt-6">
-            {!hasActivePlan && user && (
-              <Alert variant="default" className="mb-6 bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-300">
-                <Gem className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                <AlertTitle className="font-semibold text-amber-800 dark:text-amber-200">Funcionalidades Premium Bloqueadas</AlertTitle>
-                <AlertDescription className="text-amber-700 dark:text-amber-300/90">
-                  Para utilizar o cronômetro, marcar tópicos como estudados, registrar desempenho e agendar revisões,
-                  é necessário ter um plano ativo.
-                  <Button asChild variant="link" className="p-0 h-auto ml-1 text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200 font-semibold">
-                    <Link href="/planos">Ver planos</Link>
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            )}
             {subject.topics && subject.topics.length > 0 ? (
               <Accordion 
                 type="single" 
@@ -399,7 +453,7 @@ export default function SubjectTopicsPage() {
                         className={cn(
                             "rounded-lg shadow-sm border overflow-hidden transition-colors duration-300",
                             isRevisionDue ? "bg-yellow-100 dark:bg-yellow-800/20 border-yellow-500/50" :
-                            (isStudiedChecked && hasActivePlan) ? "bg-accent/20 border-accent/30" : "bg-card border-border"
+                            (isStudiedChecked && hasAccess) ? "bg-accent/20 border-accent/30" : "bg-card border-border"
                         )}
                     >
                       <AccordionTrigger className="py-4 px-3 hover:bg-muted/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 w-full text-left">
@@ -425,13 +479,13 @@ export default function SubjectTopicsPage() {
                                     onCheckedChange={() => handleToggleTopicCheckbox(topic.id)}
                                     aria-labelledby={`${checkboxId}-label`}
                                     className="h-5 w-5"
-                                    disabled={!hasActivePlan}
+                                    disabled={!hasAccess}
                                 />
-                                <Label htmlFor={checkboxId} id={`${checkboxId}-label`} className={cn("text-sm font-medium text-foreground/80", !hasActivePlan ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
+                                <Label htmlFor={checkboxId} id={`${checkboxId}-label`} className={cn("text-sm font-medium text-foreground/80", !hasAccess ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
                                     Marcar como estudado
                                 </Label>
                             </div>
-                            <Button variant="outline" size="sm" onClick={() => handleOpenRevisionModal(topic.id)} className="w-full sm:w-auto" disabled={!hasActivePlan}>
+                            <Button variant="outline" size="sm" onClick={() => handleOpenRevisionModal(topic.id)} className="w-full sm:w-auto" disabled={!hasAccess}>
                                 <CalendarClock className="mr-2 h-4 w-4"/>
                                 {revisionSchedule ? "Reagendar Revisão" : "Agendar Revisão"}
                             </Button>
@@ -456,9 +510,9 @@ export default function SubjectTopicsPage() {
                                             checked={revisionSchedule.isReviewed}
                                             onCheckedChange={() => handleToggleRevisionReviewed(topic.id)}
                                             className="h-5 w-5"
-                                            disabled={!hasActivePlan}
+                                            disabled={!hasAccess}
                                         />
-                                        <Label htmlFor={`revision-checked-${topic.id}`} className={cn("text-sm font-medium text-foreground/80", !hasActivePlan ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
+                                        <Label htmlFor={`revision-checked-${topic.id}`} className={cn("text-sm font-medium text-foreground/80", !hasAccess ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
                                             Marcar como revisado
                                         </Label>
                                     </div>
@@ -467,7 +521,7 @@ export default function SubjectTopicsPage() {
                         )}
                         
                         <div className="p-3 border rounded-md bg-background/50 shadow-sm space-y-3">
-                            <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => handleOpenQuestionModal(topic.id)} disabled={!hasActivePlan}>
+                            <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => handleOpenQuestionModal(topic.id)} disabled={!hasAccess}>
                                 <ClipboardList className="mr-2 h-4 w-4"/>
                                 Registrar Desempenho em Questões
                             </Button>
@@ -488,17 +542,17 @@ export default function SubjectTopicsPage() {
                         </div>
 
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border rounded-lg bg-background shadow-sm">
-                          <div className={cn("text-3xl font-mono font-semibold", hasActivePlan ? "text-primary" : "text-muted-foreground/50")}>
+                          <div className={cn("text-3xl font-mono font-semibold", hasAccess ? "text-primary" : "text-muted-foreground/50")}>
                             {formatDuration(currentTimerState.time)}
                           </div>
                           <div className="flex items-center gap-2">
-                            <Button variant="outline" size="icon" onClick={() => handleTimerPlayPause(topic.id)} title={currentTimerState.isRunning ? "Pausar" : "Iniciar"} disabled={!hasActivePlan}>
+                            <Button variant="outline" size="icon" onClick={() => handleTimerPlayPause(topic.id)} title={currentTimerState.isRunning ? "Pausar" : "Iniciar"} disabled={!hasAccess}>
                               {currentTimerState.isRunning ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
                             </Button>
-                            <Button variant="outline" size="icon" onClick={() => handleTimerReset(topic.id)} title="Reiniciar" disabled={!hasActivePlan}>
+                            <Button variant="outline" size="icon" onClick={() => handleTimerReset(topic.id)} title="Reiniciar" disabled={!hasAccess}>
                               <RotateCcw className="h-5 w-5" />
                             </Button>
-                            <Button variant="default" size="icon" onClick={() => handleTimerSave(topic.id)} title="Salvar Tempo" disabled={!hasActivePlan || (currentTimerState.time === 0 && !currentTimerState.isRunning)}>
+                            <Button variant="default" size="icon" onClick={() => handleTimerSave(topic.id)} title="Salvar Tempo" disabled={!hasAccess || (currentTimerState.time === 0 && !currentTimerState.isRunning)}>
                               <Save className="h-5 w-5" />
                             </Button>
                           </div>
@@ -520,10 +574,10 @@ export default function SubjectTopicsPage() {
                             </ul>
                           </div>
                         )}
-                         {topicStudyLogs.length === 0 && activeAccordionItem === topic.id && hasActivePlan && (
+                         {topicStudyLogs.length === 0 && activeAccordionItem === topic.id && hasAccess && (
                             <p className="text-xs text-center text-muted-foreground py-2">Nenhum tempo de estudo salvo para este tópico ainda.</p>
                         )}
-                        {topicStudyLogs.length === 0 && activeAccordionItem === topic.id && !hasActivePlan && (
+                        {topicStudyLogs.length === 0 && activeAccordionItem === topic.id && !hasAccess && (
                             <p className="text-xs text-center text-muted-foreground py-2">Assine um plano para salvar seus registros de estudo.</p>
                         )}
 
@@ -543,7 +597,7 @@ export default function SubjectTopicsPage() {
         </Card>
       </div>
 
-      {isQuestionModalOpen && currentTopicIdForModal && hasActivePlan && (
+      {isQuestionModalOpen && currentTopicIdForModal && hasAccess && (
         <AlertDialog open={isQuestionModalOpen} onOpenChange={setIsQuestionModalOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -579,7 +633,7 @@ export default function SubjectTopicsPage() {
         </AlertDialog>
       )}
 
-      {isRevisionModalOpen && currentTopicIdForRevisionModal && hasActivePlan && (
+      {isRevisionModalOpen && currentTopicIdForRevisionModal && hasAccess && (
         <AlertDialog open={isRevisionModalOpen} onOpenChange={setIsRevisionModalOpen}>
             <AlertDialogContent>
                 <AlertDialogHeader>

@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, ArrowLeft, BookOpen, ChevronRight, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, BookOpen, ChevronRight, AlertCircle, Gem, AlertTriangle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -26,6 +26,29 @@ export default function CargoDetailPage() {
   const [edital, setEdital] = useState<Edital | null>(null);
   const [cargo, setCargo] = useState<Cargo | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [hasAccess, setHasAccess] = useState(false);
+
+  useEffect(() => {
+    if (!user || authLoading) return;
+
+    const currentCargoCompositeId = `${editalId}_${cargoId}`;
+    let canAccess = false;
+    switch (user.activePlan) {
+      case 'plano_anual':
+      case 'plano_trial':
+        canAccess = true;
+        break;
+      case 'plano_edital':
+        canAccess = user.planDetails?.selectedEditalId === editalId;
+        break;
+      case 'plano_cargo':
+        canAccess = user.planDetails?.selectedCargoCompositeId === currentCargoCompositeId;
+        break;
+      default:
+        canAccess = false;
+    }
+    setHasAccess(canAccess);
+  }, [user, authLoading, editalId, cargoId]);
 
   useEffect(() => {
     if (editalId && cargoId) {
@@ -65,6 +88,48 @@ export default function CargoDetailPage() {
       </PageWrapper>
     );
   }
+  
+  if (!authLoading && !loadingData && !hasAccess) {
+    return (
+      <PageWrapper>
+        <div className="container mx-auto px-0 sm:px-4 py-8">
+          <div className="mb-6">
+            <Button variant="outline" asChild>
+              <Link href={`/editais/${editalId}`}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Voltar para Detalhes do Edital
+              </Link>
+            </Button>
+          </div>
+          <PageHeader 
+            title={cargo?.name ?? "Acesso Restrito"}
+            description={cargo ? `Conteúdo programático do cargo ${cargo.name}.` : 'Este conteúdo não está disponível para seu plano atual.'}
+          />
+          <Card className="shadow-lg rounded-xl bg-card text-center">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center justify-center">
+                <AlertTriangle className="mr-3 h-6 w-6 text-destructive" />
+                Acesso Restrito ao Conteúdo
+              </CardTitle>
+            </CardHeader>
+            <Separator />
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground mb-4">
+                Seu plano atual não concede acesso às matérias deste cargo. Para visualizar este conteúdo, por favor, faça um upgrade no seu plano.
+              </p>
+              <Button asChild className="mt-6" size="lg">
+                <Link href="/planos">
+                  <Gem className="mr-2 h-4 w-4" />
+                  Ver Planos Disponíveis
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </PageWrapper>
+    );
+  }
+
 
   if (!edital || !cargo) {
     return (
@@ -153,3 +218,4 @@ export default function CargoDetailPage() {
     </PageWrapper>
   );
 }
+

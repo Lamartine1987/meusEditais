@@ -250,23 +250,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const registerForCargo = async (editalId: string, cargoId: string) => {
-    if (user) {
-      // setLoading(true); // Let onValue handle loading state changes for visual feedback
-      const compositeId = `${editalId}_${cargoId}`;
-      const updatedRegisteredCargoIds = Array.from(new Set([...(user.registeredCargoIds || []), compositeId]));
-      
-      try {
-        await update(ref(db, `users/${user.id}`), { registeredCargoIds: updatedRegisteredCargoIds });
-        // setUser state will be updated by onValue
-      } catch (error) {
-        console.error("Error registering for cargo:", error);
-        toast({ title: "Erro na Inscrição do Cargo", description: "Não foi possível salvar a inscrição no cargo.", variant: "destructive" });
-        throw error; 
-      } 
-      // finally { setLoading(false); }
-    } else {
-        toast({ title: "Usuário não encontrado", description: "Não foi possível registrar no cargo.", variant: "destructive" });
-        throw new Error("User not found for cargo registration");
+    if (!user) {
+      toast({ title: "Usuário não encontrado", description: "Não foi possível registrar no cargo.", variant: "destructive" });
+      throw new Error("User not found for cargo registration");
+    }
+
+    const plan = user.activePlan;
+    const planDetails = user.planDetails;
+    let canRegister = false;
+    let reason = "";
+
+    switch (plan) {
+      case 'plano_anual':
+      case 'plano_trial':
+        canRegister = true;
+        break;
+
+      case 'plano_edital':
+        if (planDetails?.selectedEditalId === editalId) {
+          canRegister = true;
+        } else {
+          reason = "Seu Plano Edital não cobre este edital. Para se inscrever em um novo edital, você precisa fazer um upgrade.";
+        }
+        break;
+
+      case 'plano_cargo':
+        reason = "Seu plano atual só permite inscrição em um cargo. Para se inscrever em outros, você precisa fazer um upgrade.";
+        break;
+
+      default: // null or other
+        reason = "Você precisa de um plano ativo para se inscrever em um cargo. Por favor, visite nossa página de planos.";
+        break;
+    }
+
+    if (!canRegister) {
+      toast({
+        title: "Inscrição não permitida",
+        description: reason,
+        variant: "destructive",
+        duration: 9000,
+      });
+      return;
+    }
+
+    const compositeId = `${editalId}_${cargoId}`;
+    const updatedRegisteredCargoIds = Array.from(new Set([...(user.registeredCargoIds || []), compositeId]));
+    
+    try {
+      await update(ref(db, `users/${user.id}`), { registeredCargoIds: updatedRegisteredCargoIds });
+      // Success toast is handled by the calling component
+    } catch (error) {
+      console.error("Error registering for cargo:", error);
+      toast({ title: "Erro na Inscrição do Cargo", description: "Não foi possível salvar a inscrição no cargo.", variant: "destructive" });
+      throw error; 
     }
   };
 
