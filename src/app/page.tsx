@@ -38,7 +38,7 @@ export default function HomePage() {
       setLoading(true);
       setError(null);
       try {
-        const editaisRef = ref(db, 'editais');
+        const editaisRef = ref(db, 'editais/editais');
         const snapshot = await get(editaisRef);
         if (snapshot.exists()) {
           const data = snapshot.val();
