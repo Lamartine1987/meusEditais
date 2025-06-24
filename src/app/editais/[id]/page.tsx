@@ -51,8 +51,8 @@ export default function EditalDetailPage() {
     try {
       await registerForCargo(edital.id, cargoId);
       toast({ title: "Inscrição Realizada!", description: `Você se inscreveu no cargo: ${cargo?.name || 'N/A'} do edital ${edital.title}`, variant: 'default', className: "bg-accent text-accent-foreground" });
-    } catch (error) {
-      toast({ title: "Erro na Inscrição", description: "Não foi possível realizar a inscrição no cargo.", variant: "destructive" });
+    } catch (error: any) {
+      toast({ title: "Inscrição não permitida", description: error.message || "Não foi possível realizar a inscrição no cargo.", variant: "destructive" });
     } finally {
       setIsSubmittingRegistration(false);
     }

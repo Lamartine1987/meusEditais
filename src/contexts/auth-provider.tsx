@@ -284,13 +284,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     if (!canRegister) {
-      toast({
-        title: "Inscrição não permitida",
-        description: reason,
-        variant: "destructive",
-        duration: 9000,
-      });
-      return;
+      // Throw an error with the specific reason. The calling component will catch this
+      // and display an appropriate toast message. This prevents a success message
+      // from being shown incorrectly.
+      throw new Error(reason);
     }
 
     const compositeId = `${editalId}_${cargoId}`;
