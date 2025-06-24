@@ -1,6 +1,7 @@
 
 import type { Edital, Cargo, User, Subject, Topic } from '@/types';
 
+// This mockUser is for reference and testing purposes, not used in production auth.
 export const mockUser: User = {
   id: 'user1',
   name: 'Usuário Exemplo',
@@ -12,6 +13,10 @@ export const mockUser: User = {
   questionLogs: [],
   revisionSchedules: [],
 };
+
+// Note: The main 'editais' list is now fetched from Firebase on the homepage.
+// The data below might still be used in deeper pages (like edital details) if they haven't been migrated.
+// It's recommended to migrate all data fetching to Firebase for consistency.
 
 const mockAnalistaSubjects: Subject[] = [
   {
@@ -97,10 +102,11 @@ export const mockCargos: Cargo[] = [
     description: 'Planejamento e execução de obras.', 
     requirements: ['Graduação em Engenharia Civil', 'CREA Ativo'], 
     salary: 9000 
-    // Sem subjects definidos para este cargo por enquanto
   },
 ];
 
+// This export is being deprecated for the home page but might be used by detail pages.
+// Consider removing it once all pages fetch from Firebase.
 export const mockEditais: Edital[] = [
   {
     id: 'edital1',
@@ -114,62 +120,4 @@ export const mockEditais: Edital[] = [
     status: 'open',
     state: 'SP',
   },
-  {
-    id: 'edital2',
-    title: 'Processo Seletivo Tribunal Regional ABC',
-    organization: 'Tribunal Regional ABC',
-    publicationDate: '2024-06-15',
-    closingDate: '2024-07-30',
-    summary: 'Oportunidades para cargos técnicos e analistas no Tribunal Regional.',
-    imageUrl: 'https://placehold.co/600x400.png',
-    cargos: [mockCargos[0]], // Analista de Sistemas também neste edital
-    status: 'open',
-    state: 'RJ',
-  },
-  {
-    id: 'edital3',
-    title: 'Edital Universidade Federal do Sul',
-    organization: 'Universidade Federal do Sul',
-    publicationDate: '2024-05-20',
-    closingDate: '2024-06-20',
-    summary: 'Vagas para docentes e técnicos administrativos.',
-    imageUrl: 'https://placehold.co/600x400.png',
-    cargos: [mockCargos[2]],
-    status: 'closed',
-    state: 'RS',
-  },
-  {
-    id: 'edital4',
-    title: 'Concurso Banco Central',
-    organization: 'Banco Central do Brasil',
-    publicationDate: '2024-09-01',
-    closingDate: '2024-10-15',
-    summary: 'Vagas para analista e técnico do Banco Central.',
-    imageUrl: 'https://placehold.co/600x400.png',
-    status: 'upcoming',
-    state: 'Nacional',
-  },
-  {
-    id: 'edital5',
-    title: 'Concurso Estadual de Saúde de Minas Gerais',
-    organization: 'Secretaria de Saúde de MG',
-    publicationDate: '2024-08-01',
-    closingDate: '2024-09-20',
-    summary: 'Vagas para diversas áreas da saúde em Minas Gerais.',
-    imageUrl: 'https://placehold.co/600x400.png',
-    status: 'open',
-    state: 'MG',
-  },
-  {
-    id: 'edital6',
-    title: 'Edital Nacional para Auditores Fiscais',
-    organization: 'Receita Federal',
-    publicationDate: '2024-07-10',
-    closingDate: '2024-08-30',
-    summary: 'Grande concurso nacional para o cargo de Auditor Fiscal.',
-    imageUrl: 'https://placehold.co/600x400.png',
-    status: 'open',
-    state: 'Nacional',
-  },
 ];
-

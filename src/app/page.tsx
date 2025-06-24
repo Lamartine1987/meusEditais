@@ -3,17 +3,19 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import type { Edital } from '@/types';
-import { mockEditais } from '@/lib/mock-data';
+import { db } from '@/lib/firebase'; // Import Firebase db instance
+import { ref, get } from 'firebase/database'; // Import Firebase database functions
 import { Input } from '@/components/ui/input';
 import { EditalCard } from '@/components/edital-card';
 import { PageWrapper } from '@/components/layout/page-wrapper';
-import { Search, Filter, NewspaperIcon, MapPin, Sparkles, ArrowRight } from 'lucide-react'; // Added Sparkles, ArrowRight
+import { Search, Filter, NewspaperIcon, MapPin, Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import Link from 'next/link'; // Added Link for the banner button
+import Link from 'next/link';
+import { useToast } from '@/hooks/use-toast';
 
 const brazilStatesAbbreviations = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS',
@@ -28,23 +30,49 @@ export default function HomePage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed' | 'upcoming'>('all');
   const [stateFilter, setStateFilter] = useState<string>(specialFilters[0]); // Default to 'Todos'
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Simulate fetching data
-    setLoading(true);
-    const timer = setTimeout(() => {
-      setAllEditais(mockEditais);
-      setLoading(false);
-    }, 1000); // Simulate network delay
-    return () => clearTimeout(timer);
-  }, []);
+    const fetchEditais = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const editaisRef = ref(db, 'editais');
+        const snapshot = await get(editaisRef);
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          const editaisArray: Edital[] = Object.keys(data).map(key => ({
+            id: key,
+            ...data[key]
+          }));
+          setAllEditais(editaisArray);
+        } else {
+          setAllEditais([]);
+        }
+      } catch (err) {
+        console.error("Firebase fetch error:", err);
+        setError("Não foi possível carregar os editais. Tente novamente mais tarde.");
+        toast({
+          title: "Erro ao Carregar Dados",
+          description: "Não foi possível buscar os editais do banco de dados.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEditais();
+  }, [toast]);
 
   const filteredEditais = useMemo(() => {
+    if (!allEditais) return [];
     return allEditais
       .filter(edital =>
         edital.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         edital.organization.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        edital.summary.toLowerCase().includes(searchTerm.toLowerCase())
+        (edital.summary && edital.summary.toLowerCase().includes(searchTerm.toLowerCase()))
       )
       .filter(edital => {
         if (statusFilter === 'all') return true;
@@ -60,7 +88,6 @@ export default function HomePage() {
   return (
     <PageWrapper>
       <div className="container mx-auto px-0 sm:px-4 py-8">
-        {/* Banner Adicionado */}
         <div className="mb-6 p-4 bg-gradient-to-r from-primary via-purple-600 to-pink-600 text-primary-foreground rounded-lg shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3 text-center sm:text-left">
             <Sparkles className="h-10 w-10 sm:h-12 sm:w-12 shrink-0" />
@@ -153,6 +180,14 @@ export default function HomePage() {
               </Card>
             ))}
           </div>
+        ) : error ? (
+            <Card className="text-center py-16 shadow-lg rounded-xl bg-destructive/10 border-destructive">
+                <CardContent>
+                <AlertCircle className="mx-auto h-16 w-16 text-destructive mb-6" />
+                <p className="text-2xl font-semibold text-destructive-foreground mb-2">Ocorreu um erro</p>
+                <p className="text-md text-destructive-foreground/80">{error}</p>
+                </CardContent>
+            </Card>
         ) : filteredEditais.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredEditais.map((edital) => (
