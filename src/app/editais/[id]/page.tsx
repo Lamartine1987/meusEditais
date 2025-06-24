@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import type { Edital, Cargo } from '@/types'; 
-import { mockEditais } from '@/lib/mock-data';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { CargoCard } from '@/components/cargo-card';
 import { PageHeader } from '@/components/ui/page-header';
@@ -13,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { CalendarDays, Landmark, Link as LinkIcon, Briefcase, Loader2, ArrowLeft } from 'lucide-react'; // Removido UserCheck, UserPlus, Info, UserMinus
+import { CalendarDays, Landmark, Link as LinkIcon, Briefcase, Loader2, ArrowLeft } from 'lucide-react'; 
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -28,28 +27,55 @@ export default function EditalDetailPage() {
   const [edital, setEdital] = useState<Edital | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
+  const [error, setError] = useState<string | null>(null); // Add error state
 
   const { user, registerForCargo, unregisterFromCargo, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (editalId) {
-      setLoading(true);
-      const timer = setTimeout(() => {
-        const foundEdital = mockEditais.find(e => e.id === editalId) || null;
-        setEdital(foundEdital);
-        setLoading(false);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [editalId]);
+    const fetchEditalDetails = async () => {
+      if (editalId) {
+        setLoading(true);
+        setError(null);
+        try {
+          // Fetch ALL editais from the API, then find the specific one.
+          // This ensures we're using the same data source as the homepage.
+          const response = await fetch('/api/editais');
+          if (!response.ok) {
+            throw new Error('Falha ao buscar dados dos editais.');
+          }
+          const allEditais: Edital[] = await response.json();
+          const foundEdital = allEditais.find(e => e.id === editalId) || null;
+          setEdital(foundEdital);
+
+          if (!foundEdital) {
+              setError("O edital que você está procurando não foi encontrado.");
+          }
+
+        } catch (err: any) {
+          console.error("Error fetching edital details:", err);
+          setError("Não foi possível carregar os detalhes do edital. Tente novamente mais tarde.");
+          toast({
+            title: "Erro ao Carregar Dados",
+            description: err.message,
+            variant: "destructive"
+          });
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchEditalDetails();
+  }, [editalId, toast]);
 
   const handleRegisterCargo = async (cargoId: string) => {
     if (!edital) return;
     setIsSubmittingRegistration(true);
     const cargo = edital.cargos?.find(c => c.id === cargoId);
     try {
-      await registerForCargo(edital.id, cargoId);
+      // Pass the correct editalId from the URL params
+      await registerForCargo(editalId, cargoId);
       toast({ title: "Inscrição Realizada!", description: `Você se inscreveu no cargo: ${cargo?.name || 'N/A'} do edital ${edital.title}`, variant: 'default', className: "bg-accent text-accent-foreground" });
     } catch (error: any) {
       toast({ title: "Inscrição não permitida", description: error.message || "Não foi possível realizar a inscrição no cargo.", variant: "destructive" });
@@ -63,7 +89,8 @@ export default function EditalDetailPage() {
     setIsSubmittingRegistration(true);
     const cargo = edital.cargos?.find(c => c.id === cargoId);
     try {
-      await unregisterFromCargo(edital.id, cargoId);
+       // Pass the correct editalId from the URL params
+      await unregisterFromCargo(editalId, cargoId);
       toast({ title: "Inscrição Cancelada", description: `Sua inscrição no cargo: ${cargo?.name || 'N/A'} do edital ${edital.title} foi cancelada.` });
     } catch (error) {
       toast({ title: "Erro ao Cancelar", description: "Não foi possível cancelar a inscrição no cargo.", variant: "destructive" });
@@ -83,12 +110,12 @@ export default function EditalDetailPage() {
     );
   }
 
-  if (!edital) {
+  if (error || !edital) {
     return (
       <PageWrapper>
         <div className="container mx-auto px-4 py-8 text-center">
-          <PageHeader title="Edital Não Encontrado" />
-          <p>O edital que você está procurando não foi encontrado.</p>
+          <PageHeader title={error ? "Erro" : "Edital Não Encontrado"} />
+          <p>{error || "O edital que você está procurando não foi encontrado."}</p>
           <Button asChild className="mt-4">
             <Link href="/">Voltar para a Página Inicial</Link>
           </Button>
