@@ -4,6 +4,8 @@ import { mockEditais } from '@/lib/mock-data';
 import { adminDb } from '@/lib/firebase-admin';
 import type { Edital } from '@/types';
 
+export const dynamic = 'force-dynamic'; // Impede a geração estática no build
+
 export async function GET() {
   // Em um ambiente local ou de desenvolvimento, as credenciais do Firebase Admin SDK podem não estar disponíveis.
   // Retornamos dados de exemplo para permitir o desenvolvimento da interface do usuário sem quebrar a aplicação.
