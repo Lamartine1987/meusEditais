@@ -9,7 +9,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyBNsEsDbmtxDGi-V3W--D3CF5mXbhOj5ZM",
   authDomain: "meuseditais.firebaseapp.com",
   projectId: "meuseditais",
-  storageBucket: "meuseditais.firebasestorage.app", // Corrigido de .firebasestorage.app para .appspot.com se for o padrão, mas mantendo o fornecido pelo usuário. Firebase geralmente usa .appspot.com para storageBucket, mas se o console gerou .firebasestorage.app, usaremos isso.
+  storageBucket: "meuseditais.appspot.com", // Corrigido para o padrão .appspot.com
   messagingSenderId: "801348002832",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/", // Adicionado o URL do Realtime Database
   appId: "1:801348002832:web:c1c2f89db9c807a09d9695",
