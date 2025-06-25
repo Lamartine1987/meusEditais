@@ -16,7 +16,18 @@ interface EditalCardProps {
 }
 
 function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+  if (!dateString) return 'Data não informada';
+  try {
+    const date = new Date(dateString);
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      throw new Error("Invalid date");
+    }
+    return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+  } catch (error) {
+    console.error('Invalid date string for formatDate:', dateString);
+    return 'Data inválida';
+  }
 }
 
 export function EditalCard({ edital, className }: EditalCardProps) {

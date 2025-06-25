@@ -18,7 +18,17 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 
 function formatDate(dateString: string) {
-  return new Date(dateString).toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: 'long', year: 'numeric' });
+  if (!dateString) return 'Data não informada';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      throw new Error("Invalid date");
+    }
+    return date.toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: 'long', year: 'numeric' });
+  } catch (error) {
+    console.error('Invalid date string for formatDate:', dateString);
+    return 'Data inválida';
+  }
 }
 
 export default function EditalDetailPage() {
