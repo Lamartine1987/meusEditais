@@ -1,9 +1,7 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
 import type { Edital, Cargo } from '@/types';
-import { mockEditais } from '@/lib/mock-data'; 
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { useAuth } from '@/hooks/use-auth';
@@ -11,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Briefcase, Loader2, PlusCircle, Library, UserMinus, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,16 +33,32 @@ export default function MyEditaisPage() {
   const { toast } = useToast();
   const [loadingData, setLoadingData] = useState(true); 
   const [allEditais, setAllEditais] = useState<Edital[]>([]);
-  const [isCancelling, setIsCancelling] = useState<string | null>(null); // Store compositeId of cargo being cancelled
+  const [isCancelling, setIsCancelling] = useState<string | null>(null);
 
   useEffect(() => {
-    setLoadingData(true);
-    const timer = setTimeout(() => {
-      setAllEditais(mockEditais); 
-      setLoadingData(false);
-    }, 500); 
-    return () => clearTimeout(timer);
-  }, []);
+    const fetchAllEditais = async () => {
+      setLoadingData(true);
+      try {
+        const response = await fetch('/api/editais');
+        if (!response.ok) {
+          throw new Error('Falha ao buscar dados dos editais.');
+        }
+        const data: Edital[] = await response.json();
+        setAllEditais(data);
+      } catch (error: any) {
+        console.error("Error fetching editais for My Editais page:", error);
+        toast({
+          title: "Erro ao Carregar Editais",
+          description: "Não foi possível buscar a lista de editais. Tente recarregar a página.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    fetchAllEditais();
+  }, [toast]);
   
   const myRegisteredCargos = useMemo((): RegisteredCargoInfo[] => {
     if (authLoading || loadingData || !user || !user.registeredCargoIds || !allEditais.length) {
@@ -63,7 +76,7 @@ export default function MyEditaisPage() {
         }
       }
     });
-    return registeredInfos;
+    return registeredInfos.sort((a, b) => a.cargo.name.localeCompare(b.cargo.name));
   }, [user, authLoading, allEditais, loadingData]);
 
   const handleUnregisterCargo = async (editalId: string, cargoId: string) => {
@@ -79,8 +92,9 @@ export default function MyEditaisPage() {
     }
   };
 
+  const isPageLoading = authLoading || loadingData;
 
-  if (authLoading || loadingData) { 
+  if (isPageLoading) { 
     return (
       <PageWrapper>
         <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]">
@@ -111,9 +125,6 @@ export default function MyEditaisPage() {
     );
   }
 
-  const showSkeletons = (authLoading || loadingData) && user;
-
-
   return (
     <PageWrapper>
       <div className="container mx-auto px-0 sm:px-4 py-8">
@@ -129,25 +140,7 @@ export default function MyEditaisPage() {
             </Button>
           }
         />
-        {showSkeletons ? (
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[...Array(3)].map((_, index) => (
-               <Card key={index} className="overflow-hidden shadow-md rounded-xl">
-                <CardHeader className="pb-3">
-                    <Skeleton className="h-6 w-3/4" />
-                    <Skeleton className="h-4 w-1/2 mt-1" />
-                </CardHeader>
-                <CardContent className="pt-2">
-                    <Skeleton className="h-4 w-full" />
-                </CardContent>
-                <CardFooter className="flex flex-col gap-2 pt-4">
-                   <Skeleton className="h-10 w-full" />
-                   <Skeleton className="h-10 w-full" />
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        ) : myRegisteredCargos.length > 0 ? (
+        {myRegisteredCargos.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {myRegisteredCargos.map(({ edital, cargo }) => {
               const compositeId = `${edital.id}_${cargo.id}`;
@@ -172,7 +165,7 @@ export default function MyEditaisPage() {
                         Ver Matérias
                       </Link>
                     </Button>
-                    <div className="w-full"> {/* Wrapper div for AlertDialog */}
+                    <div className="w-full">
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="destructive" className="w-full" disabled={isCurrentCancelling}>
@@ -224,5 +217,3 @@ export default function MyEditaisPage() {
     </PageWrapper>
   );
 }
-
-    
