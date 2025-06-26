@@ -5,7 +5,6 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { Edital, Cargo, Subject as SubjectType } from '@/types';
-import { mockEditais } from '@/lib/mock-data';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -14,6 +13,7 @@ import { Progress } from '@/components/ui/progress';
 import { Loader2, ArrowLeft, BookOpen, ChevronRight, AlertCircle, Gem, AlertTriangle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
 
 export default function CargoDetailPage() {
   const params = useParams();
@@ -22,6 +22,7 @@ export default function CargoDetailPage() {
   const cargoId = params.cargoId as string;
 
   const { user, loading: authLoading } = useAuth();
+  const { toast } = useToast();
 
   const [edital, setEdital] = useState<Edital | null>(null);
   const [cargo, setCargo] = useState<Cargo | null>(null);
@@ -51,21 +52,52 @@ export default function CargoDetailPage() {
   }, [user, authLoading, editalId, cargoId]);
 
   useEffect(() => {
-    if (editalId && cargoId) {
-      setLoadingData(true);
-      // Simulate data fetching
-      const timer = setTimeout(() => {
-        const foundEdital = mockEditais.find(e => e.id === editalId) || null;
-        if (foundEdital) {
-          const foundCargo = foundEdital.cargos?.find(c => c.id === cargoId) || null;
-          setEdital(foundEdital);
-          setCargo(foundCargo);
+    const fetchCargoDetails = async () => {
+      if (editalId && cargoId) {
+        console.log(`[CargoDetailPage] Fetching details for editalId: ${editalId}, cargoId: ${cargoId}`);
+        setLoadingData(true);
+        try {
+          const response = await fetch('/api/editais');
+          if (!response.ok) {
+            throw new Error('Falha ao buscar dados dos editais.');
+          }
+          const allEditais: Edital[] = await response.json();
+          console.log(`[CargoDetailPage] Received ${allEditais.length} editais from API.`);
+
+          const foundEdital = allEditais.find(e => e.id === editalId);
+          if (foundEdital) {
+            console.log(`[CargoDetailPage] Found edital: ${foundEdital.title}`);
+            const foundCargo = foundEdital.cargos?.find(c => c.id === cargoId);
+            if (foundCargo) {
+              console.log(`[CargoDetailPage] Found cargo: ${foundCargo.name}`);
+              setEdital(foundEdital);
+              setCargo(foundCargo);
+            } else {
+              console.error(`[CargoDetailPage] Cargo with id ${cargoId} not found in edital ${editalId}.`);
+              setEdital(foundEdital); // Still set edital to show some context
+              setCargo(null);
+            }
+          } else {
+            console.error(`[CargoDetailPage] Edital with id ${editalId} not found.`);
+            setEdital(null);
+            setCargo(null);
+          }
+        } catch (error: any) {
+          console.error("[CargoDetailPage] Error fetching data:", error);
+          toast({
+            title: "Erro ao Carregar Dados",
+            description: "Não foi possível buscar as matérias do cargo.",
+            variant: "destructive"
+          });
+          setEdital(null);
+          setCargo(null);
+        } finally {
+          setLoadingData(false);
         }
-        setLoadingData(false);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [editalId, cargoId]);
+      }
+    };
+    fetchCargoDetails();
+  }, [editalId, cargoId, toast]);
 
   const calculateProgress = useCallback((subject: SubjectType): number => {
     if (!user || !subject.topics || subject.topics.length === 0) {
@@ -218,4 +250,3 @@ export default function CargoDetailPage() {
     </PageWrapper>
   );
 }
-
