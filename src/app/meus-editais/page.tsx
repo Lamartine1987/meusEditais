@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -39,7 +40,7 @@ export default function MyEditaisPage() {
     const fetchAllEditais = async () => {
       setLoadingData(true);
       try {
-        const response = await fetch('/api/editais');
+        const response = await fetch('/api/editais', { cache: 'no-store' });
         if (!response.ok) {
           throw new Error('Falha ao buscar dados dos editais.');
         }
