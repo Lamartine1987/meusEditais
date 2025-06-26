@@ -91,7 +91,6 @@ export function AppSidebar() {
               isActive={pathname === '/planos'}
               tooltip={{content: "Nossos Planos", side:"right", align:"center"}}
               onClick={closeMobileSidebar}
-              variant={pathname === '/planos' ? 'default' : 'ghost'} 
               className={pathname === '/planos' ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'}
             >
               <Link href="/planos">
