@@ -15,14 +15,18 @@ export async function GET() {
     try {
       console.log("API: Tentando buscar todos os editais do Firebase Admin DB (Ambiente de Produção).");
       
-      const editaisRef = adminDb.ref('editais'); 
+      const editaisRef = adminDb.ref('editais'); // We still point to the parent 'editais'
       const snapshot = await editaisRef.once('value');
-      const editaisData = snapshot.val();
+      const data = snapshot.val();
 
-      if (!editaisData) {
-        console.log("API: Nenhum edital encontrado no caminho 'editais' do Firebase DB.");
+      if (!data) {
+        console.log("API: Nenhum dado encontrado no caminho 'editais' do Firebase DB.");
         return NextResponse.json([]);
       }
+
+      // Check for the nested 'editais' key and use it if it exists, otherwise use the parent data.
+      // This makes the logic robust to the current structure (editais/editais) and a fixed one (editais/).
+      const editaisData = data.editais && typeof data.editais === 'object' ? data.editais : data;
 
       const editaisArray: Edital[] = Object.keys(editaisData).map(key => ({
         id: key,
