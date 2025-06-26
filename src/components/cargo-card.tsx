@@ -129,7 +129,7 @@ export function CargoCard({ editalId, cargo, isUserRegisteredForThisCargo, onReg
               )}
             </>
           )}
-          {!canRegister && editalStatus !== 'open' && (
+          {!canRegister && (
             <Button className="w-full" variant="outline" disabled>
               {editalStatus === 'closed' ? 'Edital Encerrado' : 'Inscrições em Breve'}
             </Button>
