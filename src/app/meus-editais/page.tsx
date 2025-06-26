@@ -45,6 +45,7 @@ export default function MyEditaisPage() {
           throw new Error('Falha ao buscar dados dos editais.');
         }
         const data: Edital[] = await response.json();
+        console.log('[Meus Editais] Editais recebidos da API:', data);
         setAllEditais(data);
       } catch (error: any) {
         console.error("Error fetching editais for My Editais page:", error);
@@ -65,6 +66,10 @@ export default function MyEditaisPage() {
     if (authLoading || loadingData || !user || !user.registeredCargoIds || !allEditais.length) {
       return [];
     }
+    
+    console.log('[Meus Editais] Calculando cargos inscritos. IDs do usuário:', user.registeredCargoIds);
+    console.log('[Meus Editais] Usando a lista de editais com os IDs:', allEditais.map(e => e.id));
+
 
     const registeredInfos: RegisteredCargoInfo[] = [];
     user.registeredCargoIds.forEach(compositeId => {
@@ -74,9 +79,15 @@ export default function MyEditaisPage() {
         const cargo = edital.cargos?.find(c => c.id === cargoId);
         if (cargo) {
           registeredInfos.push({ edital, cargo });
+        } else {
+          console.warn(`[Meus Editais] Cargo com ID '${cargoId}' não encontrado no edital '${edital.title}' (ID: ${editalId})`);
         }
+      } else {
+        console.warn(`[Meus Editais] Edital com ID '${editalId}' não encontrado na lista de todos os editais.`);
       }
     });
+    
+    console.log('[Meus Editais] Cargos encontrados e processados:', registeredInfos);
     return registeredInfos.sort((a, b) => a.cargo.name.localeCompare(b.cargo.name));
   }, [user, authLoading, allEditais, loadingData]);
 
