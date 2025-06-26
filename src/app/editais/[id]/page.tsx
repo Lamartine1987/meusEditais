@@ -161,8 +161,8 @@ export default function EditalDetailPage() {
               <Image
                 src={edital.imageUrl}
                 alt={edital.title}
-                layout="fill"
-                objectFit="cover"
+                fill
+                style={{ objectFit: 'cover' }}
                 priority
                 data-ai-hint="public tender document"
               />

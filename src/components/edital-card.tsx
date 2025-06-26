@@ -46,8 +46,8 @@ export function EditalCard({ edital, className }: EditalCardProps) {
           <Image
             src={edital.imageUrl}
             alt={edital.title}
-            layout="fill"
-            objectFit="cover"
+            fill
+            style={{ objectFit: 'cover' }}
             data-ai-hint="public tender announcement"
             className="rounded-t-xl"
           />
