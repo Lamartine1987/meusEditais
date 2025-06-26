@@ -317,8 +317,8 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const newPlanHistory = oldPlanDetails ? [...oldPlanHistory, oldPlanDetails] : oldPlanHistory;
         
         try {
-          console.log(`[handleStripeWebhook] Attempting to update Firebase RTDB for user ${userId} at path users/${userId}`);
-          const mainUpdatePayload: any = {
+          console.log(`[handleStripeWebhook] Attempting atomic update to Firebase RTDB for user ${userId} at path users/${userId}`);
+          const updatePayload: any = {
             activePlan: planIdFromMetadata,
             planDetails: planDetailsPayload,
             stripeCustomerId: stripeCustomerIdFromSession,
@@ -326,29 +326,18 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             planHistory: newPlanHistory,
           };
           
-          await userFirebaseRef.update(mainUpdatePayload); // Use admin ref update
-          console.log(`[handleStripeWebhook] Successfully updated main plan info for user ${userId} to ${planIdFromMetadata} in Firebase.`);
-
           if (planIdFromMetadata === 'plano_cargo' && selectedCargoCompositeId) {
-            console.log(`[handleStripeWebhook] PLANO_CARGO: Attempting to auto-register user ${userId} for cargo ${selectedCargoCompositeId}`);
-            try {
-                const currentRegisteredCargoIds = currentUserDataBeforeUpdate.registeredCargoIds || [];
-                const updatedRegisteredCargoIds = Array.from(new Set([...currentRegisteredCargoIds, selectedCargoCompositeId]));
-                
-                console.log(`[handleStripeWebhook] PLANO_CARGO: currentRegisteredCargoIds: ${JSON.stringify(currentRegisteredCargoIds)}, updatedRegisteredCargoIds: ${JSON.stringify(updatedRegisteredCargoIds)}`);
-                
-                await userFirebaseRef.update({ registeredCargoIds: updatedRegisteredCargoIds }); // Use admin ref update
-                console.log(`[handleStripeWebhook] PLANO_CARGO: Successfully auto-registered user ${userId} for cargo ${selectedCargoCompositeId} in Firebase.`);
-            } catch (autoRegError: any) {
-                console.error(`[handleStripeWebhook] PLANO_CARGO: Error during auto-registration for cargo ${selectedCargoCompositeId} for user ${userId}:`, autoRegError);
-                // Return 500 but note that main plan was likely set. This is a partial failure.
-                return new Response(`Webhook Error: Failed during auto-registration for cargo. Main plan was set, but cargo registration failed. ${autoRegError.message}`, { status: 500 });
-            }
-          } else {
-            if (planIdFromMetadata === 'plano_cargo') {
-                 console.warn(`[handleStripeWebhook] PLANO_CARGO: 'planIdFromMetadata' is 'plano_cargo' but 'selectedCargoCompositeId' is missing or empty: '${selectedCargoCompositeId}'. Auto-registration SKIPPED.`);
-            }
+            const currentRegisteredCargoIds = currentUserDataBeforeUpdate.registeredCargoIds || [];
+            const updatedRegisteredCargoIds = Array.from(new Set([...currentRegisteredCargoIds, selectedCargoCompositeId]));
+            updatePayload.registeredCargoIds = updatedRegisteredCargoIds;
+            console.log(`[handleStripeWebhook] PLANO_CARGO: Auto-registering user ${userId} for cargo ${selectedCargoCompositeId}.`);
+          } else if (planIdFromMetadata === 'plano_cargo') {
+             console.warn(`[handleStripeWebhook] PLANO_CARGO: 'planIdFromMetadata' is 'plano_cargo' but 'selectedCargoCompositeId' is missing or empty: '${selectedCargoCompositeId}'. Auto-registration SKIPPED.`);
           }
+
+          await userFirebaseRef.update(updatePayload); // Use admin ref update for a single atomic operation
+          console.log(`[handleStripeWebhook] Successfully updated user data for ${userId} in Firebase.`);
+
         } catch (dbError: any) {
           console.error(`[handleStripeWebhook] Webhook Error: Failed to update user ${userId} in database:`, dbError);
           return new Response('Webhook Error: Database update failed. Check server logs.', { status: 500 });
