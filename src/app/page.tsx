@@ -63,19 +63,25 @@ export default function HomePage() {
   const filteredEditais = useMemo(() => {
     if (!allEditais) return [];
     return allEditais
-      .filter(edital =>
-        edital.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        edital.organization.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (edital.summary && edital.summary.toLowerCase().includes(searchTerm.toLowerCase()))
-      )
       .filter(edital => {
-        if (statusFilter === 'all') return true;
-        return edital.status === statusFilter;
+        // Safe search filter
+        const searchTermLower = searchTerm.toLowerCase();
+        return (
+          (edital?.title || '').toLowerCase().includes(searchTermLower) ||
+          (edital?.organization || '').toLowerCase().includes(searchTermLower) ||
+          (edital?.summary || '').toLowerCase().includes(searchTermLower)
+        );
       })
       .filter(edital => {
+        // Safe status filter
+        if (statusFilter === 'all') return true;
+        return edital?.status === statusFilter;
+      })
+      .filter(edital => {
+        // Safe state filter
         if (stateFilter === specialFilters[0]) return true; // 'Todos'
-        if (stateFilter === specialFilters[1]) return edital.state === specialFilters[1]; // 'Nacional'
-        return edital.state === stateFilter;
+        if (stateFilter === specialFilters[1]) return edital?.state === specialFilters[1]; // 'Nacional'
+        return edital?.state === stateFilter;
       });
   }, [allEditais, searchTerm, statusFilter, stateFilter]);
 
@@ -185,7 +191,7 @@ export default function HomePage() {
         ) : filteredEditais.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredEditais.map((edital) => (
-              <EditalCard key={edital.id} edital={edital} className="animate-fade-in" />
+              edital && <EditalCard key={edital.id} edital={edital} className="animate-fade-in" />
             ))}
           </div>
         ) : (

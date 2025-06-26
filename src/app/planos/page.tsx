@@ -98,15 +98,15 @@ export default function PlanosPage() {
   const filteredCargosForModal = useMemo(() => {
     if (!cargoSearchTerm) return cargosForSelectedEdital;
     return cargosForSelectedEdital.filter(cargo => 
-      cargo.name.toLowerCase().includes(cargoSearchTerm.toLowerCase())
+      (cargo?.name || '').toLowerCase().includes(cargoSearchTerm.toLowerCase())
     );
   }, [cargosForSelectedEdital, cargoSearchTerm]);
 
   const filteredEditaisForModal = useMemo(() => {
     if (!editalSearchTerm) return allSelectableEditais;
     return allSelectableEditais.filter(edital => 
-      edital.title.toLowerCase().includes(editalSearchTerm.toLowerCase()) ||
-      edital.organization.toLowerCase().includes(editalSearchTerm.toLowerCase())
+      (edital?.title || '').toLowerCase().includes(editalSearchTerm.toLowerCase()) ||
+      (edital?.organization || '').toLowerCase().includes(editalSearchTerm.toLowerCase())
     );
   }, [allSelectableEditais, editalSearchTerm]);
 
