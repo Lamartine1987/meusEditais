@@ -73,17 +73,22 @@ export default function MyEditaisPage() {
 
     const registeredInfos: RegisteredCargoInfo[] = [];
     user.registeredCargoIds.forEach(compositeId => {
-      const [editalId, cargoId] = compositeId.split('_');
-      const edital = allEditais.find(e => e.id === editalId);
-      if (edital) {
-        const cargo = edital.cargos?.find(c => c.id === cargoId);
-        if (cargo) {
-          registeredInfos.push({ edital, cargo });
-        } else {
-          console.warn(`[Meus Editais] Cargo com ID '${cargoId}' não encontrado no edital '${edital.title}' (ID: ${editalId})`);
+      let foundMatch = false;
+      for (const edital of allEditais) {
+        // Check if the compositeId starts with the edital's ID followed by an underscore.
+        if (compositeId.startsWith(`${edital.id}_`)) {
+          const potentialCargoId = compositeId.substring(edital.id.length + 1);
+          const cargo = edital.cargos?.find(c => c.id === potentialCargoId);
+          
+          if (cargo) {
+            registeredInfos.push({ edital, cargo });
+            foundMatch = true;
+            break; // Found a valid edital/cargo pair, move to the next compositeId
+          }
         }
-      } else {
-        console.warn(`[Meus Editais] Edital com ID '${editalId}' não encontrado na lista de todos os editais.`);
+      }
+      if (!foundMatch) {
+          console.warn(`[Meus Editais] Não foi possível encontrar uma combinação válida de edital/cargo para a inscrição com ID: '${compositeId}'`);
       }
     });
     
