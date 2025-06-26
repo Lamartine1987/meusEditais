@@ -552,8 +552,8 @@ export default function ProfilePage() {
             <CardContent className="pt-6 space-y-4">
                 {user.planHistory && user.planHistory.length > 0 ? (
                     <ul className="space-y-3">
-                        {user.planHistory.map((plan, index) => {
-                            const isLastInHistory = index === user.planHistory.length - 1;
+                        {user.planHistory.map((plan, index, historyArray) => {
+                            const isLastInHistory = index === historyArray.length - 1;
                             const status = isLastInHistory && !user.activePlan ? "Cancelado" : "Upgrade";
 
                             return (
