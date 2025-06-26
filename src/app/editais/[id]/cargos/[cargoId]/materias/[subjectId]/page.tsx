@@ -5,7 +5,6 @@ import { useEffect, useState, useCallback, ChangeEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { Edital, Cargo, Subject as SubjectType, Topic as TopicType, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry } from '@/types';
-import { mockEditais } from '@/lib/mock-data';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -96,31 +95,66 @@ export default function SubjectTopicsPage() {
   }, [user, authLoading, editalId, cargoId]);
 
   useEffect(() => {
-    if (editalId && cargoId && subjectId) {
-      setLoadingData(true);
-      const timer = setTimeout(() => {
-        const foundEdital = mockEditais.find(e => e.id === editalId) || null;
-        if (foundEdital) {
-          const foundCargo = foundEdital.cargos?.find(c => c.id === cargoId) || null;
-          if (foundCargo) {
-            const foundSubject = foundCargo.subjects?.find(s => s.id === subjectId) || null;
-            setSubject(foundSubject);
-            if (foundSubject?.topics) {
-              const initialTimerStates: Record<string, { time: number; isRunning: boolean }> = {};
-              foundSubject.topics.forEach(topic => {
-                initialTimerStates[topic.id] = { time: 0, isRunning: false };
-              });
-              setTimerStates(initialTimerStates);
-            }
+    const fetchSubjectDetails = async () => {
+      if (editalId && cargoId && subjectId) {
+        console.log(`[SubjectTopicsPage] Fetching details for editalId: ${editalId}, cargoId: ${cargoId}, subjectId: ${subjectId}`);
+        setLoadingData(true);
+        try {
+          const response = await fetch('/api/editais');
+          if (!response.ok) {
+            throw new Error('Falha ao buscar dados dos editais.');
           }
-          setCargo(foundCargo);
+          const allEditais: Edital[] = await response.json();
+          console.log(`[SubjectTopicsPage] Received ${allEditais.length} editais from API.`);
+          
+          const foundEdital = allEditais.find(e => e.id === editalId);
+          if (foundEdital) {
+            console.log(`[SubjectTopicsPage] Found edital: ${foundEdital.title}`);
+            setEdital(foundEdital);
+            const foundCargo = foundEdital.cargos?.find(c => c.id === cargoId);
+            if (foundCargo) {
+              console.log(`[SubjectTopicsPage] Found cargo: ${foundCargo.name}`);
+              setCargo(foundCargo);
+              const foundSubject = foundCargo.subjects?.find(s => s.id === subjectId);
+              if (foundSubject) {
+                console.log(`[SubjectTopicsPage] Found subject: ${foundSubject.name}`);
+                setSubject(foundSubject);
+                if (foundSubject.topics) {
+                  const initialTimerStates: Record<string, { time: number; isRunning: boolean }> = {};
+                  foundSubject.topics.forEach(topic => {
+                    initialTimerStates[topic.id] = { time: 0, isRunning: false };
+                  });
+                  setTimerStates(initialTimerStates);
+                }
+              } else {
+                 console.error(`[SubjectTopicsPage] Subject with id ${subjectId} not found in cargo ${cargoId}.`);
+                 setSubject(null);
+              }
+            } else {
+              console.error(`[SubjectTopicsPage] Cargo with id ${cargoId} not found in edital ${editalId}.`);
+              setCargo(null);
+            }
+          } else {
+            console.error(`[SubjectTopicsPage] Edital with id ${editalId} not found.`);
+            setEdital(null);
+          }
+        } catch (error: any) {
+          console.error("[SubjectTopicsPage] Error fetching data:", error);
+          toast({
+            title: "Erro ao Carregar Dados",
+            description: "Não foi possível buscar os tópicos da matéria.",
+            variant: "destructive"
+          });
+          setEdital(null);
+          setCargo(null);
+          setSubject(null);
+        } finally {
+          setLoadingData(false);
         }
-        setEdital(foundEdital);
-        setLoadingData(false);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [editalId, cargoId, subjectId]);
+      }
+    };
+    fetchSubjectDetails();
+  }, [editalId, cargoId, subjectId, toast]);
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null;
@@ -669,5 +703,7 @@ export default function SubjectTopicsPage() {
   );
 }
 
+
+    
 
     
