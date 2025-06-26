@@ -209,7 +209,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   }
 
   let event: Stripe.Event;
-  let rawBody: string;
+  let rawBody: string = '';
   try {
     rawBody = await req.text(); // Read body once
     console.log('[handleStripeWebhook] Raw request body received (first 500 chars):', rawBody.substring(0, 500));
