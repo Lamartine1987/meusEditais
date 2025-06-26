@@ -11,9 +11,9 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { RevisionScheduleEntry, StudyLogEntry, QuestionLogEntry, Edital, Cargo, Subject as SubjectType, Topic as TopicType } from '@/types';
-import { mockEditais } from '@/lib/mock-data';
 import { parseISO, isToday, isPast, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useToast } from '@/hooks/use-toast';
 
 const formatTotalDuration = (totalSeconds: number): string => {
   const hours = Math.floor(totalSeconds / 3600);
@@ -47,44 +47,46 @@ interface ParsedIds {
   topicId?: string;
 }
 
-const parseCompositeIdForStats = (compositeId: string): ParsedIds | null => {
-  if (!compositeId || typeof compositeId !== 'string') return null;
-  const parts = compositeId.split('_');
+const robustParseCompositeTopicId = (compositeId: string, allEditais: Edital[]): ParsedIds | null => {
+    if (!compositeId || typeof compositeId !== 'string' || !allEditais || allEditais.length === 0) {
+        return null;
+    }
 
-  if (parts.length < 2) return null; // Minimum: editalId_cargoId
+    for (const edital of allEditais) {
+        if (compositeId.startsWith(edital.id + '_')) {
+            const restAfterEdital = compositeId.substring(edital.id.length + 1);
+            
+            for (const cargo of edital.cargos || []) {
+                if (restAfterEdital.startsWith(cargo.id + '_')) {
+                    const restAfterCargo = restAfterEdital.substring(cargo.id.length + 1);
 
-  const editalId = parts[0];
-  const cargoId = parts[1];
-  let subjectId: string | undefined = undefined;
-  let topicId: string | undefined = undefined;
-
-  // Mock data structure implies:
-  // Edital ID: 1 part (e.g., "edital1")
-  // Cargo ID: 1 part (e.g., "cargo1")
-  // Subject ID: 2 parts (e.g., "subj1_1")
-  // Topic ID: 3 parts (e.g., "topic1_1_1")
-  // Total expected parts = 1 (edital) + 1 (cargo) + 2 (subject) + 3 (topic) = 7
-  if (parts.length === 7) {
-    subjectId = `${parts[2]}_${parts[3]}`; // e.g., "subj1_1"
-    topicId = `${parts[4]}_${parts[5]}_${parts[6]}`; // e.g., "topic1_1_1"
-  }
-  // Add other `else if` blocks here if other ID structures in mockData need specific parsing rules.
-  // For example, if a subjectId was "math" (1 part) and topicId "algebra" (1 part), parts.length would be 4.
-  // else if (parts.length === 4) {
-  //   subjectId = parts[2];
-  //   topicId = parts[3];
-  // }
-  // For now, we only explicitly parse the 7-part structure for subject/topic.
-  // If not 7 parts, subjectId and topicId will remain undefined, and items will
-  // not match specific subject/topic filters.
-
-  return { editalId, cargoId, subjectId, topicId };
-};
+                    for (const subject of cargo.subjects || []) {
+                        if (restAfterCargo.startsWith(subject.id + '_')) {
+                            const topicId = restAfterCargo.substring(subject.id.length + 1);
+                            
+                            const topic = subject.topics?.find(t => t.id === topicId);
+                            if (topic) {
+                                return {
+                                    editalId: edital.id,
+                                    cargoId: cargo.id,
+                                    subjectId: subject.id,
+                                    topicId: topic.id
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return null; // Return null if no complete match is found
+}
 
 
 export default function EstatisticasPage() {
   const { user, loading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   const [allEditaisData, setAllEditaisData] = useState<Edital[]>([]);
 
@@ -99,8 +101,26 @@ export default function EstatisticasPage() {
 
 
   useEffect(() => {
-    setAllEditaisData(mockEditais);
-  }, []);
+    const fetchAllEditais = async () => {
+      try {
+        const response = await fetch('/api/editais');
+        if (!response.ok) {
+          throw new Error('Falha ao buscar a lista de editais.');
+        }
+        const data: Edital[] = await response.json();
+        setAllEditaisData(data);
+      } catch (error: any) {
+        console.error("Estatísticas: Erro ao buscar dados dos editais:", error);
+        toast({
+          title: "Erro de Dados",
+          description: "Não foi possível carregar os dados dos editais para as estatísticas.",
+          variant: "destructive",
+        });
+        setAllEditaisData([]);
+      }
+    };
+    fetchAllEditais();
+  }, [toast]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -150,7 +170,7 @@ export default function EstatisticasPage() {
 
 
   const stats = useMemo(() => {
-    if (!user) return null;
+    if (!user || !allEditaisData.length) return null;
 
     const filterByScopeSubjectTopicAndPeriod = <T extends { compositeTopicId: string; date?: string }>(items: T[] | undefined): T[] => {
       if (!items || items.length === 0) return [];
@@ -166,7 +186,7 @@ export default function EstatisticasPage() {
       })();
     
       return items.filter(item => {
-        const parsed = parseCompositeIdForStats(item.compositeTopicId);
+        const parsed = robustParseCompositeTopicId(item.compositeTopicId, allEditaisData);
         if (!parsed) return false;
     
         const { editalId: itemEditalId, cargoId: itemCargoId, subjectId: itemSubjectId, topicId: itemTopicId } = parsed;
@@ -174,7 +194,6 @@ export default function EstatisticasPage() {
         // 1. Filter by Scope (Cargo)
         if (filterScope !== 'all') {
           const scopeParts = filterScope.split('_');
-          // filterScope must be editalId_cargoId (2 parts)
           if (scopeParts.length < 2) return false; 
           const filterEditalId = scopeParts[0];
           const filterCargoId = scopeParts[1];
@@ -217,7 +236,7 @@ export default function EstatisticasPage() {
         if (!compositeIds || compositeIds.length === 0) return [];
     
         return compositeIds.filter(id => {
-            const parsed = parseCompositeIdForStats(id);
+            const parsed = robustParseCompositeTopicId(id, allEditaisData);
             if (!parsed) return false;
             const { editalId: itemEditalId, cargoId: itemCargoId, subjectId: itemSubjectId, topicId: itemTopicId } = parsed;
     
@@ -251,9 +270,6 @@ export default function EstatisticasPage() {
     const filteredStudiedTopicIds = filterCompositeIdsByScopeSubjectAndTopic(user.studiedTopicIds);
     
     const allUserRevisions = user.revisionSchedules || [];
-    // For revisions, we filter based on the compositeTopicId and then check the date properties separately if needed,
-    // as filterByScopeSubjectTopicAndPeriod is for items that *have* a standard 'date' property for period filtering.
-    // Here we just want to get the *relevant* revision objects first based on scope/subject/topic.
     const relevantRevisionCompositeIds = filterCompositeIdsByScopeSubjectAndTopic(allUserRevisions.map(rs => rs.compositeTopicId));
     const filteredRevisionSchedulesObjects = allUserRevisions.filter(rs => relevantRevisionCompositeIds.includes(rs.compositeTopicId));
 
@@ -264,7 +280,6 @@ export default function EstatisticasPage() {
     const tempoTotalEstudoSegundos = filteredStudyLogs.reduce((acc, log) => acc + log.duration, 0);
     const tempoTotalEstudoFormatado = formatTotalDuration(tempoTotalEstudoSegundos);
 
-    // Filter revisions by period after getting the relevant objects
     const { startDate: periodStartDate, endDate: periodEndDate } = (() => {
         const now = new Date();
         switch (filterPeriod) {
@@ -283,10 +298,9 @@ export default function EstatisticasPage() {
         if (!isDue) return false;
 
         if (filterPeriod !== 'all_time' && periodStartDate && periodEndDate) {
-            // Check if the scheduledDate falls within the selected period
             return isWithinInterval(scheduledDateObj, { start: periodStartDate, end: periodEndDate });
         }
-        return true; // If 'all_time' or period dates are not set, just consider if it's due
+        return true;
       }
     ).length;
 
