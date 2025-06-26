@@ -130,17 +130,41 @@ export default function EstatisticasPage() {
 
   const registeredCargosList = useMemo((): RegisteredCargoInfo[] => {
     if (!user?.registeredCargoIds || !allEditaisData.length) return [];
-    return user.registeredCargoIds.map(compositeId => {
-      const [editalId, cargoId] = compositeId.split('_');
-      const edital = allEditaisData.find(e => e.id === editalId);
-      const cargo = edital?.cargos?.find(c => c.id === cargoId);
-      return {
-        id: compositeId,
-        name: cargo ? `${cargo.name} (${edital?.title || 'Edital Desconhecido'})` : `Cargo ${compositeId}`,
-        editalId,
-        cargoId
-      };
-    }).sort((a,b) => a.name.localeCompare(b.name));
+    
+    const registeredInfos: RegisteredCargoInfo[] = [];
+
+    user.registeredCargoIds.forEach(compositeId => {
+      let foundMatch = false;
+      for (const edital of allEditaisData) {
+        if (compositeId.startsWith(`${edital.id}_`)) {
+          const cargoId = compositeId.substring(edital.id.length + 1);
+          const cargo = edital.cargos?.find(c => c.id === cargoId);
+
+          if (cargo) {
+            registeredInfos.push({
+              id: compositeId,
+              name: `${cargo.name} (${edital.title || 'Edital Desconhecido'})`,
+              editalId: edital.id,
+              cargoId: cargo.id
+            });
+            foundMatch = true;
+            break; 
+          }
+        }
+      }
+      if (!foundMatch) {
+          // Fallback if no match is found, displays the raw ID.
+          registeredInfos.push({
+            id: compositeId,
+            name: `Cargo ${compositeId}`,
+            editalId: 'unknown',
+            cargoId: 'unknown'
+          });
+          console.warn(`[EstatisticasPage] Could not find a valid edital/cargo match for composite ID: '${compositeId}'`);
+      }
+    });
+
+    return registeredInfos.sort((a,b) => a.name.localeCompare(b.name));
   }, [user?.registeredCargoIds, allEditaisData]);
 
   useEffect(() => {
