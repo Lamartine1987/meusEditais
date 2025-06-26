@@ -34,6 +34,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 const profileSchema = z.object({
@@ -646,7 +647,18 @@ export default function ProfilePage() {
                                                 disabled={isCurrentSubscribedCargo}
                                               />
                                               <span className="font-medium">{cargo.name}</span>
-                                              {isCurrentSubscribedCargo && <Info className="h-4 w-4 text-primary ml-auto" title="Este é o seu cargo atual"/>}
+                                              {isCurrentSubscribedCargo && (
+                                                <TooltipProvider>
+                                                  <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Info className="h-4 w-4 text-primary ml-auto" />
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                      <p>Este é o seu cargo atual</p>
+                                                    </TooltipContent>
+                                                  </Tooltip>
+                                                </TooltipProvider>
+                                              )}
                                           </Label>
                                       );
                                   })}
