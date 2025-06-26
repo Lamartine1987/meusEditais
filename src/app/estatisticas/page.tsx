@@ -82,6 +82,26 @@ const robustParseCompositeTopicId = (compositeId: string, allEditais: Edital[]):
     return null; // Return null if no complete match is found
 }
 
+const parseCargoCompositeId = (compositeId: string, allEditais: Edital[]): { editalId: string, cargoId: string } | null => {
+    if (!compositeId || typeof compositeId !== 'string' || !allEditais || allEditais.length === 0) {
+        return null;
+    }
+
+    for (const edital of allEditais) {
+        if (compositeId.startsWith(edital.id + '_')) {
+            const cargoId = compositeId.substring(edital.id.length + 1);
+            const cargo = edital.cargos?.find(c => c.id === cargoId);
+            if (cargo) {
+                return {
+                    editalId: edital.id,
+                    cargoId: cargo.id,
+                };
+            }
+        }
+    }
+    return null;
+};
+
 
 export default function EstatisticasPage() {
   const { user, loading: authLoading } = useAuth();
@@ -169,22 +189,38 @@ export default function EstatisticasPage() {
 
   useEffect(() => {
     if (filterScope !== 'all') {
-      const [editalId, cargoId] = filterScope.split('_');
-      const edital = allEditaisData.find(e => e.id === editalId);
-      const cargo = edital?.cargos?.find(c => c.id === cargoId);
-      setSubjectsForFilter(cargo?.subjects || []);
+      let foundCargo: Cargo | null = null;
+      for (const edital of allEditaisData) {
+        if (typeof filterScope === 'string' && filterScope.startsWith(`${edital.id}_`)) {
+          const cargoId = filterScope.substring(edital.id.length + 1);
+          const cargo = edital.cargos?.find(c => c.id === cargoId);
+          if (cargo) {
+            foundCargo = cargo;
+            break;
+          }
+        }
+      }
+      setSubjectsForFilter(foundCargo?.subjects || []);
     } else {
       setSubjectsForFilter([]);
     }
-    setSelectedSubjectId('all_subjects_in_cargo'); 
+    setSelectedSubjectId('all_subjects_in_cargo');
   }, [filterScope, allEditaisData]);
 
   useEffect(() => {
     if (selectedSubjectId !== 'all_subjects_in_cargo' && filterScope !== 'all') {
-      const [editalId, cargoId] = filterScope.split('_');
-      const edital = allEditaisData.find(e => e.id === editalId);
-      const cargo = edital?.cargos?.find(c => c.id === cargoId);
-      const subject = cargo?.subjects?.find(s => s.id === selectedSubjectId);
+      let foundCargo: Cargo | null = null;
+       for (const edital of allEditaisData) {
+        if (typeof filterScope === 'string' && filterScope.startsWith(`${edital.id}_`)) {
+          const cargoId = filterScope.substring(edital.id.length + 1);
+          const cargo = edital.cargos?.find(c => c.id === cargoId);
+          if (cargo) {
+            foundCargo = cargo;
+            break;
+          }
+        }
+      }
+      const subject = foundCargo?.subjects?.find(s => s.id === selectedSubjectId);
       setTopicsForFilter(subject?.topics || []);
     } else {
       setTopicsForFilter([]);
@@ -215,33 +251,25 @@ export default function EstatisticasPage() {
     
         const { editalId: itemEditalId, cargoId: itemCargoId, subjectId: itemSubjectId, topicId: itemTopicId } = parsed;
         
-        // 1. Filter by Scope (Cargo)
         if (filterScope !== 'all') {
-          const scopeParts = filterScope.split('_');
-          if (scopeParts.length < 2) return false; 
-          const filterEditalId = scopeParts[0];
-          const filterCargoId = scopeParts[1];
-
-          if (itemEditalId !== filterEditalId || itemCargoId !== filterCargoId) {
-            return false;
-          }
+            const parsedScope = parseCargoCompositeId(filterScope, allEditaisData);
+            if (!parsedScope || itemEditalId !== parsedScope.editalId || itemCargoId !== parsedScope.cargoId) {
+                return false;
+            }
         }
     
-        // 2. Filter by Subject
         if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo') {
           if (!itemSubjectId || itemSubjectId !== selectedSubjectId) { 
             return false;
           }
         }
     
-        // 3. Filter by Topic
         if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo' && selectedTopicId !== 'all_topics_in_subject') {
           if (!itemTopicId || itemTopicId !== selectedTopicId) {
             return false;
           }
         }
     
-        // 4. Filter by Period
         if (filterPeriod !== 'all_time') {
           if (!item.date || !startDate || !endDate) { 
             return false; 
@@ -265,13 +293,10 @@ export default function EstatisticasPage() {
             const { editalId: itemEditalId, cargoId: itemCargoId, subjectId: itemSubjectId, topicId: itemTopicId } = parsed;
     
             if (filterScope !== 'all') {
-              const scopeParts = filterScope.split('_');
-              if (scopeParts.length < 2) return false;
-              const filterEditalId = scopeParts[0];
-              const filterCargoId = scopeParts[1];
-              if (itemEditalId !== filterEditalId || itemCargoId !== filterCargoId) {
-                return false;
-              }
+                const parsedScope = parseCargoCompositeId(filterScope, allEditaisData);
+                if (!parsedScope || itemEditalId !== parsedScope.editalId || itemCargoId !== parsedScope.cargoId) {
+                    return false;
+                }
             }
         
             if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo') {
