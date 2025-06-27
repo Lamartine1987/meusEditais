@@ -414,26 +414,57 @@ export default function EstatisticasPage() {
       { name: 'Erradas', value: totalQuestoesErradas, fill: 'hsl(var(--destructive))' },
     ];
     
-    let subjectBreakdownData: { name: string; tempoMin: number; fill: string; }[] = [];
-    if (filterScope !== 'all' && selectedSubjectId === 'all_subjects_in_cargo') {
-      const timeBySubject = filteredStudyLogs.reduce((acc, log) => {
-        const parsed = robustParseCompositeTopicId(log.compositeTopicId, allEditaisData);
-        if (parsed?.subjectId) {
-          acc[parsed.subjectId] = (acc[parsed.subjectId] || 0) + log.duration;
-        }
-        return acc;
-      }, {} as Record<string, number>);
+    let studyTimeBreakdownData: { name: string; tempoMin: number; fill: string; }[] = [];
+    let breakdownChartTitle: string = 'Tempo por Matéria';
+    let breakdownChartDescription: string = 'Selecione um cargo para ver os dados.';
 
+    if (filterScope !== 'all') { // A cargo must be selected
       const parsedScope = parseCargoCompositeId(filterScope, allEditaisData);
-      const cargoSubjects = parsedScope ? allEditaisData.find(e => e.id === parsedScope.editalId)?.cargos?.find(c => c.id === parsedScope.cargoId)?.subjects : [];
       
-      if (cargoSubjects) {
-        subjectBreakdownData = Object.entries(timeBySubject).map(([subjectId, duration], index) => {
-          const subjectName = cargoSubjects.find(s => s.id === subjectId)?.name || 'Desconhecido';
-          return { name: subjectName, tempoMin: Math.round(duration / 60), fill: CHART_COLORS[index % CHART_COLORS.length] };
-        }).sort((a, b) => b.tempoMin - a.tempoMin);
+      if (selectedSubjectId !== 'all_subjects_in_cargo') {
+        // Breakdown by TOPIC
+        breakdownChartTitle = 'Tempo por Assunto (Tópico)';
+        breakdownChartDescription = 'Total de minutos estudados para cada assunto da matéria selecionada.';
+
+        const timeByTopic = filteredStudyLogs.reduce((acc, log) => {
+          const parsed = robustParseCompositeTopicId(log.compositeTopicId, allEditaisData);
+          if (parsed?.topicId) {
+            acc[parsed.topicId] = (acc[parsed.topicId] || 0) + log.duration;
+          }
+          return acc;
+        }, {} as Record<string, number>);
+
+        const subjectTopics = parsedScope ? allEditaisData.find(e => e.id === parsedScope.editalId)?.cargos?.find(c => c.id === parsedScope.cargoId)?.subjects?.find(s => s.id === selectedSubjectId)?.topics : [];
+        
+        if (subjectTopics) {
+          studyTimeBreakdownData = Object.entries(timeByTopic).map(([topicId, duration], index) => {
+            const topicName = subjectTopics.find(t => t.id === topicId)?.name || 'Desconhecido';
+            return { name: topicName, tempoMin: Math.round(duration / 60), fill: CHART_COLORS[index % CHART_COLORS.length] };
+          }).sort((a, b) => b.tempoMin - a.tempoMin);
+        }
+      } else { // Breakdown by SUBJECT
+        breakdownChartTitle = 'Tempo por Matéria';
+        breakdownChartDescription = 'Total de minutos estudados para cada matéria do cargo selecionado.';
+
+        const timeBySubject = filteredStudyLogs.reduce((acc, log) => {
+          const parsed = robustParseCompositeTopicId(log.compositeTopicId, allEditaisData);
+          if (parsed?.subjectId) {
+            acc[parsed.subjectId] = (acc[parsed.subjectId] || 0) + log.duration;
+          }
+          return acc;
+        }, {} as Record<string, number>);
+
+        const cargoSubjects = parsedScope ? allEditaisData.find(e => e.id === parsedScope.editalId)?.cargos?.find(c => c.id === parsedScope.cargoId)?.subjects : [];
+        
+        if (cargoSubjects) {
+          studyTimeBreakdownData = Object.entries(timeBySubject).map(([subjectId, duration], index) => {
+            const subjectName = cargoSubjects.find(s => s.id === subjectId)?.name || 'Desconhecido';
+            return { name: subjectName, tempoMin: Math.round(duration / 60), fill: CHART_COLORS[index % CHART_COLORS.length] };
+          }).sort((a, b) => b.tempoMin - a.tempoMin);
+        }
       }
     }
+
 
     return {
       totalCargosInscritos,
@@ -444,7 +475,9 @@ export default function EstatisticasPage() {
       chartData: {
         studyTimeData,
         questionPerformanceData,
-        subjectBreakdownData,
+        studyTimeBreakdownData,
+        breakdownChartTitle,
+        breakdownChartDescription,
       }
     };
   }, [user, filterScope, filterPeriod, selectedSubjectId, selectedTopicId, allEditaisData, selectedMonth]);
@@ -837,17 +870,17 @@ export default function EstatisticasPage() {
                 </Card>
             )}
 
-            {stats.chartData.subjectBreakdownData.length > 0 ? (
+            {stats.chartData.studyTimeBreakdownData.length > 0 ? (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center"><BookCopy className="mr-2 h-5 w-5 text-primary" />Tempo por Matéria</CardTitle>
-                   <CardDescription>Total de minutos estudados para cada matéria do cargo selecionado.</CardDescription>
+                  <CardTitle className="flex items-center"><BookCopy className="mr-2 h-5 w-5 text-primary" />{stats.chartData.breakdownChartTitle}</CardTitle>
+                   <CardDescription>{stats.chartData.breakdownChartDescription}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ChartContainer config={timeChartConfig} className="h-[250px] w-full">
                     <BarChart
                       accessibilityLayer
-                      data={stats.chartData.subjectBreakdownData}
+                      data={stats.chartData.studyTimeBreakdownData}
                       layout="vertical"
                       margin={{ left: 10, right: 10 }}
                     >
@@ -867,7 +900,7 @@ export default function EstatisticasPage() {
                         content={<ChartTooltipContent indicator="dot" />}
                       />
                       <Bar dataKey="tempoMin" radius={4}>
-                        {stats.chartData.subjectBreakdownData.map((entry) => (
+                        {stats.chartData.studyTimeBreakdownData.map((entry) => (
                           <Cell key={entry.name} fill={entry.fill} />
                         ))}
                       </Bar>
@@ -878,10 +911,13 @@ export default function EstatisticasPage() {
             ) : (
                  <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center"><BookCopy className="mr-2 h-5 w-5 text-primary" />Tempo por Matéria</CardTitle>
+                        <CardTitle className="flex items-center"><BookCopy className="mr-2 h-5 w-5 text-primary" />Tempo por Matéria/Assunto</CardTitle>
                     </CardHeader>
                     <CardContent className="text-center text-muted-foreground py-10">
-                        Selecione um cargo para ver o tempo por matéria.
+                        {filterScope === 'all'
+                            ? 'Selecione um cargo para ver a distribuição de tempo.'
+                            : 'Nenhum dado de estudo encontrado para este filtro.'
+                        }
                     </CardContent>
                 </Card>
             )}
@@ -892,5 +928,3 @@ export default function EstatisticasPage() {
     </PageWrapper>
   );
 }
-
-    
