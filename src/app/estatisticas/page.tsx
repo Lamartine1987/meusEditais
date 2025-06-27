@@ -405,7 +405,7 @@ export default function EstatisticasPage() {
       .map(([date, duration]) => ({
         date: format(parseISO(date), 'dd/MM'),
         dateISO: date,
-        tempoMin: Math.round(duration / 60),
+        tempoMin: Math.ceil(duration / 60),
       }))
       .sort((a, b) => a.dateISO.localeCompare(b.dateISO));
       
@@ -439,7 +439,7 @@ export default function EstatisticasPage() {
         if (subjectTopics) {
           studyTimeBreakdownData = Object.entries(timeByTopic).map(([topicId, duration], index) => {
             const topicName = subjectTopics.find(t => t.id === topicId)?.name || 'Desconhecido';
-            return { name: topicName, tempoMin: Math.round(duration / 60), fill: CHART_COLORS[index % CHART_COLORS.length] };
+            return { name: topicName, tempoMin: Math.ceil(duration / 60), fill: CHART_COLORS[index % CHART_COLORS.length] };
           }).sort((a, b) => b.tempoMin - a.tempoMin);
         }
       } else { // Breakdown by SUBJECT
@@ -459,7 +459,7 @@ export default function EstatisticasPage() {
         if (cargoSubjects) {
           studyTimeBreakdownData = Object.entries(timeBySubject).map(([subjectId, duration], index) => {
             const subjectName = cargoSubjects.find(s => s.id === subjectId)?.name || 'Desconhecido';
-            return { name: subjectName, tempoMin: Math.round(duration / 60), fill: CHART_COLORS[index % CHART_COLORS.length] };
+            return { name: subjectName, tempoMin: Math.ceil(duration / 60), fill: CHART_COLORS[index % CHART_COLORS.length] };
           }).sort((a, b) => b.tempoMin - a.tempoMin);
         }
       }
@@ -700,63 +700,59 @@ export default function EstatisticasPage() {
         <p className="text-sm text-muted-foreground mb-6 italic text-center">{getFilterDescription()}</p>
 
 
-        <Card className="shadow-lg rounded-xl bg-card">
-          <CardHeader>
-            <CardTitle>Resumo de Desempenho</CardTitle>
-            <CardDescription>Suas principais métricas de estudo com base nos filtros selecionados.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
-              
-              {filterScope === 'all' && selectedSubjectId === 'all_subjects_in_cargo' && selectedTopicId === 'all_topics_in_subject' && (
-                 <div className="p-4 rounded-lg bg-muted/50">
-                    <Library className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm font-medium text-muted-foreground">Cargos Inscritos</p>
-                    <p className="text-2xl font-bold">{stats.totalCargosInscritos}</p>
-                </div>
-              )}
+        <div className="grid grid-cols-1 gap-6">
+            <Card className="shadow-lg rounded-xl bg-card">
+                <CardHeader>
+                    <CardTitle>Resumo de Desempenho</CardTitle>
+                    <CardDescription>Suas principais métricas de estudo com base nos filtros selecionados.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+                        {filterScope === 'all' && (
+                            <div className="p-4 rounded-lg bg-muted/50">
+                                <Library className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                                <p className="text-sm font-medium text-muted-foreground">Cargos Inscritos</p>
+                                <p className="text-2xl font-bold">{stats.totalCargosInscritos}</p>
+                            </div>
+                        )}
+                        <div className="p-4 rounded-lg bg-muted/50">
+                            <CheckCircle className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                            <p className="text-sm font-medium text-muted-foreground">Tópicos Concluídos</p>
+                            <p className="text-2xl font-bold">{stats.totalTopicosEstudados}</p>
+                        </div>
+                        <div className="p-4 rounded-lg bg-muted/50">
+                            <Clock className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                            <p className="text-sm font-medium text-muted-foreground">Tempo de Estudo</p>
+                            <p className="text-2xl font-bold">{stats.tempoTotalEstudoFormatado}</p>
+                        </div>
+                        <div className="p-4 rounded-lg bg-muted/50">
+                            <CalendarCheck className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                            <p className="text-sm font-medium text-muted-foreground">Revisões Pendentes</p>
+                            <p className="text-2xl font-bold">{stats.revisoesPendentes}</p>
+                        </div>
+                    </div>
+                    <div className="pt-6 border-t">
+                        <h3 className="text-lg font-semibold flex items-start mb-2">
+                            <Target className="h-5 w-5 text-primary mr-2 mt-1" />
+                            Desempenho em Questões
+                        </h3>
+                        {stats.performanceGeralQuestoes.total > 0 ? (
+                            <div>
+                                <span className="text-3xl font-bold">{stats.performanceGeralQuestoes.aproveitamento.toFixed(1)}%</span>
+                                <span className="text-xl font-semibold text-muted-foreground"> de Acerto</span>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Total de {stats.performanceGeralQuestoes.total} questões ({stats.performanceGeralQuestoes.certas} certas, {stats.performanceGeralQuestoes.erradas} erradas) nos filtros atuais.
+                                </p>
+                            </div>
+                        ) : (
+                            <p className="text-muted-foreground">Nenhum registro de questões encontrado para os filtros selecionados.</p>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
 
-              <div className="p-4 rounded-lg bg-muted/50">
-                <CheckCircle className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm font-medium text-muted-foreground">Tópicos Concluídos</p>
-                <p className="text-2xl font-bold">{stats.totalTopicosEstudados}</p>
-              </div>
-
-              <div className="p-4 rounded-lg bg-muted/50">
-                <Clock className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm font-medium text-muted-foreground">Tempo de Estudo</p>
-                <p className="text-2xl font-bold">{stats.tempoTotalEstudoFormatado}</p>
-              </div>
-
-              <div className="p-4 rounded-lg bg-muted/50">
-                <CalendarCheck className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm font-medium text-muted-foreground">Revisões Pendentes</p>
-                <p className="text-2xl font-bold">{stats.revisoesPendentes}</p>
-              </div>
-            </div>
-
-            <div className="pt-6 border-t">
-              <h3 className="text-lg font-semibold flex items-start mb-2">
-                <Target className="h-5 w-5 text-primary mr-2 mt-1" />
-                Desempenho em Questões
-              </h3>
-              {stats.performanceGeralQuestoes.total > 0 ? (
-                  <div>
-                      <span className="text-3xl font-bold">{stats.performanceGeralQuestoes.aproveitamento.toFixed(1)}%</span>
-                      <span className="text-xl font-semibold text-muted-foreground"> de Acerto</span>
-                      <p className="text-sm text-muted-foreground mt-1">
-                          Total de {stats.performanceGeralQuestoes.total} questões ({stats.performanceGeralQuestoes.certas} certas, {stats.performanceGeralQuestoes.erradas} erradas) nos filtros atuais.
-                      </p>
-                  </div>
-              ) : (
-                <p className="text-muted-foreground">Nenhum registro de questões encontrado para os filtros selecionados.</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-
-        <div className="mt-8 space-y-6">
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
           {stats.chartData.studyTimeData.length > 0 ? (
             <Card>
               <CardHeader>
@@ -802,7 +798,7 @@ export default function EstatisticasPage() {
             </Card>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
             {stats.performanceGeralQuestoes.total > 0 ? (
               <Card>
                 <CardHeader>
@@ -899,7 +895,7 @@ export default function EstatisticasPage() {
                     </CardContent>
                 </Card>
             )}
-          </div>
+          
         </div>
 
       </div>
