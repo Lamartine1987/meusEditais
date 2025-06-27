@@ -4,9 +4,9 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Library, CheckCircle, Clock, CalendarCheck, AlertTriangle, FilterIcon, Target, BookOpen, Layers } from 'lucide-react';
+import { Loader2, Library, CheckCircle, Clock, CalendarCheck, AlertTriangle, FilterIcon, Target, BookOpen, Layers, PieChart as PieChartIcon, BookCopy, BarChartHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,6 +14,16 @@ import type { RevisionScheduleEntry, StudyLogEntry, QuestionLogEntry, Edital, Ca
 import { parseISO, isToday, isPast, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import {
+  ChartConfig,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart";
+import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis, Cell } from "recharts";
+
 
 const formatTotalDuration = (totalSeconds: number): string => {
   const hours = Math.floor(totalSeconds / 3600);
@@ -155,26 +165,19 @@ export default function EstatisticasPage() {
     const registeredInfos: RegisteredCargoInfo[] = [];
 
     user.registeredCargoIds.forEach(compositeId => {
-      let foundMatch = false;
-      for (const edital of allEditaisData) {
-        if (typeof compositeId === 'string' && compositeId.startsWith(`${edital.id}_`)) {
-          const cargoId = compositeId.substring(edital.id.length + 1);
-          const cargo = edital.cargos?.find(c => c.id === cargoId);
-
-          if (cargo) {
-            registeredInfos.push({
-              id: compositeId,
-              name: `${cargo.name} (${edital.title || 'Edital Desconhecido'})`,
-              editalId: edital.id,
-              cargoId: cargo.id
-            });
-            foundMatch = true;
-            break; 
-          }
+      const parsed = parseCargoCompositeId(compositeId, allEditaisData);
+      if (parsed) {
+        const edital = allEditaisData.find(e => e.id === parsed.editalId);
+        const cargo = edital?.cargos?.find(c => c.id === parsed.cargoId);
+        if (cargo && edital) {
+          registeredInfos.push({
+            id: compositeId,
+            name: `${cargo.name} (${edital.title || 'Edital Desc.'})`,
+            editalId: edital.id,
+            cargoId: cargo.id
+          });
         }
-      }
-      if (!foundMatch) {
-          // Fallback if no match is found, displays the raw ID.
+      } else {
           registeredInfos.push({
             id: compositeId,
             name: `Cargo ${compositeId}`,
@@ -381,6 +384,47 @@ export default function EstatisticasPage() {
         aproveitamento: percentualAcertoMedio
     };
 
+    // --- Chart Data Processing ---
+    
+    const studyTimeByDay = filteredStudyLogs.reduce((acc, log) => {
+      const day = format(parseISO(log.date), 'yyyy-MM-dd');
+      acc[day] = (acc[day] || 0) + log.duration;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const studyTimeData = Object.entries(studyTimeByDay)
+      .map(([date, duration]) => ({
+        date: format(parseISO(date), 'dd/MM'),
+        dateISO: date,
+        "Tempo (min)": Math.round(duration / 60),
+      }))
+      .sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+      
+    const questionPerformanceData = [
+      { name: 'Certas', value: totalQuestoesCertas, fill: 'hsl(var(--accent))' },
+      { name: 'Erradas', value: totalQuestoesErradas, fill: 'hsl(var(--destructive))' },
+    ];
+    
+    let subjectBreakdownData: { name: string; "Tempo (min)": number }[] = [];
+    if (filterScope !== 'all' && selectedSubjectId === 'all_subjects_in_cargo') {
+      const timeBySubject = filteredStudyLogs.reduce((acc, log) => {
+        const parsed = robustParseCompositeTopicId(log.compositeTopicId, allEditaisData);
+        if (parsed?.subjectId) {
+          acc[parsed.subjectId] = (acc[parsed.subjectId] || 0) + log.duration;
+        }
+        return acc;
+      }, {} as Record<string, number>);
+
+      const parsedScope = parseCargoCompositeId(filterScope, allEditaisData);
+      const cargoSubjects = parsedScope ? allEditaisData.find(e => e.id === parsedScope.editalId)?.cargos?.find(c => c.id === parsedScope.cargoId)?.subjects : [];
+      
+      if (cargoSubjects) {
+        subjectBreakdownData = Object.entries(timeBySubject).map(([subjectId, duration]) => {
+          const subjectName = cargoSubjects.find(s => s.id === subjectId)?.name || 'Desconhecido';
+          return { name: subjectName, "Tempo (min)": Math.round(duration / 60) };
+        }).sort((a, b) => b["Tempo (min)"] - a["Tempo (min)"]);
+      }
+    }
 
     return {
       totalCargosInscritos,
@@ -388,6 +432,11 @@ export default function EstatisticasPage() {
       tempoTotalEstudoFormatado,
       revisoesPendentes,
       performanceGeralQuestoes,
+      chartData: {
+        studyTimeData,
+        questionPerformanceData,
+        subjectBreakdownData,
+      }
     };
   }, [user, filterScope, filterPeriod, selectedSubjectId, selectedTopicId, allEditaisData, selectedMonth]);
 
@@ -479,6 +528,16 @@ export default function EstatisticasPage() {
       </PageWrapper>
     );
   }
+  
+  const questionChartConfig = {
+    value: { label: "Questões" },
+    Certas: { label: "Certas", color: "hsl(var(--accent))" },
+    Erradas: { label: "Erradas", color: "hsl(var(--destructive))" },
+  } satisfies ChartConfig;
+
+  const timeChartConfig = {
+    "Tempo (min)": { label: "Tempo (min)", color: "hsl(var(--primary))" },
+  } satisfies ChartConfig;
 
   return (
     <PageWrapper>
@@ -675,12 +734,151 @@ export default function EstatisticasPage() {
                 )}
             </CardContent>
           </Card>
-
         </div>
+
+        <div className="mt-8 space-y-6">
+          {stats.chartData.studyTimeData.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center"><BarChartHorizontal className="mr-2 h-5 w-5 text-primary" />Tempo de Estudo por Dia</CardTitle>
+                <CardDescription>Tempo total de estudo (em minutos) registrado a cada dia no período filtrado.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ChartContainer config={timeChartConfig} className="h-[250px] w-full">
+                  <BarChart accessibilityLayer data={stats.chartData.studyTimeData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                    />
+                    <YAxis
+                      tickFormatter={(value) => `${value}`}
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      width={30}
+                    />
+                    <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
+                    <Bar
+                      dataKey="Tempo (min)"
+                      fill="var(--color-Tempo (min))"
+                      radius={4}
+                    />
+                  </BarChart>
+                </ChartContainer>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                 <CardTitle className="flex items-center"><BarChartHorizontal className="mr-2 h-5 w-5 text-primary" />Tempo de Estudo por Dia</CardTitle>
+              </CardHeader>
+               <CardContent className="text-center text-muted-foreground py-10">
+                 Nenhum dado de tempo de estudo para exibir no gráfico.
+               </CardContent>
+            </Card>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {stats.performanceGeralQuestoes.total > 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center"><PieChartIcon className="mr-2 h-5 w-5 text-primary" />Desempenho em Questões</CardTitle>
+                   <CardDescription>Distribuição de acertos e erros nas questões registradas.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex items-center justify-center">
+                  <ChartContainer
+                    config={questionChartConfig}
+                    className="mx-auto aspect-square h-[250px]"
+                  >
+                    <PieChart>
+                      <ChartTooltip
+                        cursor={false}
+                        content={<ChartTooltipContent hideLabel />}
+                      />
+                      <Pie
+                        data={stats.chartData.questionPerformanceData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={60}
+                        strokeWidth={5}
+                      >
+                         {stats.chartData.questionPerformanceData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                         ))}
+                      </Pie>
+                      <ChartLegend
+                        content={<ChartLegendContent nameKey="name" />}
+                      />
+                    </PieChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+            ) : (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><PieChartIcon className="mr-2 h-5 w-5 text-primary" />Desempenho em Questões</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-center text-muted-foreground py-10">
+                        Nenhum dado de questões para exibir no gráfico.
+                    </CardContent>
+                </Card>
+            )}
+
+            {stats.chartData.subjectBreakdownData.length > 0 ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center"><BookCopy className="mr-2 h-5 w-5 text-primary" />Tempo por Matéria</CardTitle>
+                   <CardDescription>Total de minutos estudados para cada matéria do cargo selecionado.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ChartContainer config={timeChartConfig} className="h-[250px] w-full">
+                    <BarChart
+                      accessibilityLayer
+                      data={stats.chartData.subjectBreakdownData}
+                      layout="vertical"
+                      margin={{ left: 10, right: 10 }}
+                    >
+                      <CartesianGrid horizontal={false} />
+                       <YAxis
+                        dataKey="name"
+                        type="category"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={10}
+                        width={80} 
+                        className="text-xs"
+                      />
+                      <XAxis dataKey="Tempo (min)" type="number" hide />
+                      <ChartTooltip
+                        cursor={false}
+                        content={<ChartTooltipContent indicator="dot" />}
+                      />
+                      <Bar
+                        dataKey="Tempo (min)"
+                        fill="var(--color-Tempo (min))"
+                        radius={4}
+                      />
+                    </BarChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+            ) : (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center"><BookCopy className="mr-2 h-5 w-5 text-primary" />Tempo por Matéria</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-center text-muted-foreground py-10">
+                        Selecione um cargo para ver o tempo por matéria.
+                    </CardContent>
+                </Card>
+            )}
+          </div>
+        </div>
+
       </div>
     </PageWrapper>
   );
 }
-    
-
-    
