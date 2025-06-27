@@ -12,7 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useState, useMemo, useEffect } from 'react';
 import type { PlanId, Edital as EditalType, Cargo as CargoType } from '@/types';
 import { useRouter } from 'next/navigation';
-import { mockEditais } from '@/lib/mock-data';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -21,6 +20,7 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertTitle, AlertDescription as UiAlertDescription } from "@/components/ui/alert"; 
+import { Skeleton } from '@/components/ui/skeleton';
 
 
 const PlanFeature = ({ children }: { children: React.ReactNode }) => (
@@ -63,6 +63,7 @@ export default function PlanosPage() {
   const router = useRouter();
 
   const [allEditaisData, setAllEditaisData] = useState<EditalType[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalPlanType, setModalPlanType] = useState<'cargo' | 'edital' | null>(null);
   
@@ -79,8 +80,31 @@ export default function PlanosPage() {
   const currentUserPlanRank = useMemo(() => user?.activePlan ? planRank[user.activePlan] : 0, [user]);
 
   useEffect(() => {
-    setAllEditaisData(mockEditais);
-  }, []);
+    const fetchAllEditais = async () => {
+      setDataLoading(true);
+      console.log('[PlanosPage] Fetching editais from API...');
+      try {
+        const response = await fetch('/api/editais');
+        if (!response.ok) {
+          throw new Error('Falha ao buscar a lista de editais.');
+        }
+        const data: EditalType[] = await response.json();
+        console.log(`[PlanosPage] Successfully fetched ${data.length} editais.`);
+        setAllEditaisData(data);
+      } catch (error: any) {
+        console.error("[PlanosPage] Erro ao buscar dados dos editais:", error);
+        toast({
+          title: "Erro de Dados",
+          description: "Não foi possível carregar os editais disponíveis para seleção.",
+          variant: "destructive",
+        });
+        setAllEditaisData([]);
+      } finally {
+        setDataLoading(false);
+      }
+    };
+    fetchAllEditais();
+  }, [toast]);
 
   const allSelectableEditais = useMemo(() => allEditaisData.sort((a,b) => a.title.localeCompare(b.title)), [allEditaisData]);
 
@@ -181,20 +205,21 @@ export default function PlanosPage() {
 
   const canStartTrial = user && !user.hasHadFreeTrial && (!user.activePlan || user.activePlan === 'plano_trial');
   const hasActivePaidPlan = user && user.activePlan && user.activePlan !== 'plano_trial';
+  const pageIsLoading = authLoading || dataLoading;
 
   // --- Button Logic ---
-  const cargoButtonDisabled = authLoading || currentUserPlanRank >= planRank.plano_cargo;
+  const cargoButtonDisabled = pageIsLoading || currentUserPlanRank >= planRank.plano_cargo;
 
   const isEditalUpgrade = currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_edital;
   const editalButtonText = isEditalUpgrade ? "Fazer Upgrade" : "Selecionar Edital";
   const editalButtonVariant = isEditalUpgrade ? "default" : "outline";
   const editalButtonIcon = isEditalUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <ArrowRight className="mr-2 h-5 w-5" />;
-  const editalButtonDisabled = authLoading || currentUserPlanRank >= planRank.plano_edital;
+  const editalButtonDisabled = pageIsLoading || currentUserPlanRank >= planRank.plano_edital;
 
   const isAnualUpgrade = currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_anual;
   const anualButtonText = isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Anual";
   const anualButtonIcon = isAnualUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <Gem className="mr-2 h-5 w-5" />;
-  const anualButtonDisabled = authLoading || currentUserPlanRank >= planRank.plano_anual;
+  const anualButtonDisabled = pageIsLoading || currentUserPlanRank >= planRank.plano_anual;
 
 
   return (
@@ -205,6 +230,30 @@ export default function PlanosPage() {
           description="Escolha o plano ideal para sua jornada de aprovação."
         />
 
+        {pageIsLoading ? (
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                {[...Array(4)].map((_, i) => (
+                    <Card key={i} className="shadow-lg rounded-xl flex flex-col lg:col-span-1">
+                        <CardHeader className="items-center text-center pb-4">
+                            <Skeleton className="h-12 w-12 rounded-full mb-3" />
+                            <Skeleton className="h-7 w-3/4" />
+                            <Skeleton className="h-5 w-1/2" />
+                        </CardHeader>
+                        <CardContent className="flex-grow space-y-4 pt-2">
+                            <Skeleton className="h-10 w-1/2 mx-auto" />
+                            <div className="space-y-2">
+                                <Skeleton className="h-5 w-full" />
+                                <Skeleton className="h-5 w-full" />
+                                <Skeleton className="h-5 w-5/6" />
+                            </div>
+                        </CardContent>
+                        <CardFooter className="pt-6">
+                            <Skeleton className="h-12 w-full" />
+                        </CardFooter>
+                    </Card>
+                ))}
+            </div>
+        ) : (
         <div className="mb-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Plano Teste Gratuito */}
           <Card className="shadow-lg rounded-xl flex flex-col lg:col-span-1 border-2 border-green-500 bg-green-50 dark:bg-green-900/20 transform hover:scale-105 transition-transform duration-300">
@@ -345,6 +394,7 @@ export default function PlanosPage() {
             </Card>
           </div>
         </div>
+        )}
 
         {/* Modal para Seleção de Cargo */}
         {modalPlanType === 'cargo' && (

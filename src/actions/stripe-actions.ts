@@ -331,7 +331,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             // This overwrites any previous registrations (e.g., from a free trial).
             const updatedRegisteredCargoIds = [selectedCargoCompositeId];
             updatePayload.registeredCargoIds = updatedRegisteredCargoIds;
-            console.log(`[handleStripeWebhook] PLANO_CARGO: Setting user ${userId}'s registered cargo to: ${selectedCargoCompositeId}. Overwriting previous registrations.`);
+            console.log(`[handleStripeWebhook] PLANO_CARGO: Setting user ${userId}'s registered cargo to: ${JSON.stringify(updatedRegisteredCargoIds)}. Overwriting previous registrations.`);
           } else if (planIdFromMetadata === 'plano_cargo') {
              console.warn(`[handleStripeWebhook] PLANO_CARGO: 'planIdFromMetadata' is 'plano_cargo' but 'selectedCargoCompositeId' is missing or empty: '${selectedCargoCompositeId}'. Auto-registration SKIPPED.`);
           }

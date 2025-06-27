@@ -17,7 +17,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
-import { mockEditais } from '@/lib/mock-data'; 
 import type { PlanId, Edital as EditalType, Cargo as CargoType } from '@/types';
 import {
   AlertDialog,
@@ -51,6 +50,7 @@ export default function ProfilePage() {
   
   const [isChangeCargoModalOpen, setIsChangeCargoModalOpen] = useState(false);
   const [allEditaisData, setAllEditaisData] = useState<EditalType[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
   const [selectedEditalIdInCargoModal, setSelectedEditalIdInCargoModal] = useState<string | null>(null);
   const [cargosForSelectedEdital, setCargosForSelectedEdital] = useState<CargoType[]>([]);
   const [cargoSearchTerm, setCargoSearchTerm] = useState('');
@@ -74,7 +74,27 @@ export default function ProfilePage() {
   }, [user, reset]);
 
   useEffect(() => {
-    setAllEditaisData(mockEditais); // Load mock editais for modal
+    const fetchAllEditais = async () => {
+        setDataLoading(true);
+        console.log('[PerfilPage] Fetching editais for plan management...');
+        try {
+            const response = await fetch('/api/editais');
+            if (!response.ok) {
+                throw new Error('Falha ao carregar dados dos editais.');
+            }
+            const data: EditalType[] = await response.json();
+            console.log(`[PerfilPage] Successfully fetched ${data.length} editais.`);
+            setAllEditaisData(data);
+        } catch (error) {
+            console.error('[PerfilPage] Error fetching editais:', error);
+            // Non-critical, modal might just not have options. No toast needed to avoid bothering user.
+            setAllEditaisData([]);
+        } finally {
+            setDataLoading(false);
+        }
+    };
+    
+    fetchAllEditais();
   }, []);
 
   useEffect(() => {
@@ -254,7 +274,7 @@ export default function ProfilePage() {
   };
 
 
-  if (authLoading && !user) { 
+  if (authLoading || dataLoading) { 
     return (
        <PageWrapper>
         <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]">
