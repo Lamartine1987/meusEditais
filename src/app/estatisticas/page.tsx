@@ -57,6 +57,15 @@ interface ParsedIds {
   topicId?: string;
 }
 
+const CHART_COLORS = [
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))',
+];
+
+
 const robustParseCompositeTopicId = (compositeId: string, allEditais: Edital[]): ParsedIds | null => {
     if (!compositeId || typeof compositeId !== 'string' || !allEditais || allEditais.length === 0) {
         return null;
@@ -405,7 +414,7 @@ export default function EstatisticasPage() {
       { name: 'Erradas', value: totalQuestoesErradas, fill: 'hsl(var(--destructive))' },
     ];
     
-    let subjectBreakdownData: { name: string; tempoMin: number }[] = [];
+    let subjectBreakdownData: { name: string; tempoMin: number; fill: string; }[] = [];
     if (filterScope !== 'all' && selectedSubjectId === 'all_subjects_in_cargo') {
       const timeBySubject = filteredStudyLogs.reduce((acc, log) => {
         const parsed = robustParseCompositeTopicId(log.compositeTopicId, allEditaisData);
@@ -419,9 +428,9 @@ export default function EstatisticasPage() {
       const cargoSubjects = parsedScope ? allEditaisData.find(e => e.id === parsedScope.editalId)?.cargos?.find(c => c.id === parsedScope.cargoId)?.subjects : [];
       
       if (cargoSubjects) {
-        subjectBreakdownData = Object.entries(timeBySubject).map(([subjectId, duration]) => {
+        subjectBreakdownData = Object.entries(timeBySubject).map(([subjectId, duration], index) => {
           const subjectName = cargoSubjects.find(s => s.id === subjectId)?.name || 'Desconhecido';
-          return { name: subjectName, tempoMin: Math.round(duration / 60) };
+          return { name: subjectName, tempoMin: Math.round(duration / 60), fill: CHART_COLORS[index % CHART_COLORS.length] };
         }).sort((a, b) => b.tempoMin - a.tempoMin);
       }
     }
@@ -765,6 +774,7 @@ export default function EstatisticasPage() {
                       dataKey="tempoMin"
                       fill="var(--color-tempoMin)"
                       radius={4}
+                      barSize={60}
                     />
                   </BarChart>
                 </ChartContainer>
@@ -856,11 +866,11 @@ export default function EstatisticasPage() {
                         cursor={false}
                         content={<ChartTooltipContent indicator="dot" />}
                       />
-                      <Bar
-                        dataKey="tempoMin"
-                        fill="var(--color-tempoMin)"
-                        radius={4}
-                      />
+                      <Bar dataKey="tempoMin" radius={4}>
+                        {stats.chartData.subjectBreakdownData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.fill} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ChartContainer>
                 </CardContent>
@@ -882,3 +892,5 @@ export default function EstatisticasPage() {
     </PageWrapper>
   );
 }
+
+    
