@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -30,7 +29,7 @@ interface RegisteredCargoInfo {
 }
 
 export default function MyEditaisPage() {
-  const { user, loading: authLoading, unregisterFromCargo } from useAuth();
+  const { user, loading: authLoading, unregisterFromCargo } = useAuth();
   const { toast } = useToast();
   const [loadingData, setLoadingData] = useState(true); 
   const [allEditais, setAllEditais] = useState<Edital[]>([]);
@@ -47,7 +46,6 @@ export default function MyEditaisPage() {
         const data: Edital[] = await response.json();
         setAllEditais(data);
       } catch (error: any) {
-        console.error("Error fetching editais for My Editais page:", error);
         toast({
           title: "Erro ao Carregar Editais",
           description: "Não foi possível buscar a lista de editais. Tente recarregar a página.",
