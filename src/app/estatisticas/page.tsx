@@ -763,11 +763,10 @@ export default function EstatisticasPage() {
             <CardContent>
                 {stats.performanceGeralQuestoes.total > 0 ? (
                     <>
-                        <div className="text-2xl font-bold mb-2">{stats.performanceGeralQuestoes.aproveitamento.toFixed(1)}% de Acerto</div>
-                        <p className="text-sm text-muted-foreground mb-1">
-                            Total: {stats.performanceGeralQuestoes.total} questões | Certas: {stats.performanceGeralQuestoes.certas} | Erradas: {stats.performanceGeralQuestoes.erradas}
+                        <div className="text-2xl font-bold mb-1">{stats.performanceGeralQuestoes.aproveitamento.toFixed(1)}% de Acerto</div>
+                        <p className="text-sm text-muted-foreground">
+                            Total de {stats.performanceGeralQuestoes.total} questões ({stats.performanceGeralQuestoes.certas} certas, {stats.performanceGeralQuestoes.erradas} erradas) nos filtros atuais.
                         </p>
-                        <p className="text-xs text-muted-foreground">Desempenho nos filtros atuais.</p>
                     </>
                 ) : (
                   <>
