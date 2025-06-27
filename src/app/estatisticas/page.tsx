@@ -111,7 +111,8 @@ export default function EstatisticasPage() {
   const [allEditaisData, setAllEditaisData] = useState<Edital[]>([]);
 
   const [filterScope, setFilterScope] = useState<'all' | string>('all'); // 'all' or 'editalId_cargoId'
-  const [filterPeriod, setFilterPeriod] = useState<'all_time' | 'today' | 'this_week' | 'this_month'>('all_time');
+  const [filterPeriod, setFilterPeriod] = useState<'all_time' | 'today' | 'this_week' | 'this_month' | 'specific_month'>('all_time');
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   
   const [selectedSubjectId, setSelectedSubjectId] = useState<'all_subjects_in_cargo' | string>('all_subjects_in_cargo');
   const [subjectsForFilter, setSubjectsForFilter] = useState<SubjectType[]>([]);
@@ -156,7 +157,7 @@ export default function EstatisticasPage() {
     user.registeredCargoIds.forEach(compositeId => {
       let foundMatch = false;
       for (const edital of allEditaisData) {
-        if (compositeId.startsWith(`${edital.id}_`)) {
+        if (typeof compositeId === 'string' && compositeId.startsWith(`${edital.id}_`)) {
           const cargoId = compositeId.substring(edital.id.length + 1);
           const cargo = edital.cargos?.find(c => c.id === cargoId);
 
@@ -187,20 +188,42 @@ export default function EstatisticasPage() {
     return registeredInfos.sort((a,b) => a.name.localeCompare(b.name));
   }, [user?.registeredCargoIds, allEditaisData]);
 
+  const availableMonths = useMemo((): string[] => {
+    if (!user) return [];
+    
+    const allDateStrings: string[] = [
+      ...(user.studyLogs || []).map(l => l.date),
+      ...(user.questionLogs || []).map(l => l.date),
+      ...(user.revisionSchedules || []).map(l => l.scheduledDate),
+    ].filter((d): d is string => !!d);
+
+    if (allDateStrings.length === 0) return [];
+
+    const months = new Set<string>();
+    allDateStrings.forEach(isoDate => {
+      try {
+        const date = parseISO(isoDate);
+        if (!isNaN(date.getTime())) { 
+          months.add(format(date, 'yyyy-MM'));
+        }
+      } catch (e) {
+        console.warn(`[EstatisticasPage] Could not parse date: ${isoDate}`);
+      }
+    });
+    
+    return Array.from(months).sort((a, b) => b.localeCompare(a));
+  }, [user]);
+
   useEffect(() => {
     if (filterScope !== 'all') {
-      let foundCargo: Cargo | null = null;
-      for (const edital of allEditaisData) {
-        if (typeof filterScope === 'string' && filterScope.startsWith(`${edital.id}_`)) {
-          const cargoId = filterScope.substring(edital.id.length + 1);
-          const cargo = edital.cargos?.find(c => c.id === cargoId);
-          if (cargo) {
-            foundCargo = cargo;
-            break;
-          }
+        const parsedScope = parseCargoCompositeId(filterScope, allEditaisData);
+        if (parsedScope) {
+            const edital = allEditaisData.find(e => e.id === parsedScope.editalId);
+            const cargo = edital?.cargos?.find(c => c.id === parsedScope.cargoId);
+            setSubjectsForFilter(cargo?.subjects || []);
+        } else {
+             setSubjectsForFilter([]);
         }
-      }
-      setSubjectsForFilter(foundCargo?.subjects || []);
     } else {
       setSubjectsForFilter([]);
     }
@@ -209,19 +232,15 @@ export default function EstatisticasPage() {
 
   useEffect(() => {
     if (selectedSubjectId !== 'all_subjects_in_cargo' && filterScope !== 'all') {
-      let foundCargo: Cargo | null = null;
-       for (const edital of allEditaisData) {
-        if (typeof filterScope === 'string' && filterScope.startsWith(`${edital.id}_`)) {
-          const cargoId = filterScope.substring(edital.id.length + 1);
-          const cargo = edital.cargos?.find(c => c.id === cargoId);
-          if (cargo) {
-            foundCargo = cargo;
-            break;
-          }
-        }
+      const parsedScope = parseCargoCompositeId(filterScope, allEditaisData);
+      if(parsedScope) {
+        const edital = allEditaisData.find(e => e.id === parsedScope.editalId);
+        const cargo = edital?.cargos?.find(c => c.id === parsedScope.cargoId);
+        const subject = cargo?.subjects?.find(s => s.id === selectedSubjectId);
+        setTopicsForFilter(subject?.topics || []);
+      } else {
+         setTopicsForFilter([]);
       }
-      const subject = foundCargo?.subjects?.find(s => s.id === selectedSubjectId);
-      setTopicsForFilter(subject?.topics || []);
     } else {
       setTopicsForFilter([]);
     }
@@ -232,18 +251,28 @@ export default function EstatisticasPage() {
   const stats = useMemo(() => {
     if (!user || !allEditaisData.length) return null;
 
-    const filterByScopeSubjectTopicAndPeriod = <T extends { compositeTopicId: string; date?: string }>(items: T[] | undefined): T[] => {
-      if (!items || items.length === 0) return [];
-    
-      const { startDate, endDate } = (() => {
+    const { startDate, endDate } = (() => {
         const now = new Date();
         switch (filterPeriod) {
           case 'today': return { startDate: startOfDay(now), endDate: endOfDay(now) };
           case 'this_week': return { startDate: startOfWeek(now, { locale: ptBR }), endDate: endOfWeek(now, { locale: ptBR }) };
           case 'this_month': return { startDate: startOfMonth(now), endDate: endOfMonth(now) };
+          case 'specific_month': {
+            if (!selectedMonth) return { startDate: null, endDate: null };
+            try {
+                const monthDate = parseISO(`${selectedMonth}-01`);
+                return { startDate: startOfMonth(monthDate), endDate: endOfMonth(monthDate) };
+            } catch (e) {
+                console.error(`[EstatisticasPage] Invalid month format: ${selectedMonth}`);
+                return { startDate: null, endDate: null };
+            }
+          }
           case 'all_time': default: return { startDate: null, endDate: null };
         }
-      })();
+    })();
+
+    const filterByScopeSubjectTopicAndPeriod = <T extends { compositeTopicId: string; date?: string }>(items: T[] | undefined): T[] => {
+      if (!items || items.length === 0) return [];
     
       return items.filter(item => {
         const parsed = robustParseCompositeTopicId(item.compositeTopicId, allEditaisData);
@@ -271,11 +300,10 @@ export default function EstatisticasPage() {
         }
     
         if (filterPeriod !== 'all_time') {
-          if (!item.date || !startDate || !endDate) { 
-            return false; 
-          }
+          if (!startDate || !endDate) return false;
+          if (!item.date) return false; 
           const itemDate = parseISO(item.date);
-          if (!isWithinInterval(itemDate, { start: startDate, end: endDate })) {
+          if (isNaN(itemDate.getTime()) || !isWithinInterval(itemDate, { start: startDate, end: endDate })) {
             return false;
           }
         }
@@ -322,22 +350,11 @@ export default function EstatisticasPage() {
     const relevantRevisionCompositeIds = filterCompositeIdsByScopeSubjectAndTopic(allUserRevisions.map(rs => rs.compositeTopicId));
     const filteredRevisionSchedulesObjects = allUserRevisions.filter(rs => relevantRevisionCompositeIds.includes(rs.compositeTopicId));
 
-
     const totalCargosInscritos = user.registeredCargoIds?.length || 0;
     const totalTopicosEstudados = filteredStudiedTopicIds.length;
 
     const tempoTotalEstudoSegundos = filteredStudyLogs.reduce((acc, log) => acc + log.duration, 0);
     const tempoTotalEstudoFormatado = formatTotalDuration(tempoTotalEstudoSegundos);
-
-    const { startDate: periodStartDate, endDate: periodEndDate } = (() => {
-        const now = new Date();
-        switch (filterPeriod) {
-            case 'today': return { startDate: startOfDay(now), endDate: endOfDay(now) };
-            case 'this_week': return { startDate: startOfWeek(now, { locale: ptBR }), endDate: endOfWeek(now, { locale: ptBR }) };
-            case 'this_month': return { startDate: startOfMonth(now), endDate: endOfMonth(now) };
-            case 'all_time': default: return { startDate: null, endDate: null };
-        }
-    })();
 
     const revisoesPendentes = filteredRevisionSchedulesObjects.filter(
       (rs: RevisionScheduleEntry) => {
@@ -346,8 +363,8 @@ export default function EstatisticasPage() {
         const isDue = isToday(scheduledDateObj) || isPast(scheduledDateObj);
         if (!isDue) return false;
 
-        if (filterPeriod !== 'all_time' && periodStartDate && periodEndDate) {
-            return isWithinInterval(scheduledDateObj, { start: periodStartDate, end: periodEndDate });
+        if (filterPeriod !== 'all_time' && startDate && endDate) {
+            return isWithinInterval(scheduledDateObj, { start: startDate, end: endDate });
         }
         return true;
       }
@@ -372,7 +389,7 @@ export default function EstatisticasPage() {
       revisoesPendentes,
       performanceGeralQuestoes,
     };
-  }, [user, filterScope, filterPeriod, selectedSubjectId, selectedTopicId, allEditaisData]);
+  }, [user, filterScope, filterPeriod, selectedSubjectId, selectedTopicId, allEditaisData, selectedMonth]);
 
 
   const getFilterDescription = useCallback(() => {
@@ -399,6 +416,18 @@ export default function EstatisticasPage() {
         case 'today': periodDesc = " (hoje)"; break;
         case 'this_week': periodDesc = " (esta semana)"; break;
         case 'this_month': periodDesc = " (este mês)"; break;
+        case 'specific_month':
+            if (selectedMonth) {
+                try {
+                    const monthDate = parseISO(`${selectedMonth}-01`);
+                    periodDesc = ` (${format(monthDate, "MMMM 'de' yyyy", { locale: ptBR })})`;
+                } catch {
+                    periodDesc = " (mês inválido)";
+                }
+            } else {
+                periodDesc = " (mês não selecionado)";
+            }
+            break;
         case 'all_time': periodDesc = " (todo o período)"; break;
     }
     
@@ -407,7 +436,7 @@ export default function EstatisticasPage() {
     }
 
     return `Exibindo estatísticas ${scopeDesc}${subjectDesc}${topicDesc}${periodDesc}.`;
-  }, [filterScope, selectedSubjectId, selectedTopicId, filterPeriod, registeredCargosList, subjectsForFilter, topicsForFilter]);
+  }, [filterScope, selectedSubjectId, selectedTopicId, filterPeriod, selectedMonth, registeredCargosList, subjectsForFilter, topicsForFilter]);
 
 
   if (isLoading || authLoading) {
@@ -463,7 +492,7 @@ export default function EstatisticasPage() {
             <CardHeader>
                 <CardTitle className="text-lg flex items-center"><FilterIcon className="mr-2 h-5 w-5 text-primary"/>Filtros</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
                     <label htmlFor="filterScope" className="block text-sm font-medium text-muted-foreground mb-1">Escopo (Cargo)</label>
                     <Select value={filterScope} onValueChange={setFilterScope}>
@@ -522,18 +551,48 @@ export default function EstatisticasPage() {
                 </div>
                 <div>
                     <label htmlFor="filterPeriod" className="block text-sm font-medium text-muted-foreground mb-1">Período</label>
-                    <Select value={filterPeriod} onValueChange={(value) => setFilterPeriod(value as any)}>
+                    <Select value={filterPeriod} onValueChange={(value) => {
+                        const newPeriod = value as any;
+                        setFilterPeriod(newPeriod);
+                        if (newPeriod !== 'specific_month') {
+                            setSelectedMonth(null);
+                        } else if (availableMonths.length > 0 && !selectedMonth) {
+                            setSelectedMonth(availableMonths[0]);
+                        }
+                    }}>
                         <SelectTrigger id="filterPeriod">
                             <SelectValue placeholder="Selecionar período..." />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all_time">Todo o Período</SelectItem>
-                            <SelectItem value="today">Hoje</SelectItem>
-                            <SelectItem value="this_week">Esta Semana</SelectItem>
                             <SelectItem value="this_month">Este Mês</SelectItem>
+                            <SelectItem value="this_week">Esta Semana</SelectItem>
+                            <SelectItem value="today">Hoje</SelectItem>
+                            <SelectItem value="specific_month">Mês Específico</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
+                {filterPeriod === 'specific_month' && (
+                  <div>
+                    <label htmlFor="monthSelect" className="block text-sm font-medium text-muted-foreground mb-1">Mês Selecionado</label>
+                    <Select value={selectedMonth || ''} onValueChange={setSelectedMonth} disabled={availableMonths.length === 0}>
+                        <SelectTrigger id="monthSelect">
+                            <SelectValue placeholder="Selecione um mês..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {availableMonths.length > 0 ? (
+                                availableMonths.map(monthStr => (
+                                    <SelectItem key={monthStr} value={monthStr}>
+                                        {format(parseISO(`${monthStr}-01`), "MMMM 'de' yyyy", { locale: ptBR })}
+                                    </SelectItem>
+                                ))
+                            ) : (
+                                <SelectItem value="no-data" disabled>Nenhum dado de estudo encontrado</SelectItem>
+                            )}
+                        </SelectContent>
+                    </Select>
+                  </div>
+                )}
             </CardContent>
         </Card>
         
