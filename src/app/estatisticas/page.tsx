@@ -396,7 +396,7 @@ export default function EstatisticasPage() {
       .map(([date, duration]) => ({
         date: format(parseISO(date), 'dd/MM'),
         dateISO: date,
-        "Tempo (min)": Math.round(duration / 60),
+        tempoMin: Math.round(duration / 60),
       }))
       .sort((a, b) => a.dateISO.localeCompare(b.dateISO));
       
@@ -405,7 +405,7 @@ export default function EstatisticasPage() {
       { name: 'Erradas', value: totalQuestoesErradas, fill: 'hsl(var(--destructive))' },
     ];
     
-    let subjectBreakdownData: { name: string; "Tempo (min)": number }[] = [];
+    let subjectBreakdownData: { name: string; tempoMin: number }[] = [];
     if (filterScope !== 'all' && selectedSubjectId === 'all_subjects_in_cargo') {
       const timeBySubject = filteredStudyLogs.reduce((acc, log) => {
         const parsed = robustParseCompositeTopicId(log.compositeTopicId, allEditaisData);
@@ -421,8 +421,8 @@ export default function EstatisticasPage() {
       if (cargoSubjects) {
         subjectBreakdownData = Object.entries(timeBySubject).map(([subjectId, duration]) => {
           const subjectName = cargoSubjects.find(s => s.id === subjectId)?.name || 'Desconhecido';
-          return { name: subjectName, "Tempo (min)": Math.round(duration / 60) };
-        }).sort((a, b) => b["Tempo (min)"] - a["Tempo (min)"]);
+          return { name: subjectName, tempoMin: Math.round(duration / 60) };
+        }).sort((a, b) => b.tempoMin - a.tempoMin);
       }
     }
 
@@ -536,7 +536,7 @@ export default function EstatisticasPage() {
   } satisfies ChartConfig;
 
   const timeChartConfig = {
-    "Tempo (min)": { label: "Tempo (min)", color: "hsl(var(--primary))" },
+    tempoMin: { label: "Tempo (min)", color: "hsl(var(--primary))" },
   } satisfies ChartConfig;
 
   return (
@@ -762,8 +762,8 @@ export default function EstatisticasPage() {
                     />
                     <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
                     <Bar
-                      dataKey="Tempo (min)"
-                      fill="var(--color-Tempo (min))"
+                      dataKey="tempoMin"
+                      fill="var(--color-tempoMin)"
                       radius={4}
                     />
                   </BarChart>
@@ -851,14 +851,14 @@ export default function EstatisticasPage() {
                         width={80} 
                         className="text-xs"
                       />
-                      <XAxis dataKey="Tempo (min)" type="number" hide />
+                      <XAxis dataKey="tempoMin" type="number" hide />
                       <ChartTooltip
                         cursor={false}
                         content={<ChartTooltipContent indicator="dot" />}
                       />
                       <Bar
-                        dataKey="Tempo (min)"
-                        fill="var(--color-Tempo (min))"
+                        dataKey="tempoMin"
+                        fill="var(--color-tempoMin)"
                         radius={4}
                       />
                     </BarChart>
