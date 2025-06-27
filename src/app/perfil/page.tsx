@@ -146,13 +146,25 @@ export default function ProfilePage() {
     }
 
     if (planId === 'plano_cargo' && selectedCargoCompositeId) {
-        const [editalId, cargoId] = selectedCargoCompositeId.split('_');
-        const edital = allEditaisData.find(e => e.id === editalId);
-        const cargo = edital?.cargos?.find(c => c.id === cargoId);
-        accessDescription = cargo ? (
+        let foundEdital: EditalType | undefined;
+        let foundCargo: CargoType | undefined;
+        
+        for (const edital of allEditaisData) {
+            if (selectedCargoCompositeId.startsWith(edital.id + '_')) {
+                const cargoId = selectedCargoCompositeId.substring(edital.id.length + 1);
+                const cargo = edital.cargos?.find(c => c.id === cargoId);
+                if (cargo) {
+                    foundEdital = edital;
+                    foundCargo = cargo;
+                    break;
+                }
+            }
+        }
+        
+        accessDescription = foundCargo && foundEdital ? (
             <>
-                Acesso ao cargo: <Link href={`/editais/${editalId}/cargos/${cargoId}`} className="font-semibold text-primary hover:underline">{cargo.name}</Link>
-                <span className="text-muted-foreground/80"> ({edital?.title || 'Edital Desc.'})</span>
+                Acesso ao cargo: <Link href={`/editais/${foundEdital.id}/cargos/${foundCargo.id}`} className="font-semibold text-primary hover:underline">{foundCargo.name}</Link>
+                <span className="text-muted-foreground/80"> ({foundEdital?.title || 'Edital Desc.'})</span>
             </>
         ) : `Acesso a um cargo específico.`;
 
@@ -183,11 +195,20 @@ export default function ProfilePage() {
 }, [user, allEditaisData, isPlanoCargoWithinGracePeriod]);
 
   const editalIdForUpgrade = useMemo(() => {
-    if (user?.planDetails?.selectedCargoCompositeId) {
-        return user.planDetails.selectedCargoCompositeId.split('_')[0];
+    const compositeId = user?.planDetails?.selectedCargoCompositeId;
+    if (!compositeId || !allEditaisData.length) return null;
+    
+    for (const edital of allEditaisData) {
+        if (compositeId.startsWith(edital.id + '_')) {
+            const cargoId = compositeId.substring(edital.id.length + 1);
+            const cargo = edital.cargos?.find(c => c.id === cargoId);
+            if (cargo) {
+                return edital.id; // Return the edital ID
+            }
+        }
     }
     return null;
-  }, [user?.planDetails?.selectedCargoCompositeId]);
+  }, [user?.planDetails?.selectedCargoCompositeId, allEditaisData]);
 
 
   const onSubmitName: SubmitHandler<ProfileFormValues> = async (data) => {
