@@ -700,82 +700,61 @@ export default function EstatisticasPage() {
         <p className="text-sm text-muted-foreground mb-6 italic text-center">{getFilterDescription()}</p>
 
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-          {filterScope === 'all' && selectedSubjectId === 'all_subjects_in_cargo' && selectedTopicId === 'all_topics_in_subject' && (
-            <Card className="shadow-md rounded-xl bg-card">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Cargos Inscritos</CardTitle>
-                <Library className="h-5 w-5 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                <div className="text-2xl font-bold">{stats.totalCargosInscritos}</div>
-                <p className="text-xs text-muted-foreground">
-                    Total de cargos que você está acompanhando.
-                </p>
-                </CardContent>
-            </Card>
-          )}
+        <Card className="shadow-lg rounded-xl bg-card">
+          <CardHeader>
+            <CardTitle>Resumo de Desempenho</CardTitle>
+            <CardDescription>Suas principais métricas de estudo com base nos filtros selecionados.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+              
+              {filterScope === 'all' && selectedSubjectId === 'all_subjects_in_cargo' && selectedTopicId === 'all_topics_in_subject' && (
+                 <div className="p-4 rounded-lg bg-muted/50">
+                    <Library className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm font-medium text-muted-foreground">Cargos Inscritos</p>
+                    <p className="text-2xl font-bold">{stats.totalCargosInscritos}</p>
+                </div>
+              )}
 
-          <Card className="shadow-md rounded-xl bg-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tópicos Concluídos</CardTitle>
-              <CheckCircle className="h-5 w-5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalTopicosEstudados}</div>
-              <p className="text-xs text-muted-foreground">
-                Tópicos marcados como estudados nos filtros atuais.
-              </p>
-            </CardContent>
-          </Card>
+              <div className="p-4 rounded-lg bg-muted/50">
+                <CheckCircle className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm font-medium text-muted-foreground">Tópicos Concluídos</p>
+                <p className="text-2xl font-bold">{stats.totalTopicosEstudados}</p>
+              </div>
 
-          <Card className="shadow-md rounded-xl bg-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tempo Total de Estudo</CardTitle>
-              <Clock className="h-5 w-5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.tempoTotalEstudoFormatado}</div>
-              <p className="text-xs text-muted-foreground">
-                Soma dos registros de estudo nos filtros atuais.
-              </p>
-            </CardContent>
-          </Card>
+              <div className="p-4 rounded-lg bg-muted/50">
+                <Clock className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm font-medium text-muted-foreground">Tempo de Estudo</p>
+                <p className="text-2xl font-bold">{stats.tempoTotalEstudoFormatado}</p>
+              </div>
 
-          <Card className="shadow-md rounded-xl bg-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Revisões Pendentes</CardTitle>
-              <CalendarCheck className="h-5 w-5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.revisoesPendentes}</div>
-              <p className="text-xs text-muted-foreground">
-                Tópicos para revisão nos filtros atuais.
-              </p>
-            </CardContent>
-          </Card>
+              <div className="p-4 rounded-lg bg-muted/50">
+                <CalendarCheck className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm font-medium text-muted-foreground">Revisões Pendentes</p>
+                <p className="text-2xl font-bold">{stats.revisoesPendentes}</p>
+              </div>
+            </div>
 
-          <Card className="shadow-md rounded-xl bg-card col-span-1 md:col-span-2">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Desempenho em Questões</CardTitle>
-              <Target className="h-5 w-5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-                {stats.performanceGeralQuestoes.total > 0 ? (
-                    <>
-                        <div className="text-2xl font-bold mb-1">{stats.performanceGeralQuestoes.aproveitamento.toFixed(1)}% de Acerto</div>
-                        <p className="text-sm text-muted-foreground">
-                            Total de {stats.performanceGeralQuestoes.total} questões ({stats.performanceGeralQuestoes.certas} certas, {stats.performanceGeralQuestoes.erradas} erradas) nos filtros atuais.
-                        </p>
-                    </>
-                ) : (
-                  <>
-                    <p className="text-muted-foreground">Nenhum registro de questões encontrado para os filtros selecionados.</p>
-                  </>
-                )}
-            </CardContent>
-          </Card>
-        </div>
+            <div className="pt-6 border-t">
+              <h3 className="text-lg font-semibold flex items-start mb-2">
+                <Target className="h-5 w-5 text-primary mr-2 mt-1" />
+                Desempenho em Questões
+              </h3>
+              {stats.performanceGeralQuestoes.total > 0 ? (
+                  <div>
+                      <span className="text-3xl font-bold">{stats.performanceGeralQuestoes.aproveitamento.toFixed(1)}%</span>
+                      <span className="text-xl font-semibold text-muted-foreground"> de Acerto</span>
+                      <p className="text-sm text-muted-foreground mt-1">
+                          Total de {stats.performanceGeralQuestoes.total} questões ({stats.performanceGeralQuestoes.certas} certas, {stats.performanceGeralQuestoes.erradas} erradas) nos filtros atuais.
+                      </p>
+                  </div>
+              ) : (
+                <p className="text-muted-foreground">Nenhum registro de questões encontrado para os filtros selecionados.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
 
         <div className="mt-8 space-y-6">
           {stats.chartData.studyTimeData.length > 0 ? (
