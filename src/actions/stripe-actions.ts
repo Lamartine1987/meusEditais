@@ -326,13 +326,41 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           };
           
           if (planIdFromMetadata === 'plano_cargo' && selectedCargoCompositeId) {
-            // When a user buys Plano Cargo, their registrations are reset to only this cargo.
-            // This overwrites any previous registrations (e.g., from a free trial).
             const updatedRegisteredCargoIds = [selectedCargoCompositeId];
             updatePayload.registeredCargoIds = updatedRegisteredCargoIds;
             console.log(`[handleStripeWebhook] PLANO_CARGO: Setting user ${userId}'s registered cargo to: ${JSON.stringify(updatedRegisteredCargoIds)}. Overwriting previous registrations.`);
+            
+            // Limpa o progresso de qualquer cargo registrado anteriormente (de um trial, por exemplo)
+            const previousRegisteredCargoIds: string[] = currentUserDataBeforeUpdate.registeredCargoIds || [];
+            const cargosToClean = previousRegisteredCargoIds.filter(id => id !== selectedCargoCompositeId);
+
+            if (cargosToClean.length > 0) {
+                console.log(`[handleStripeWebhook] PLANO_CARGO: Cleaning progress for old registrations: ${JSON.stringify(cargosToClean)}.`);
+                let progressToKeep = {
+                    studiedTopicIds: currentUserDataBeforeUpdate.studiedTopicIds || [],
+                    studyLogs: currentUserDataBeforeUpdate.studyLogs || [],
+                    questionLogs: currentUserDataBeforeUpdate.questionLogs || [],
+                    revisionSchedules: currentUserDataBeforeUpdate.revisionSchedules || [],
+                };
+
+                for (const cargoIdToClean of cargosToClean) {
+                    const prefix = `${cargoIdToClean}_`;
+                    progressToKeep.studiedTopicIds = progressToKeep.studiedTopicIds.filter((id: string) => !id.startsWith(prefix));
+                    progressToKeep.studyLogs = progressToKeep.studyLogs.filter((log: any) => !log.compositeTopicId.startsWith(prefix));
+                    progressToKeep.questionLogs = progressToKeep.questionLogs.filter((log: any) => !log.compositeTopicId.startsWith(prefix));
+                    progressToKeep.revisionSchedules = progressToKeep.revisionSchedules.filter((rs: any) => !rs.compositeTopicId.startsWith(prefix));
+                }
+
+                updatePayload.studiedTopicIds = progressToKeep.studiedTopicIds;
+                updatePayload.studyLogs = progressToKeep.studyLogs;
+                updatePayload.questionLogs = progressToKeep.questionLogs;
+                updatePayload.revisionSchedules = progressToKeep.revisionSchedules;
+                
+                console.log(`[handleStripeWebhook] PLANO_CARGO: Progress data for old cargos has been cleaned.`);
+            }
+
           } else if (planIdFromMetadata === 'plano_cargo') {
-             console.warn(`[handleStripeWebhook] PLANO_CARGO: 'planIdFromMetadata' is 'plano_cargo' but 'selectedCargoCompositeId' is missing or empty: '${selectedCargoCompositeId}'. Auto-registration SKIPPED.`);
+             console.warn(`[handleStripeWebhook] PLANO_CARGO: 'planIdFromMetadata' is 'plano_cargo' but 'selectedCargoCompositeId' is missing or empty: '${selectedCargoCompositeId}'. Auto-registration and progress cleaning SKIPPED.`);
           }
 
           console.log(`[handleStripeWebhook] FINAL DB UPDATE PAYLOAD for user ${userId}:`, JSON.stringify(updatePayload, null, 2));
