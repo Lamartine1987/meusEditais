@@ -317,7 +317,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const newPlanHistory = oldPlanDetails ? [...oldPlanHistory, oldPlanDetails] : oldPlanHistory;
         
         try {
-          console.log(`[handleStripeWebhook] Attempting atomic update to Firebase RTDB for user ${userId} at path users/${userId}`);
           const updatePayload: any = {
             activePlan: planIdFromMetadata,
             planDetails: planDetailsPayload,
@@ -336,6 +335,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
              console.warn(`[handleStripeWebhook] PLANO_CARGO: 'planIdFromMetadata' is 'plano_cargo' but 'selectedCargoCompositeId' is missing or empty: '${selectedCargoCompositeId}'. Auto-registration SKIPPED.`);
           }
 
+          console.log(`[handleStripeWebhook] FINAL DB UPDATE PAYLOAD for user ${userId}:`, JSON.stringify(updatePayload, null, 2));
           await userFirebaseRef.update(updatePayload); // Use admin ref update for a single atomic operation
           console.log(`[handleStripeWebhook] Successfully updated user data for ${userId} in Firebase.`);
 

@@ -36,6 +36,13 @@ export default function MyEditaisPage() {
   const [allEditais, setAllEditais] = useState<Edital[]>([]);
   const [isCancelling, setIsCancelling] = useState<string | null>(null);
 
+  // New log to trace re-renders and user state changes
+  console.log('[Meus Editais Render] Page rendering. User state:', user ? {
+    id: user.id,
+    activePlan: user.activePlan,
+    registeredCargoIds: user.registeredCargoIds
+  } : null);
+
   useEffect(() => {
     const fetchAllEditais = async () => {
       setLoadingData(true);
@@ -45,7 +52,7 @@ export default function MyEditaisPage() {
           throw new Error('Falha ao buscar dados dos editais.');
         }
         const data: Edital[] = await response.json();
-        console.log('[Meus Editais] Editais recebidos da API:', data);
+        console.log('[Meus Editais API] Editais recebidos da API:', data.map(e => e.id));
         setAllEditais(data);
       } catch (error: any) {
         console.error("Error fetching editais for My Editais page:", error);
@@ -63,36 +70,46 @@ export default function MyEditaisPage() {
   }, [toast]);
   
   const myRegisteredCargos = useMemo((): RegisteredCargoInfo[] => {
-    if (authLoading || loadingData || !user || !user.registeredCargoIds || !allEditais.length) {
+    console.log('[Meus Editais Memo] Running calculation...');
+    console.log(`[Meus Editais Memo] Auth Loading: ${authLoading}, Data Loading: ${loadingData}`);
+    
+    if (authLoading || loadingData || !user || !user.registeredCargoIds || allEditais.length === 0) {
+      console.log('[Meus Editais Memo] Exiting calculation early due to loading state or missing data.', {
+          authLoading,
+          loadingData,
+          hasUser: !!user,
+          hasRegisteredCargos: !!user?.registeredCargoIds?.length,
+          hasAllEditais: allEditais.length > 0
+      });
       return [];
     }
     
-    console.log('[Meus Editais] Calculando cargos inscritos. IDs do usuário:', user.registeredCargoIds);
-    console.log('[Meus Editais] Usando a lista de editais com os IDs:', allEditais.map(e => e.id));
-
+    console.log('[Meus Editais Memo] Data for calculation:');
+    console.log('[Meus Editais Memo] User Registered Cargo IDs:', user.registeredCargoIds);
+    console.log('[Meus Editais Memo] All Fetched Edital IDs:', allEditais.map(e => e.id));
 
     const registeredInfos: RegisteredCargoInfo[] = [];
     user.registeredCargoIds.forEach(compositeId => {
       let foundMatch = false;
       for (const edital of allEditais) {
-        // Check if the compositeId starts with the edital's ID followed by an underscore.
         if (compositeId.startsWith(`${edital.id}_`)) {
           const potentialCargoId = compositeId.substring(edital.id.length + 1);
           const cargo = edital.cargos?.find(c => c.id === potentialCargoId);
           
           if (cargo) {
+            console.log(`[Meus Editais Memo] SUCCESS: Matched compositeId '${compositeId}' with Edital '${edital.id}' and Cargo '${cargo.id}'.`);
             registeredInfos.push({ edital, cargo });
             foundMatch = true;
-            break; // Found a valid edital/cargo pair, move to the next compositeId
+            break;
           }
         }
       }
       if (!foundMatch) {
-          console.warn(`[Meus Editais] Não foi possível encontrar uma combinação válida de edital/cargo para a inscrição com ID: '${compositeId}'`);
+          console.warn(`[Meus Editais Memo] WARNING: Could not find a valid edital/cargo match for compositeId: '${compositeId}'`);
       }
     });
     
-    console.log('[Meus Editais] Cargos encontrados e processados:', registeredInfos);
+    console.log(`[Meus Editais Memo] Calculation finished. Found ${registeredInfos.length} registered cargos to display.`);
     return registeredInfos.sort((a, b) => a.cargo.name.localeCompare(b.cargo.name));
   }, [user, authLoading, allEditais, loadingData]);
 
