@@ -227,15 +227,19 @@ export default function SubjectTopicsPage() {
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
     const durationToSave = timerStates[topicId].time;
 
-    const pagesReadNumber = pagesRead ? parseInt(pagesRead, 10) : undefined;
-    if (pagesRead && (isNaN(pagesReadNumber) || pagesReadNumber < 0)) {
-        toast({ title: "Valor Inválido", description: "A quantidade de páginas lidas deve ser um número positivo.", variant: "destructive"});
-        return;
+    let pagesReadForPayload: number | undefined = undefined;
+    if (pagesRead) { // Only process if there's input
+        const parsedNumber = parseInt(pagesRead, 10);
+        if (isNaN(parsedNumber) || parsedNumber < 0) {
+            toast({ title: "Valor Inválido", description: "A quantidade de páginas lidas deve ser um número positivo.", variant: "destructive"});
+            return; // Abort if invalid
+        }
+        pagesReadForPayload = parsedNumber; // Assign only if valid
     }
 
     const pdfInfoPayload = {
       pdfName: pdfName.trim() || undefined,
-      pagesRead: pagesReadNumber,
+      pagesRead: pagesReadForPayload,
     };
 
     try {
@@ -762,8 +766,3 @@ export default function SubjectTopicsPage() {
     </PageWrapper>
   );
 }
-
-
-    
-
-    
