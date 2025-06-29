@@ -71,7 +71,8 @@ export default function SubjectTopicsPage() {
   const [daysToReviewInput, setDaysToReviewInput] = useState<string>('');
   
   const [pdfName, setPdfName] = useState('');
-  const [pagesRead, setPagesRead] = useState('');
+  const [startPage, setStartPage] = useState('');
+  const [endPage, setEndPage] = useState('');
 
   const [hasAccess, setHasAccess] = useState(false);
 
@@ -215,41 +216,48 @@ export default function SubjectTopicsPage() {
     }));
   };
 
-  const handleTimerSave = async (topicId: string) => {
-    if (!user || !editalId || !cargoId || !subjectId || !timerStates[topicId] || timerStates[topicId].time === 0 || !hasAccess) {
-      if (!hasAccess) {
-        toast({ title: "Acesso Restrito", description: "Seu plano não cobre esta ação.", variant: "default" });
-      } else {
-        toast({ title: "Nenhum tempo para salvar", description: "Inicie o cronômetro para registrar tempo de estudo.", variant: "default" });
-      }
+  const handleSaveLog = async (topicId: string) => {
+    if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
+
+    const durationToSave = timerStates[topicId]?.time || 0;
+    const pdfNameToSave = pdfName.trim();
+    const startPageNum = startPage ? parseInt(startPage, 10) : undefined;
+    const endPageNum = endPage ? parseInt(endPage, 10) : undefined;
+
+    // --- Validation ---
+    if (durationToSave === 0 && !pdfNameToSave && startPageNum === undefined && endPageNum === undefined) {
+      toast({ title: "Nada para Salvar", description: "Use o cronômetro ou preencha as informações de leitura para salvar um registro.", variant: "default" });
       return;
     }
-    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
-    const durationToSave = timerStates[topicId].time;
-
-    let pagesReadForPayload: number | undefined = undefined;
-    if (pagesRead) { // Only process if there's input
-        const parsedNumber = parseInt(pagesRead, 10);
-        if (isNaN(parsedNumber) || parsedNumber < 0) {
-            toast({ title: "Valor Inválido", description: "A quantidade de páginas lidas deve ser um número positivo.", variant: "destructive"});
-            return; // Abort if invalid
-        }
-        pagesReadForPayload = parsedNumber; // Assign only if valid
+    if ((startPageNum !== undefined && isNaN(startPageNum)) || (endPageNum !== undefined && isNaN(endPageNum))) {
+      toast({ title: "Páginas Inválidas", description: "Os números das páginas de leitura devem ser válidos.", variant: "destructive" });
+      return;
+    }
+    if (startPageNum !== undefined && endPageNum !== undefined && endPageNum < startPageNum) {
+      toast({ title: "Páginas Inválidas", description: "A página final não pode ser menor que a página inicial.", variant: "destructive" });
+      return;
     }
 
-    const pdfInfoPayload = {
-      pdfName: pdfName.trim() || undefined,
-      pagesRead: pagesReadForPayload,
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    const logData = {
+      duration: durationToSave,
+      ...(pdfNameToSave && { pdfName: pdfNameToSave }),
+      ...(startPageNum !== undefined && { startPage: startPageNum }),
+      ...(endPageNum !== undefined && { endPage: endPageNum }),
     };
 
     try {
-      await addStudyLog(compositeTopicId, durationToSave, pdfInfoPayload);
-      toast({ title: "Tempo Salvo!", description: `Registrado ${formatDuration(durationToSave)} para este tópico.`, variant: "default", className:"bg-accent text-accent-foreground" });
+      await addStudyLog(compositeTopicId, logData);
+      toast({ title: "Registro Salvo!", description: "Seu progresso de estudo foi salvo com sucesso.", variant: "default", className:"bg-accent text-accent-foreground" });
+      
+      // Reset all inputs on successful save
       handleTimerReset(topicId);
       setPdfName('');
-      setPagesRead('');
+      setStartPage('');
+      setEndPage('');
+
     } catch (error) {
-      toast({ title: "Erro ao Salvar Tempo", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
+      toast({ title: "Erro ao Salvar", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
     }
   };
   
@@ -483,8 +491,10 @@ export default function SubjectTopicsPage() {
                         }));
                     }
                     setActiveAccordionItem(newOpenTopic || null);
+                    // Reset reading inputs when switching topics
                     setPdfName('');
-                    setPagesRead('');
+                    setStartPage('');
+                    setEndPage('');
                 }}
               >
                 {subject.topics.map((topic: TopicType) => {
@@ -598,51 +608,77 @@ export default function SubjectTopicsPage() {
                             )}
                         </div>
 
-                        <div className="p-3 border rounded-md bg-background/50 shadow-sm space-y-3">
-                            <h4 className="text-sm font-semibold text-muted-foreground flex items-center">
-                                <FileText className="mr-2 h-4 w-4 text-primary" />
-                                Registro de Leitura (Opcional)
+                        <div className="p-4 border rounded-lg bg-background shadow-sm space-y-4">
+                            <h4 className="text-base font-semibold text-foreground flex items-center">
+                                <TimerIcon className="mr-2 h-5 w-5 text-primary" />
+                                Registrar Progresso
                             </h4>
-                            <div className="space-y-1">
-                                <Label htmlFor={`pdf-name-${topic.id}`} className="text-xs">Nome do PDF/Material</Label>
-                                <Input
-                                    id={`pdf-name-${topic.id}`}
-                                    placeholder="Ex: Aula 01 - Intro.pdf"
-                                    value={pdfName}
-                                    onChange={(e) => setPdfName(e.target.value)}
-                                    disabled={!hasAccess}
-                                    className="h-9"
-                                />
-                            </div>
-                            <div className="space-y-1">
-                                <Label htmlFor={`pages-read-${topic.id}`} className="text-xs">Páginas Lidas</Label>
-                                <Input
-                                    id={`pages-read-${topic.id}`}
-                                    type="number"
-                                    placeholder="Ex: 15"
-                                    value={pagesRead}
-                                    onChange={(e) => setPagesRead(e.target.value)}
-                                    disabled={!hasAccess}
-                                    className="h-9"
-                                />
-                            </div>
-                        </div>
 
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border rounded-lg bg-background shadow-sm">
-                          <div className={cn("text-3xl font-mono font-semibold", hasAccess ? "text-primary" : "text-muted-foreground/50")}>
-                            {formatDuration(currentTimerState.time)}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button variant="outline" size="icon" onClick={() => handleTimerPlayPause(topic.id)} title={currentTimerState.isRunning ? "Pausar" : "Iniciar"} disabled={!hasAccess}>
-                              {currentTimerState.isRunning ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                            <div className="space-y-3 p-3 border rounded-md bg-muted/30">
+                                <h5 className="text-sm font-semibold text-muted-foreground">Cronômetro de Estudo</h5>
+                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                                  <div className={cn("text-3xl font-mono font-semibold", hasAccess ? "text-primary" : "text-muted-foreground/50")}>
+                                    {formatDuration(currentTimerState.time)}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="icon" onClick={() => handleTimerPlayPause(topic.id)} title={currentTimerState.isRunning ? "Pausar" : "Iniciar"} disabled={!hasAccess}>
+                                      {currentTimerState.isRunning ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                                    </Button>
+                                    <Button variant="outline" size="icon" onClick={() => handleTimerReset(topic.id)} title="Reiniciar" disabled={!hasAccess}>
+                                      <RotateCcw className="h-5 w-5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-3 p-3 border rounded-md bg-muted/30">
+                                <h5 className="text-sm font-semibold text-muted-foreground flex items-center">
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    Registro de Leitura (Opcional)
+                                </h5>
+                                <div className="space-y-2">
+                                    <Label htmlFor={`pdf-name-${topic.id}`} className="text-xs">Nome do PDF/Material</Label>
+                                    <Input
+                                        id={`pdf-name-${topic.id}`}
+                                        placeholder="Ex: Aula 01 - Intro.pdf"
+                                        value={pdfName}
+                                        onChange={(e) => setPdfName(e.target.value)}
+                                        disabled={!hasAccess}
+                                        className="h-9"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-2">
+                                        <Label htmlFor={`start-page-${topic.id}`} className="text-xs">Página Inicial</Label>
+                                        <Input
+                                            id={`start-page-${topic.id}`}
+                                            type="number"
+                                            placeholder="Ex: 1"
+                                            value={startPage}
+                                            onChange={(e) => setStartPage(e.target.value)}
+                                            disabled={!hasAccess}
+                                            className="h-9"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor={`end-page-${topic.id}`} className="text-xs">Página Final</Label>
+                                        <Input
+                                            id={`end-page-${topic.id}`}
+                                            type="number"
+                                            placeholder="Ex: 15"
+                                            value={endPage}
+                                            onChange={(e) => setEndPage(e.target.value)}
+                                            disabled={!hasAccess}
+                                            className="h-9"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <Button variant="default" size="lg" className="w-full h-11" onClick={() => handleSaveLog(topic.id)} title="Salvar Progresso" disabled={!hasAccess}>
+                              <Save className="mr-2 h-5 w-5" />
+                              Salvar Progresso
                             </Button>
-                            <Button variant="outline" size="icon" onClick={() => handleTimerReset(topic.id)} title="Reiniciar" disabled={!hasAccess}>
-                              <RotateCcw className="h-5 w-5" />
-                            </Button>
-                            <Button variant="default" size="icon" onClick={() => handleTimerSave(topic.id)} title="Salvar Tempo" disabled={!hasAccess || (currentTimerState.time === 0 && !currentTimerState.isRunning)}>
-                              <Save className="h-5 w-5" />
-                            </Button>
-                          </div>
                         </div>
                         
                         {topicStudyLogs.length > 0 && (
@@ -653,18 +689,24 @@ export default function SubjectTopicsPage() {
                             </h4>
                             <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
                               {topicStudyLogs.map((log, index) => (
-                                <li key={index} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex flex-col gap-1">
+                                <li key={index} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex flex-col gap-1.5">
                                     <div className="flex justify-between items-center w-full">
                                         <span className="font-medium">{format(parseISO(log.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
-                                        <Badge variant="outline" className="font-mono text-xs">{formatDuration(log.duration)}</Badge>
+                                        {log.duration > 0 && <Badge variant="outline" className="font-mono text-xs">{formatDuration(log.duration)}</Badge>}
                                     </div>
-                                    {(log.pdfName || log.pagesRead !== undefined) && (
-                                        <div className="flex items-center text-muted-foreground/90 border-t pt-1.5 mt-1">
+                                    {(log.pdfName || log.startPage !== undefined) && (
+                                        <div className="flex items-center text-muted-foreground/90 border-t pt-1.5 mt-1.5">
                                             <FileText size={14} className="mr-1.5 shrink-0" />
-                                            <p className="truncate">
-                                            {log.pdfName || 'Material não especificado'}
-                                            {log.pagesRead !== undefined && ` - ${log.pagesRead} pág(s).`}
-                                            </p>
+                                            <div className="truncate flex flex-col">
+                                                <span>{log.pdfName || 'Material não especificado'}</span>
+                                                {log.startPage !== undefined && log.endPage !== undefined && log.endPage >= log.startPage ? (
+                                                  <span className="text-xs">Págs: {log.startPage}-{log.endPage} ({log.endPage - log.startPage + 1} lidas)</span>
+                                                ) : log.startPage !== undefined ? (
+                                                  <span className="text-xs">Início: pág. {log.startPage}</span>
+                                                ) : log.endPage !== undefined && (
+                                                   <span className="text-xs">Fim: pág. {log.endPage}</span>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </li>
@@ -673,7 +715,7 @@ export default function SubjectTopicsPage() {
                           </div>
                         )}
                          {topicStudyLogs.length === 0 && activeAccordionItem === topic.id && hasAccess && (
-                            <p className="text-xs text-center text-muted-foreground py-2">Nenhum tempo de estudo salvo para este tópico ainda.</p>
+                            <p className="text-xs text-center text-muted-foreground py-2">Nenhum registro de estudo salvo para este tópico ainda.</p>
                         )}
                         {topicStudyLogs.length === 0 && activeAccordionItem === topic.id && !hasAccess && (
                             <p className="text-xs text-center text-muted-foreground py-2">Assine um plano para salvar seus registros de estudo.</p>

@@ -32,7 +32,7 @@ interface AuthContextType {
   registerForCargo: (editalId: string, cargoId: string) => Promise<void>;
   unregisterFromCargo: (editalId: string, cargoId: string) => Promise<void>;
   toggleTopicStudyStatus: (compositeTopicId: string) => Promise<void>;
-  addStudyLog: (compositeTopicId: string, duration: number, pdfInfo?: { pdfName?: string; pagesRead?: number; }) => Promise<void>;
+  addStudyLog: (compositeTopicId: string, logData: { duration?: number; pdfName?: string; startPage?: number; endPage?: number; }) => Promise<void>;
   addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'date'>) => Promise<void>;
   addRevisionSchedule: (compositeTopicId: string, daysToReview: number) => Promise<void>;
   toggleRevisionReviewedStatus: (compositeTopicId: string) => Promise<void>;
@@ -357,24 +357,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const addStudyLog = async (compositeTopicId: string, duration: number, pdfInfo?: { pdfName?: string; pagesRead?: number; }) => {
+  const addStudyLog = async (compositeTopicId: string, logData: { duration?: number, pdfName?: string, startPage?: number, endPage?: number }) => {
     if (user) {
-      const newLog: StudyLogEntry = { 
-        compositeTopicId, 
-        date: new Date().toISOString(), 
-        duration,
-        ...(pdfInfo?.pdfName && { pdfName: pdfInfo.pdfName }),
-        ...(pdfInfo?.pagesRead !== undefined && { pagesRead: pdfInfo.pagesRead }),
-      };
-      const updatedStudyLogs = [...(user.studyLogs || []), newLog];
-      try {
-        await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
-      } catch (error) {
-        console.error("Error adding study log:", error);
-        toast({ title: "Erro ao Salvar Log", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
-      }
+        const newLog: StudyLogEntry = {
+            compositeTopicId,
+            date: new Date().toISOString(),
+            duration: logData.duration || 0, // Default to 0 if no duration is passed
+            ...(logData.pdfName && { pdfName: logData.pdfName }),
+            ...(logData.startPage !== undefined && { startPage: logData.startPage }),
+            ...(logData.endPage !== undefined && { endPage: logData.endPage }),
+        };
+        const updatedStudyLogs = [...(user.studyLogs || []), newLog];
+        try {
+            await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
+        } catch (error) {
+            console.error("Error adding study log:", error);
+            toast({ title: "Erro ao Salvar Log", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
+        }
     }
   };
+
 
   const addQuestionLog = async (logEntryData: Omit<QuestionLogEntry, 'date'>) => {
     if (user) {

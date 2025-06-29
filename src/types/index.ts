@@ -4,7 +4,8 @@ export interface StudyLogEntry {
   date: string; // ISO string date for when the log was saved
   duration: number; // in seconds
   pdfName?: string;
-  pagesRead?: number;
+  startPage?: number;
+  endPage?: number;
 }
 
 export interface QuestionLogEntry {
