@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon, ClipboardList, CheckCircle, XCircle, TrendingUp, CalendarClock, Info, AlertTriangle, Gem } from 'lucide-react';
+import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon, ClipboardList, CheckCircle, XCircle, TrendingUp, CalendarClock, Info, AlertTriangle, Gem, FileText } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
@@ -69,6 +69,9 @@ export default function SubjectTopicsPage() {
   const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
   const [currentTopicIdForRevisionModal, setCurrentTopicIdForRevisionModal] = useState<string | null>(null);
   const [daysToReviewInput, setDaysToReviewInput] = useState<string>('');
+  
+  const [pdfName, setPdfName] = useState('');
+  const [pagesRead, setPagesRead] = useState('');
 
   const [hasAccess, setHasAccess] = useState(false);
 
@@ -223,10 +226,24 @@ export default function SubjectTopicsPage() {
     }
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
     const durationToSave = timerStates[topicId].time;
+
+    const pagesReadNumber = pagesRead ? parseInt(pagesRead, 10) : undefined;
+    if (pagesRead && (isNaN(pagesReadNumber) || pagesReadNumber < 0)) {
+        toast({ title: "Valor Inválido", description: "A quantidade de páginas lidas deve ser um número positivo.", variant: "destructive"});
+        return;
+    }
+
+    const pdfInfoPayload = {
+      pdfName: pdfName.trim() || undefined,
+      pagesRead: pagesReadNumber,
+    };
+
     try {
-      await addStudyLog(compositeTopicId, durationToSave);
+      await addStudyLog(compositeTopicId, durationToSave, pdfInfoPayload);
       toast({ title: "Tempo Salvo!", description: `Registrado ${formatDuration(durationToSave)} para este tópico.`, variant: "default", className:"bg-accent text-accent-foreground" });
-      handleTimerReset(topicId); 
+      handleTimerReset(topicId);
+      setPdfName('');
+      setPagesRead('');
     } catch (error) {
       toast({ title: "Erro ao Salvar Tempo", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
     }
@@ -462,6 +479,8 @@ export default function SubjectTopicsPage() {
                         }));
                     }
                     setActiveAccordionItem(newOpenTopic || null);
+                    setPdfName('');
+                    setPagesRead('');
                 }}
               >
                 {subject.topics.map((topic: TopicType) => {
@@ -575,6 +594,36 @@ export default function SubjectTopicsPage() {
                             )}
                         </div>
 
+                        <div className="p-3 border rounded-md bg-background/50 shadow-sm space-y-3">
+                            <h4 className="text-sm font-semibold text-muted-foreground flex items-center">
+                                <FileText className="mr-2 h-4 w-4 text-primary" />
+                                Registro de Leitura (Opcional)
+                            </h4>
+                            <div className="space-y-1">
+                                <Label htmlFor={`pdf-name-${topic.id}`} className="text-xs">Nome do PDF/Material</Label>
+                                <Input
+                                    id={`pdf-name-${topic.id}`}
+                                    placeholder="Ex: Aula 01 - Intro.pdf"
+                                    value={pdfName}
+                                    onChange={(e) => setPdfName(e.target.value)}
+                                    disabled={!hasAccess}
+                                    className="h-9"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label htmlFor={`pages-read-${topic.id}`} className="text-xs">Páginas Lidas</Label>
+                                <Input
+                                    id={`pages-read-${topic.id}`}
+                                    type="number"
+                                    placeholder="Ex: 15"
+                                    value={pagesRead}
+                                    onChange={(e) => setPagesRead(e.target.value)}
+                                    disabled={!hasAccess}
+                                    className="h-9"
+                                />
+                            </div>
+                        </div>
+
                         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 border rounded-lg bg-background shadow-sm">
                           <div className={cn("text-3xl font-mono font-semibold", hasAccess ? "text-primary" : "text-muted-foreground/50")}>
                             {formatDuration(currentTimerState.time)}
@@ -600,9 +649,20 @@ export default function SubjectTopicsPage() {
                             </h4>
                             <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
                               {topicStudyLogs.map((log, index) => (
-                                <li key={index} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex justify-between items-center">
-                                  <span>{format(parseISO(log.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
-                                  <span className="font-medium">{formatDuration(log.duration)}</span>
+                                <li key={index} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex flex-col gap-1">
+                                    <div className="flex justify-between items-center w-full">
+                                        <span className="font-medium">{format(parseISO(log.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                                        <Badge variant="outline" className="font-mono text-xs">{formatDuration(log.duration)}</Badge>
+                                    </div>
+                                    {(log.pdfName || log.pagesRead !== undefined) && (
+                                        <div className="flex items-center text-muted-foreground/90 border-t pt-1.5 mt-1">
+                                            <FileText size={14} className="mr-1.5 shrink-0" />
+                                            <p className="truncate">
+                                            {log.pdfName || 'Material não especificado'}
+                                            {log.pagesRead !== undefined && ` - ${log.pagesRead} pág(s).`}
+                                            </p>
+                                        </div>
+                                    )}
                                 </li>
                               ))}
                             </ul>

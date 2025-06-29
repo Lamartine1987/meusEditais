@@ -3,6 +3,8 @@ export interface StudyLogEntry {
   compositeTopicId: string;
   date: string; // ISO string date for when the log was saved
   duration: number; // in seconds
+  pdfName?: string;
+  pagesRead?: number;
 }
 
 export interface QuestionLogEntry {

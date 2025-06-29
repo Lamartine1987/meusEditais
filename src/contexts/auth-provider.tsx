@@ -32,7 +32,7 @@ interface AuthContextType {
   registerForCargo: (editalId: string, cargoId: string) => Promise<void>;
   unregisterFromCargo: (editalId: string, cargoId: string) => Promise<void>;
   toggleTopicStudyStatus: (compositeTopicId: string) => Promise<void>;
-  addStudyLog: (compositeTopicId: string, duration: number) => Promise<void>;
+  addStudyLog: (compositeTopicId: string, duration: number, pdfInfo?: { pdfName?: string; pagesRead?: number; }) => Promise<void>;
   addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'date'>) => Promise<void>;
   addRevisionSchedule: (compositeTopicId: string, daysToReview: number) => Promise<void>;
   toggleRevisionReviewedStatus: (compositeTopicId: string) => Promise<void>;
@@ -357,19 +357,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const addStudyLog = async (compositeTopicId: string, duration: number) => {
+  const addStudyLog = async (compositeTopicId: string, duration: number, pdfInfo?: { pdfName?: string; pagesRead?: number; }) => {
     if (user) {
-      // setLoading(true);
-      const newLog: StudyLogEntry = { compositeTopicId, date: new Date().toISOString(), duration };
+      const newLog: StudyLogEntry = { 
+        compositeTopicId, 
+        date: new Date().toISOString(), 
+        duration,
+        ...(pdfInfo?.pdfName && { pdfName: pdfInfo.pdfName }),
+        ...(pdfInfo?.pagesRead !== undefined && { pagesRead: pdfInfo.pagesRead }),
+      };
       const updatedStudyLogs = [...(user.studyLogs || []), newLog];
       try {
         await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
-        // setUser state will be updated by onValue
       } catch (error) {
         console.error("Error adding study log:", error);
         toast({ title: "Erro ao Salvar Log", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
-      } 
-      // finally { setLoading(false); }
+      }
     }
   };
 
