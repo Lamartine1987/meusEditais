@@ -60,9 +60,51 @@ export default function HomePage() {
     fetchEditais();
   }, [toast]);
 
-  const filteredEditais = useMemo(() => {
+  const processedEditais = useMemo(() => {
     if (!allEditais) return [];
+
+    const getStatus = (publicationDateStr: string, closingDateStr: string): Edital['status'] => {
+      // Return 'closed' if dates are invalid or missing
+      if (!publicationDateStr || !closingDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(publicationDateStr) || !/^\d{4}-\d{2}-\d{2}$/.test(closingDateStr)) {
+        return 'closed';
+      }
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const [pubYear, pubMonth, pubDay] = publicationDateStr.split('-').map(Number);
+      const pubDate = new Date(pubYear, pubMonth - 1, pubDay);
+
+      const [closeYear, closeMonth, closeDay] = closingDateStr.split('-').map(Number);
+      const closeDate = new Date(closeYear, closeMonth - 1, closeDay);
+      
+      if (isNaN(pubDate.getTime()) || isNaN(closeDate.getTime())) {
+        return 'closed';
+      }
+
+      if (today < pubDate) return 'upcoming';
+      if (today > closeDate) return 'closed';
+      return 'open';
+    };
+
     return allEditais
+      .map(edital => ({
+        ...edital,
+        status: getStatus(edital.publicationDate, edital.closingDate), // Calculate status dynamically
+      }))
+      .sort((a, b) => {
+        // Sort by publication date, descending (most recent first)
+        try {
+          return new Date(b.publicationDate).getTime() - new Date(a.publicationDate).getTime();
+        } catch (e) {
+          return 0; // Don't crash on invalid dates
+        }
+      });
+  }, [allEditais]);
+
+  const filteredEditais = useMemo(() => {
+    if (!processedEditais) return [];
+    return processedEditais
       .filter(edital => {
         // Safe search filter
         const searchTermLower = searchTerm.toLowerCase();
@@ -73,17 +115,17 @@ export default function HomePage() {
         );
       })
       .filter(edital => {
-        // Safe status filter
+        // Status filter now works on dynamically calculated status
         if (statusFilter === 'all') return true;
         return edital?.status === statusFilter;
       })
       .filter(edital => {
-        // Safe state filter
+        // State filter
         if (stateFilter === specialFilters[0]) return true; // 'Todos'
         if (stateFilter === specialFilters[1]) return edital?.state === specialFilters[1]; // 'Nacional'
         return edital?.state === stateFilter;
       });
-  }, [allEditais, searchTerm, statusFilter, stateFilter]);
+  }, [processedEditais, searchTerm, statusFilter, stateFilter]);
 
   return (
     <PageWrapper>
