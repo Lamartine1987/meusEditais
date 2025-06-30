@@ -22,6 +22,9 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   title: 'Meus Editais',
   description: 'Encontre editais de forma fácil e rápida.',
+  icons: {
+    icon: 'data:;base64,iVBORw0KGgo=',
+  },
 };
 
 export default function RootLayout({
