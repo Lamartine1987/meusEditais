@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon, ClipboardList, CheckCircle, XCircle, TrendingUp, CalendarClock, Info, AlertTriangle, Gem, FileText } from 'lucide-react';
+import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon, ClipboardList, CheckCircle, XCircle, TrendingUp, CalendarClock, Info, AlertTriangle, Gem, FileText, History } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
@@ -358,25 +358,26 @@ export default function SubjectTopicsPage() {
     }
   };
   
-  const handleToggleRevisionReviewed = async (topicId: string) => {
-    if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
-    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+  const handleToggleRevisionReviewed = async (revisionId: string) => {
+    if (!user || !hasAccess) return;
     try {
-      await toggleRevisionReviewedStatus(compositeTopicId);
-      const revision = getRevisionScheduleForTopic(topicId);
-      toast({
-        title: `Revisão ${revision?.isReviewed ? 'Marcada' : 'Desmarcada'}!`,
-        variant: "default",
-      });
+        const revisionToToggle = user.revisionSchedules?.find(r => r.id === revisionId);
+        await toggleRevisionReviewedStatus(revisionId);
+        toast({
+            title: `Revisão ${!revisionToToggle?.isReviewed ? 'Concluída' : 'Marcada como Pendente'}!`,
+            variant: "default",
+        });
     } catch (error) {
-      toast({ title: "Erro ao atualizar status da revisão", variant: "destructive" });
+        toast({ title: "Erro ao atualizar status da revisão", variant: "destructive" });
     }
   };
 
-  const getRevisionScheduleForTopic = useCallback((topicId: string): RevisionScheduleEntry | null => {
-    if (!user?.revisionSchedules) return null;
+  const getRevisionSchedulesForTopic = useCallback((topicId: string): RevisionScheduleEntry[] => {
+    if (!user?.revisionSchedules) return [];
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
-    return user.revisionSchedules.find(rs => rs.compositeTopicId === compositeTopicId) || null;
+    return user.revisionSchedules
+        .filter(rs => rs.compositeTopicId === compositeTopicId)
+        .sort((a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime());
   }, [user, editalId, cargoId, subjectId]);
 
 
@@ -510,8 +511,9 @@ export default function SubjectTopicsPage() {
                   if (latestQuestionLog && latestQuestionLog.totalQuestions > 0) {
                     performancePercentage = (latestQuestionLog.correctQuestions / latestQuestionLog.totalQuestions) * 100;
                   }
-                  const revisionSchedule = getRevisionScheduleForTopic(topic.id);
-                  const isRevisionDue = revisionSchedule && !revisionSchedule.isReviewed && (isToday(parseISO(revisionSchedule.scheduledDate)) || isPast(parseISO(revisionSchedule.scheduledDate)));
+                  const revisionSchedules = getRevisionSchedulesForTopic(topic.id);
+                  const isRevisionDue = revisionSchedules.some(r => !r.isReviewed && (isToday(parseISO(r.scheduledDate)) || isPast(parseISO(r.scheduledDate))));
+
 
                   return (
                     <AccordionItem 
@@ -554,36 +556,46 @@ export default function SubjectTopicsPage() {
                             </div>
                             <Button variant="outline" size="sm" onClick={() => handleOpenRevisionModal(topic.id)} className="w-full sm:w-auto" disabled={!hasAccess}>
                                 <CalendarClock className="mr-2 h-4 w-4"/>
-                                {revisionSchedule ? "Reagendar Revisão" : "Agendar Revisão"}
+                                {revisionSchedules.length > 0 ? "Agendar Nova Revisão" : "Agendar Revisão"}
                             </Button>
                         </div>
 
-                        {revisionSchedule && (
-                            <div className="p-3 border rounded-md bg-background/50 shadow-sm space-y-2">
-                                <p className="text-sm font-medium text-muted-foreground">
-                                    Status da Revisão:
-                                    {revisionSchedule.isReviewed && revisionSchedule.reviewedDate ? (
-                                        <span className="ml-1 text-green-600 font-semibold">Revisado em {format(parseISO(revisionSchedule.reviewedDate), "dd/MM/yyyy", { locale: ptBR })}</span>
-                                    ) : isRevisionDue ? (
-                                        <span className="ml-1 text-yellow-600 font-semibold">Pendente (Agendado para {format(parseISO(revisionSchedule.scheduledDate), "dd/MM/yyyy", { locale: ptBR })})</span>
-                                    ) : (
-                                        <span className="ml-1 text-foreground/80">Agendado para {format(parseISO(revisionSchedule.scheduledDate), "dd/MM/yyyy", { locale: ptBR })}</span>
-                                    )}
-                                </p>
-                                {(isRevisionDue || revisionSchedule.isReviewed) && (
-                                     <div className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id={`revision-checked-${topic.id}`}
-                                            checked={revisionSchedule.isReviewed}
-                                            onCheckedChange={() => handleToggleRevisionReviewed(topic.id)}
-                                            className="h-5 w-5"
-                                            disabled={!hasAccess}
-                                        />
-                                        <Label htmlFor={`revision-checked-${topic.id}`} className={cn("text-sm font-medium text-foreground/80", !hasAccess ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
-                                            Marcar como revisado
-                                        </Label>
-                                    </div>
-                                )}
+                        {revisionSchedules.length > 0 && (
+                            <div className="p-3 border rounded-md bg-background/50 shadow-sm space-y-3">
+                                <h5 className="text-sm font-semibold text-muted-foreground flex items-center"><History className="mr-2 h-4 w-4" />Histórico de Revisões</h5>
+                                <ul className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                                    {revisionSchedules.map(revision => {
+                                        const isDue = !revision.isReviewed && (isToday(parseISO(revision.scheduledDate)) || isPast(parseISO(revision.scheduledDate)));
+                                        return (
+                                            <li key={revision.id} className={cn("text-xs p-2 border rounded-md shadow-sm flex flex-col gap-1.5", isDue ? 'bg-yellow-50 dark:bg-yellow-900/50' : 'bg-background/70')}>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-semibold">
+                                                        {revision.isReviewed ? 'Revisado em:' : 'Agendado para:'}
+                                                    </span>
+                                                    <span className="font-medium">
+                                                        {revision.isReviewed && revision.reviewedDate
+                                                            ? format(parseISO(revision.reviewedDate), "dd/MM/yy")
+                                                            : format(parseISO(revision.scheduledDate), "dd/MM/yy")}
+                                                    </span>
+                                                </div>
+                                                {!revision.isReviewed && (
+                                                    <div className="flex items-center space-x-2 pt-1 border-t mt-1">
+                                                        <Checkbox
+                                                            id={`revision-checked-${revision.id}`}
+                                                            checked={revision.isReviewed}
+                                                            onCheckedChange={() => handleToggleRevisionReviewed(revision.id)}
+                                                            className="h-4 w-4"
+                                                            disabled={!hasAccess}
+                                                        />
+                                                        <Label htmlFor={`revision-checked-${revision.id}`} className={cn("text-xs font-medium", !hasAccess ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
+                                                            Marcar como revisado
+                                                        </Label>
+                                                    </div>
+                                                )}
+                                            </li>
+                                        )
+                                    })}
+                                </ul>
                             </div>
                         )}
                         

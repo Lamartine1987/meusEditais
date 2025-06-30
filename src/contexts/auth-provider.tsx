@@ -35,7 +35,7 @@ interface AuthContextType {
   addStudyLog: (compositeTopicId: string, logData: { duration?: number; pdfName?: string; startPage?: number; endPage?: number; }) => Promise<void>;
   addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'date'>) => Promise<void>;
   addRevisionSchedule: (compositeTopicId: string, daysToReview: number) => Promise<void>;
-  toggleRevisionReviewedStatus: (compositeTopicId: string) => Promise<void>;
+  toggleRevisionReviewedStatus: (revisionId: string) => Promise<void>;
   cancelSubscription: () => Promise<void>;
   startFreeTrial: () => Promise<void>;
   changeCargoForPlanoCargo: (newCargoCompositeId: string) => Promise<void>;
@@ -396,30 +396,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const addRevisionSchedule = async (compositeTopicId: string, daysToReview: number) => {
     if (user) {
-      // setLoading(true);
       const scheduledDate = formatISO(addDays(new Date(), daysToReview));
-      let updatedRevisionSchedules = [...(user.revisionSchedules || [])];
-      const existingScheduleIndex = updatedRevisionSchedules.findIndex(rs => rs.compositeTopicId === compositeTopicId);
-      const newScheduleEntry: RevisionScheduleEntry = { compositeTopicId, scheduledDate, isReviewed: false, reviewedDate: null };
-
-      if (existingScheduleIndex > -1) updatedRevisionSchedules[existingScheduleIndex] = newScheduleEntry;
-      else updatedRevisionSchedules.push(newScheduleEntry);
+      const newScheduleEntry: RevisionScheduleEntry = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        compositeTopicId,
+        scheduledDate,
+        isReviewed: false,
+        reviewedDate: null,
+      };
+      const updatedRevisionSchedules = [...(user.revisionSchedules || []), newScheduleEntry];
       try {
         await update(ref(db, `users/${user.id}`), { revisionSchedules: updatedRevisionSchedules });
         // setUser state will be updated by onValue
       } catch (error) {
         console.error("Error adding revision schedule:", error);
         toast({ title: "Erro ao Agendar Revisão", description: "Não foi possível salvar o agendamento.", variant: "destructive" });
-      } 
-      // finally { setLoading(false); }
+      }
     }
   };
 
-  const toggleRevisionReviewedStatus = async (compositeTopicId: string) => {
+  const toggleRevisionReviewedStatus = async (revisionId: string) => {
      if (user) {
-      // setLoading(true);
       let updatedRevisionSchedules = [...(user.revisionSchedules || [])];
-      const scheduleIndex = updatedRevisionSchedules.findIndex(rs => rs.compositeTopicId === compositeTopicId);
+      const scheduleIndex = updatedRevisionSchedules.findIndex(rs => rs.id === revisionId);
       
       if (scheduleIndex > -1) {
         const currentStatus = updatedRevisionSchedules[scheduleIndex].isReviewed;
@@ -436,7 +435,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           toast({ title: "Erro ao Atualizar Revisão", description: "Não foi possível salvar o status da revisão.", variant: "destructive" });
         }
       }
-      // setLoading(false);
     }
   };
   

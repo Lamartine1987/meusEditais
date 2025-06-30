@@ -18,6 +18,7 @@ export interface QuestionLogEntry {
 }
 
 export interface RevisionScheduleEntry {
+  id: string;
   compositeTopicId: string;
   scheduledDate: string; // ISO string date for when the revision is scheduled
   isReviewed: boolean;
