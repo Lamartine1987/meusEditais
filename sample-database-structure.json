@@ -1,0 +1,178 @@
+
+{
+  "editais": {
+    "trt_unificado_2024": {
+      "id": "trt_unificado_2024",
+      "title": "Concurso TRT Unificado (Justiça do Trabalho) 2024",
+      "organization": "Conselho Superior da Justiça do Trabalho (CSJT)",
+      "publicationDate": "2024-08-01",
+      "closingDate": "2024-09-15",
+      "summary": "Vagas para Analista Judiciário e Técnico Judiciário em diversos Tribunais Regionais do Trabalho pelo Brasil.",
+      "fullTextUrl": "https://www.csjt.jus.br/web/csjt/concurso-nacional",
+      "imageUrl": "https://placehold.co/600x400.png",
+      "state": "Nacional",
+      "status": "upcoming",
+      "cargos": [
+        {
+          "id": "aja_judiciaria",
+          "name": "Analista Judiciário - Área Judiciária",
+          "description": "Atividades de nível superior de natureza técnica, realizadas privativamente por graduados em Direito, compreendendo processamento de feitos, elaboração de pareceres, e outras atividades de mesma natureza e grau de complexidade.",
+          "requirements": [
+            "Graduação em Direito"
+          ],
+          "salary": 13994.78,
+          "subjects": [
+            {
+              "id": "direito_constitucional",
+              "name": "Direito Constitucional",
+              "topics": [
+                {
+                  "id": "const_conceito",
+                  "name": "Constituição: conceito, classificações, princípios fundamentais"
+                },
+                {
+                  "id": "direitos_garantias",
+                  "name": "Direitos e garantias fundamentais"
+                },
+                {
+                  "id": "controle_const",
+                  "name": "Controle de constitucionalidade"
+                },
+                {
+                  "id": "org_estado",
+                  "name": "Organização do Estado"
+                }
+              ]
+            },
+            {
+              "id": "direito_trabalho",
+              "name": "Direito do Trabalho",
+              "topics": [
+                {
+                  "id": "principios_fontes",
+                  "name": "Princípios e fontes do Direito do Trabalho"
+                },
+                {
+                  "id": "relacao_trabalho",
+                  "name": "Relação de trabalho e relação de emprego"
+                },
+                {
+                  "id": "contrato_trabalho",
+                  "name": "Contrato individual de trabalho"
+                },
+                {
+                  "id": "jornada_trabalho",
+                  "name": "Duração do trabalho"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tja_administrativa",
+          "name": "Técnico Judiciário - Área Administrativa",
+          "description": "Atividades de nível intermediário de apoio técnico e administrativo, relacionadas às áreas de recursos humanos, material e patrimônio, licitações e contratos, orçamento e finanças, controle interno e auditoria, e outras atividades de mesma natureza e grau de complexidade.",
+          "requirements": [
+            "Nível Médio Completo"
+          ],
+          "salary": 8529.65,
+          "subjects": [
+            {
+              "id": "portugues",
+              "name": "Língua Portuguesa",
+              "topics": [
+                {
+                  "id": "interpretacao",
+                  "name": "Interpretação de textos"
+                },
+                {
+                  "id": "concordancia",
+                  "name": "Concordância verbal e nominal"
+                },
+                {
+                  "id": "regencia",
+                  "name": "Regência verbal e nominal"
+                }
+              ]
+            },
+            {
+              "id": "noc_adm",
+              "name": "Noções de Direito Administrativo",
+              "topics": [
+                {
+                  "id": "atos_adm",
+                  "name": "Atos administrativos"
+                },
+                {
+                  "id": "licitacoes_contratos",
+                  "name": "Licitações e Contratos (Lei nº 14.133/2021)"
+                },
+                {
+                  "id": "agentes_publicos",
+                  "name": "Agentes públicos"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "cnp_2024": {
+      "id": "cnp_2024",
+      "title": "Concurso Nacional Unificado (CNU) 2024",
+      "organization": "Governo Federal - MGI",
+      "publicationDate": "2024-01-10",
+      "closingDate": "2024-02-09",
+      "summary": "O 'Enem dos Concursos' oferece 6.640 vagas em 21 órgãos federais, com oportunidades para níveis médio e superior em diversas áreas.",
+      "fullTextUrl": "https://www.gov.br/gestao/pt-br/concursonacional/",
+      "imageUrl": "https://placehold.co/600x400.png",
+      "state": "Nacional",
+      "status": "closed",
+      "cargos": [
+        {
+          "id": "atps_bloco_x",
+          "name": "Analista Técnico de Políticas Sociais",
+          "description": "Atuação em projetos e políticas sociais do governo federal, nos eixos temáticos de Saúde, Educação, Direitos Humanos, etc.",
+          "requirements": [
+            "Nível Superior em qualquer área de formação"
+          ],
+          "salary": 12960.9,
+          "subjects": [
+            {
+              "id": "politicas_publicas",
+              "name": "Políticas Públicas",
+              "topics": [
+                {
+                  "id": "ciclo_politicas",
+                  "name": "Ciclo de Políticas Públicas"
+                },
+                {
+                  "id": "federalismo",
+                  "name": "Federalismo e Descentralização"
+                },
+                {
+                  "id": "participacao_social",
+                  "name": "Participação Social e Controle Social"
+                }
+              ]
+            },
+            {
+              "id": "desafios_estado",
+              "name": "Desafios do Estado de Direito",
+              "topics": [
+                {
+                  "id": "democracia_cidadania",
+                  "name": "Democracia e Cidadania"
+                },
+                {
+                  "id": "etica_integridade",
+                  "name": "Ética e Integridade"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
