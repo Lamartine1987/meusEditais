@@ -6,7 +6,7 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Library, CheckCircle, Clock, CalendarCheck, AlertTriangle, FilterIcon, Target, BookOpen, Layers, PieChart as PieChartIcon, BookCopy, BarChartHorizontal } from 'lucide-react';
+import { Loader2, Library, CheckCircle, Clock, CalendarCheck, AlertTriangle, FilterIcon, Target, BookOpen, Layers, PieChart as PieChartIcon, BookCopy, BarChartHorizontal, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -367,6 +367,14 @@ export default function EstatisticasPage() {
 
     const tempoTotalEstudoSegundos = filteredStudyLogs.reduce((acc, log) => acc + log.duration, 0);
     const tempoTotalEstudoFormatado = formatTotalDuration(tempoTotalEstudoSegundos);
+    
+    const totalPaginasLidas = filteredStudyLogs.reduce((acc, log) => {
+        if (log.startPage !== undefined && log.endPage !== undefined && log.endPage >= log.startPage) {
+            return acc + (log.endPage - log.startPage + 1);
+        }
+        return acc;
+    }, 0);
+    const materiaisEstudados = new Set(filteredStudyLogs.map(log => log.pdfName).filter(Boolean)).size;
 
     const revisoesPendentes = filteredRevisionSchedulesObjects.filter(
       (rs: RevisionScheduleEntry) => {
@@ -472,6 +480,8 @@ export default function EstatisticasPage() {
       tempoTotalEstudoFormatado,
       revisoesPendentes,
       performanceGeralQuestoes,
+      totalPaginasLidas,
+      materiaisEstudados,
       chartData: {
         studyTimeData,
         questionPerformanceData,
@@ -707,7 +717,7 @@ export default function EstatisticasPage() {
                     <CardDescription>Suas principais métricas de estudo com base nos filtros selecionados.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-center">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
                         {filterScope === 'all' && (
                             <div className="p-4 rounded-lg bg-muted/50">
                                 <Library className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
@@ -729,6 +739,16 @@ export default function EstatisticasPage() {
                             <CalendarCheck className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
                             <p className="text-sm font-medium text-muted-foreground">Revisões Pendentes</p>
                             <p className="text-2xl font-bold">{stats.revisoesPendentes}</p>
+                        </div>
+                        <div className="p-4 rounded-lg bg-muted/50">
+                            <FileText className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                            <p className="text-sm font-medium text-muted-foreground">Materiais Estudados</p>
+                            <p className="text-2xl font-bold">{stats.materiaisEstudados}</p>
+                        </div>
+                        <div className="p-4 rounded-lg bg-muted/50">
+                            <BookCopy className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+                            <p className="text-sm font-medium text-muted-foreground">Páginas Lidas</p>
+                            <p className="text-2xl font-bold">{stats.totalPaginasLidas}</p>
                         </div>
                     </div>
                     <div className="pt-6 border-t">
