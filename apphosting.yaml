@@ -26,5 +26,8 @@ env:
   - variable: STRIPE_PRICE_ID_PLANO_ANUAL
     secret: STRIPE_PRICE_ID_PLANO_ANUAL
 
+  # ✅ URL da Aplicação - Essencial para o Stripe e outras funcionalidades.
+  # Para seu domínio 'meuseditais.com.br', você deve definir o valor deste segredo
+  # como "https://meuseditais.com.br" no Google Secret Manager.
   - variable: NEXT_PUBLIC_APP_URL
     secret: NEXT_PUBLIC_APP_URL # Ou defina 'value: "https://seu-dominio.web.app"'
