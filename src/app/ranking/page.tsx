@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, AlertTriangle, Trophy, Medal, Award } from 'lucide-react';
+import { Loader2, AlertTriangle, Trophy, Medal, Award, HelpCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -19,6 +19,7 @@ interface RankingUser {
   name: string;
   avatarUrl?: string;
   totalStudyTime: number; // in seconds
+  totalQuestionsAnswered: number;
 }
 
 const formatTotalDuration = (totalSeconds: number): string => {
@@ -120,13 +121,16 @@ export default function RankingPage() {
       <div className="container mx-auto px-0 sm:px-4 py-8">
         <PageHeader
           title="Ranking de Estudos"
-          description="Veja quem são os usuários mais dedicados da plataforma com base no tempo total de estudo."
+          description="Veja quem são os usuários mais dedicados da plataforma."
         />
         
         <Card className="shadow-lg rounded-xl">
           <CardHeader>
               <CardTitle>Classificação Geral</CardTitle>
-              <CardDescription>O ranking é atualizado periodicamente.</CardDescription>
+              <CardDescription className="flex items-center gap-1.5 pt-1">
+                <HelpCircle className="h-4 w-4 shrink-0" />
+                <span>A classificação é baseada no tempo de estudo e na quantidade de questões respondidas.</span>
+              </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -151,6 +155,7 @@ export default function RankingPage() {
                             <TableHead className="w-[80px] text-center">Posição</TableHead>
                             <TableHead>Usuário</TableHead>
                             <TableHead className="text-right">Tempo de Estudo</TableHead>
+                            <TableHead className="text-right">Questões</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -178,6 +183,9 @@ export default function RankingPage() {
                                 </TableCell>
                                 <TableCell className="text-right font-semibold text-base font-mono">
                                     {formatTotalDuration(rankedUser.totalStudyTime)}
+                                </TableCell>
+                                <TableCell className="text-right font-semibold text-base font-mono">
+                                    {rankedUser.totalQuestionsAnswered.toLocaleString('pt-BR')}
                                 </TableCell>
                             </TableRow>
                         );
