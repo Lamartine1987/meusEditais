@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,9 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { format, subMonths } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface RankingUser {
   id: string;
@@ -59,13 +62,32 @@ export default function RankingPage() {
   const [rankingData, setRankingData] = useState<RankingUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [monthFilter, setMonthFilter] = useState('all_time');
+
+  const availableMonths = useMemo(() => {
+    const months = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+        const date = subMonths(now, i);
+        months.push({
+            value: format(date, 'yyyy-MM'),
+            label: format(date, "MMMM 'de' yyyy", { locale: ptBR }),
+        });
+    }
+    return months;
+  }, []);
 
   useEffect(() => {
     const fetchRankingData = async () => {
       setLoading(true);
       setError(null);
+      
+      const url = monthFilter === 'all_time' 
+        ? '/api/ranking'
+        : `/api/ranking?month=${monthFilter}`;
+
       try {
-        const response = await fetch('/api/ranking');
+        const response = await fetch(url);
         if (!response.ok) {
           throw new Error('Não foi possível carregar o ranking. Tente novamente mais tarde.');
         }
@@ -83,7 +105,7 @@ export default function RankingPage() {
       }
     };
     fetchRankingData();
-  }, [toast]);
+  }, [toast, monthFilter]);
   
   if (authLoading) {
     return (
@@ -122,11 +144,28 @@ export default function RankingPage() {
         <PageHeader
           title="Ranking de Estudos"
           description="Veja quem são os usuários mais dedicados da plataforma."
+          actions={
+            <div className="w-full sm:w-auto">
+                <Select value={monthFilter} onValueChange={setMonthFilter}>
+                    <SelectTrigger className="w-full sm:w-[200px]">
+                        <SelectValue placeholder="Filtrar por mês..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all_time">Ranking Geral</SelectItem>
+                        {availableMonths.map(month => (
+                            <SelectItem key={month.value} value={month.value}>
+                                {month.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+          }
         />
         
         <Card className="shadow-lg rounded-xl">
           <CardHeader>
-              <CardTitle>Classificação Geral</CardTitle>
+              <CardTitle>Classificação</CardTitle>
               <CardDescription className="flex items-center gap-1.5 pt-1">
                 <HelpCircle className="h-4 w-4 shrink-0" />
                 <span>A classificação é baseada no tempo de estudo e na quantidade de questões respondidas.</span>
@@ -145,8 +184,8 @@ export default function RankingPage() {
             ) : rankingData.length === 0 ? (
                  <div className="text-center py-10 text-muted-foreground">
                     <Trophy className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                    <p className="text-lg font-semibold">O Ranking ainda está vazio.</p>
-                    <p>Comece a estudar para ser o primeiro a aparecer aqui!</p>
+                    <p className="text-lg font-semibold">O Ranking ainda está vazio para este período.</p>
+                    <p>Ninguém pontuou no período selecionado. Tente o ranking geral.</p>
                 </div>
             ) : (
                 <Table>
