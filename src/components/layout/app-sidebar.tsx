@@ -12,7 +12,7 @@ import {
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
 import { AppLogo } from './app-logo';
-import { Home, Briefcase, BarChart3, Gem } from 'lucide-react';
+import { Home, Briefcase, BarChart3, Gem, Trophy } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar'; 
 import { useAuth } from '@/hooks/use-auth';
 
@@ -80,6 +80,19 @@ export function AppSidebar() {
                   <Link href="/estatisticas">
                     <BarChart3 />
                     <span>Estatísticas</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === '/ranking'}
+                  tooltip={{content: "Ranking", side:"right", align:"center"}}
+                  onClick={closeMobileSidebar}
+                >
+                  <Link href="/ranking">
+                    <Trophy />
+                    <span>Ranking</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
