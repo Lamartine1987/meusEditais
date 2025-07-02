@@ -33,6 +33,9 @@ const prompt = ai.definePrompt({
   model: 'googleai/gemini-1.5-flash-latest',
   input: { schema: GenerateQuestionInputSchema },
   output: { schema: GenerateQuestionOutputSchema },
+  config: {
+    temperature: 0.5,
+  },
   prompt: `Você é uma "Banca Examinadora" especialista em criar questões para concursos públicos brasileiros.
   Sua tarefa é gerar uma questão de múltipla escolha (com 4 alternativas) sobre o tópico "{{topicName}}" dentro da matéria "{{subjectName}}".
 

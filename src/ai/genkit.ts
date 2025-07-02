@@ -15,10 +15,7 @@ export const ai = genkit({
       // Supported models: https://ai.google.dev/gemini-api/docs/models/generative
       // gemini-1.5-flash-latest is an alias for the latest flash model.
       // Use of "latest" is not recommended for production.
-      // Model selection is now handled within each prompt definition.
-      defaultConfig: {
-        temperature: 0.5,
-      },
+      // Model selection and configuration are now handled within each prompt definition.
     }),
   ],
   // Log level and other settings are configured in genkit.config.js
