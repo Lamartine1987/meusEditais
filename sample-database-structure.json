@@ -22,6 +22,8 @@
             "Graduação em Direito"
           ],
           "salary": 13994.78,
+          "vacancies": 50,
+          "reserveList": true,
           "subjects": [
             {
               "id": "direito_constitucional",
@@ -77,6 +79,7 @@
             "Nível Médio Completo"
           ],
           "salary": 8529.65,
+          "vacancies": 200,
           "subjects": [
             {
               "id": "portugues",
@@ -139,6 +142,7 @@
             "Nível Superior em qualquer área de formação"
           ],
           "salary": 12960.9,
+          "reserveList": true,
           "subjects": [
             {
               "id": "politicas_publicas",

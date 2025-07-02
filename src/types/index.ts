@@ -74,6 +74,8 @@ export interface Cargo {
   description: string;
   requirements: string[];
   salary?: number;
+  vacancies?: number;
+  reserveList?: boolean;
   subjects?: Subject[]; 
 }
 

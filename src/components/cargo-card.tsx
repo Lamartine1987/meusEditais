@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { DollarSign, CheckSquare, UserPlus, UserMinus, Loader2, Library } from 'lucide-react';
+import { DollarSign, CheckSquare, UserPlus, UserMinus, Loader2, Library, Users } from 'lucide-react';
 import { useState } from 'react';
 
 interface CargoCardProps {
@@ -46,6 +46,23 @@ export function CargoCard({ editalId, cargo, isUserRegisteredForThisCargo, onReg
     setIsAlertOpen(false);
   };
 
+  const getVacanciesText = () => {
+    const hasVacancies = typeof cargo.vacancies === 'number' && cargo.vacancies > 0;
+    const hasReserve = !!cargo.reserveList;
+
+    if (hasVacancies && hasReserve) {
+      return `${cargo.vacancies} ${cargo.vacancies === 1 ? 'vaga' : 'vagas'} + CR`;
+    }
+    if (hasVacancies) {
+      return `${cargo.vacancies} ${cargo.vacancies === 1 ? 'vaga' : 'vagas'}`;
+    }
+    if (hasReserve) {
+      return 'Cadastro Reserva';
+    }
+    return null;
+  };
+  const vacanciesText = getVacanciesText();
+
   const canRegister = editalStatus === 'open';
 
   return (
@@ -60,6 +77,12 @@ export function CargoCard({ editalId, cargo, isUserRegisteredForThisCargo, onReg
           <div className="flex items-center text-sm text-accent font-medium mt-1">
             <DollarSign className="h-4 w-4 mr-1" />
             {`R$ ${cargo.salary.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          </div>
+        )}
+        {vacanciesText && (
+          <div className="flex items-center text-sm text-muted-foreground font-medium mt-1">
+              <Users className="h-4 w-4 mr-1.5 text-primary" />
+              <span>{vacanciesText}</span>
           </div>
         )}
       </CardHeader>
