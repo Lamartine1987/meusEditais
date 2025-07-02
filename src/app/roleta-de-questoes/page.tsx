@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,7 @@ export default function RoletaDeQuestoesPage() {
   const [dataLoading, setDataLoading] = useState(true);
 
   const [allUserTopics, setAllUserTopics] = useState<AllTopics[]>([]);
+  const [allSubjectNames, setAllSubjectNames] = useState<string[]>([]);
   const [selectedTopicInfo, setSelectedTopicInfo] = useState<AllTopics | null>(null);
   
   const [isSpinning, setIsSpinning] = useState(false);
@@ -35,6 +36,9 @@ export default function RoletaDeQuestoesPage() {
   const [isGeneratingQuestion, setIsGeneratingQuestion] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [showResult, setShowResult] = useState(false);
+
+  const [rouletteDisplayText, setRouletteDisplayText] = useState<string | null>(null);
+  const spinIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch all editais data once
   useEffect(() => {
@@ -75,7 +79,21 @@ export default function RoletaDeQuestoesPage() {
       }
     });
     setAllUserTopics(topics);
+    const uniqueSubjectNames = [...new Set(topics.map(t => t.subject.name))];
+    setAllSubjectNames(uniqueSubjectNames);
   }, [user, allEditais, authLoading, dataLoading]);
+  
+  const resetGameState = useCallback(() => {
+      if (spinIntervalRef.current) {
+        clearInterval(spinIntervalRef.current);
+        spinIntervalRef.current = null;
+      }
+      setSelectedTopicInfo(null);
+      setQuestionData(null);
+      setSelectedAnswer(null);
+      setShowResult(false);
+      setRouletteDisplayText(null);
+  }, []);
 
   const handleSpin = async () => {
     if (allUserTopics.length === 0) {
@@ -86,12 +104,27 @@ export default function RoletaDeQuestoesPage() {
     resetGameState();
     setIsSpinning(true);
 
+    // Start roulette text animation
+    if (allSubjectNames.length > 0) {
+      let i = 0;
+      spinIntervalRef.current = setInterval(() => {
+        setRouletteDisplayText(allSubjectNames[i % allSubjectNames.length]);
+        i++;
+      }, 100);
+    }
+
     const randomIndex = Math.floor(Math.random() * allUserTopics.length);
     const randomTopicInfo = allUserTopics[randomIndex];
     
     // Simulate spin duration
     setTimeout(async () => {
+      if (spinIntervalRef.current) {
+        clearInterval(spinIntervalRef.current);
+        spinIntervalRef.current = null;
+      }
+      
       setSelectedTopicInfo(randomTopicInfo);
+      setRouletteDisplayText(randomTopicInfo.subject.name); // Final text
       setIsSpinning(false);
       setIsGeneratingQuestion(true);
       try {
@@ -101,13 +134,13 @@ export default function RoletaDeQuestoesPage() {
         });
         setQuestionData(result);
       } catch (error) {
-        console.error("Error generating question:", error);
-        toast({ title: "Erro ao Gerar Questão", description: "Não foi possível criar uma questão. Tente girar novamente.", variant: "destructive" });
-        setSelectedTopicInfo(null); // Reset if question generation fails
+        console.error("Detailed error generating question:", error);
+        toast({ title: "Erro ao Gerar Questão", description: "Não foi possível criar uma questão. Verifique o console para mais detalhes.", variant: "destructive" });
+        resetGameState();
       } finally {
         setIsGeneratingQuestion(false);
       }
-    }, 3000); // Corresponds to the animation duration in globals.css
+    }, 3000); // Corresponds to the animation duration
   };
   
   const handleAnswerSelect = (index: number) => {
@@ -122,13 +155,6 @@ export default function RoletaDeQuestoesPage() {
     }
     setShowResult(true);
   };
-  
-  const resetGameState = () => {
-      setSelectedTopicInfo(null);
-      setQuestionData(null);
-      setSelectedAnswer(null);
-      setShowResult(false);
-  }
 
   const getResultIcon = (index: number) => {
       if (!showResult || questionData === null) return null;
@@ -198,11 +224,15 @@ export default function RoletaDeQuestoesPage() {
                 <CardContent className="flex flex-col items-center justify-center gap-6 py-10">
                     <div 
                         className={cn(
-                            "relative w-64 h-64 rounded-full border-8 border-primary/50 bg-muted flex items-center justify-center transition-transform duration-3000 ease-out",
+                            "relative w-64 h-64 rounded-full border-8 border-primary/50 bg-muted flex items-center justify-center text-center transition-transform duration-3000 ease-out",
                             isSpinning && "animate-spin-roulette"
                         )}
                     >
-                        <Dices className="h-24 w-24 text-primary opacity-50" />
+                        {rouletteDisplayText ? (
+                            <span className="text-2xl font-bold text-primary p-4">{rouletteDisplayText}</span>
+                        ) : (
+                            <Dices className="h-24 w-24 text-primary opacity-50" />
+                        )}
                         <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-destructive"></div>
                     </div>
                      <Button 
