@@ -35,6 +35,24 @@ const prompt = ai.definePrompt({
   output: { schema: GenerateQuestionOutputSchema },
   config: {
     temperature: 0.5,
+    safetySettings: [
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_HARASSMENT',
+        threshold: 'BLOCK_NONE',
+      },
+      {
+        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+        threshold: 'BLOCK_NONE',
+      },
+    ],
   },
   prompt: `Você é uma "Banca Examinadora" especialista em criar questões para concursos públicos brasileiros.
   Sua tarefa é gerar uma questão de múltipla escolha (com 4 alternativas) sobre o tópico "{{topicName}}" dentro da matéria "{{subjectName}}".
