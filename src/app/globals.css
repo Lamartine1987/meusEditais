@@ -113,3 +113,12 @@ body {
     @apply font-headline;
   }
 }
+
+@keyframes spin-roulette {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(1440deg); } /* 4 full spins */
+}
+
+.animate-spin-roulette {
+  animation: spin-roulette 3s cubic-bezier(0.25, 1, 0.5, 1);
+}
