@@ -1,3 +1,4 @@
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   /* config options here */
@@ -24,6 +25,7 @@ const nextConfig = {
       '@opentelemetry/sdk-node',
       'require-in-the-middle',
       'handlebars',
+      'firebase-admin',
     ],
   },
 };
