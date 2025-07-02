@@ -189,8 +189,8 @@ export default function EditalDetailPage() {
                 <strong>Encerramento:</strong>&nbsp;{formatDate(edital.closingDate)}
               </div>
               {edital.examDate && (
-                <div className="flex items-center p-3 bg-accent/20 rounded-md border border-accent/50">
-                  <CalendarDays className="h-5 w-5 mr-2 text-accent" />
+                <div className="flex items-center p-3 bg-accent rounded-md">
+                  <CalendarDays className="h-5 w-5 mr-2 text-accent-foreground" />
                   <strong className="text-accent-foreground/80">Data da Prova:</strong>&nbsp;
                   <span className="font-semibold text-accent-foreground">{formatDate(edital.examDate)}</span>
                 </div>
