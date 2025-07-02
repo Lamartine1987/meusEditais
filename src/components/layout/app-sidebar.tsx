@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -12,7 +11,7 @@ import {
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
 import { AppLogo } from './app-logo';
-import { Home, Briefcase, BarChart3, Gem, Trophy, Dices } from 'lucide-react';
+import { Home, Briefcase, BarChart3, Gem, Trophy } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar'; 
 import { useAuth } from '@/hooks/use-auth';
 
@@ -93,19 +92,6 @@ export function AppSidebar() {
                   <Link href="/ranking">
                     <Trophy />
                     <span>Ranking</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-               <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname === '/roleta-de-questoes'}
-                  tooltip={{content: "Roleta de Questões", side:"right", align:"center"}}
-                  onClick={closeMobileSidebar}
-                >
-                  <Link href="/roleta-de-questoes">
-                    <Dices />
-                    <span>Roleta de Questões</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
