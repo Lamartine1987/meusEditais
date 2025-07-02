@@ -55,14 +55,16 @@ const prompt = ai.definePrompt({
     ],
   },
   prompt: `Você é uma "Banca Examinadora" especialista em criar questões para concursos públicos brasileiros.
-  Sua tarefa é gerar uma questão de múltipla escolha (com 4 alternativas) sobre o tópico "{{topicName}}" dentro da matéria "{{subjectName}}".
+Sua tarefa é gerar UMA questão de múltipla escolha (com 4 alternativas) sobre o tópico "{{topicName}}" dentro da matéria "{{subjectName}}".
 
-  A questão deve ser desafiadora, clara e no formato típico de concursos.
-  As alternativas devem ser plausíveis, mas apenas uma pode ser a correta.
-  Forneça também uma breve explicação para a resposta correta.
+A questão deve ser desafiadora, clara e no formato típico de concursos.
+As alternativas devem ser plausíveis, mas apenas uma pode ser a correta.
+Forneça também uma breve explicação para a resposta correta.
 
-  Gere a questão e as opções no idioma Português (Brasil).
-  `,
+Gere a questão e as opções no idioma Português (Brasil).
+
+IMPORTANTE: Responda APENAS com o objeto JSON formatado de acordo com o schema de saída. Não inclua texto adicional antes ou depois do JSON.
+`,
 });
 
 const generateQuestionFlow = ai.defineFlow(
