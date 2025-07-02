@@ -179,7 +179,7 @@ export default function EditalDetailPage() {
             
             <p className="text-foreground leading-relaxed mb-6 text-base">{edital.summary}</p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 text-sm">
+            <div className="flex flex-col gap-4 mb-6 text-sm">
               <div className="flex items-center p-3 bg-muted/50 rounded-md">
                 <CalendarDays className="h-5 w-5 mr-2 text-primary" />
                 <strong>Publicação:</strong>&nbsp;{formatDate(edital.publicationDate)}
@@ -188,6 +188,13 @@ export default function EditalDetailPage() {
                 <CalendarDays className="h-5 w-5 mr-2 text-destructive" />
                 <strong>Encerramento:</strong>&nbsp;{formatDate(edital.closingDate)}
               </div>
+              {edital.examDate && (
+                <div className="flex items-center p-3 bg-accent/20 rounded-md border border-accent/50">
+                  <CalendarDays className="h-5 w-5 mr-2 text-accent" />
+                  <strong className="text-accent-foreground/80">Data da Prova:</strong>&nbsp;
+                  <span className="font-semibold text-accent-foreground">{formatDate(edital.examDate)}</span>
+                </div>
+              )}
             </div>
 
             {edital.fullTextUrl && (

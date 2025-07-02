@@ -83,6 +83,7 @@ export interface Edital {
   organization: string;
   publicationDate: string; // ISO date string
   closingDate: string; // ISO date string
+  examDate?: string; // ISO date string for the exam date
   summary: string;
   fullTextUrl?: string;
   imageUrl?: string; 

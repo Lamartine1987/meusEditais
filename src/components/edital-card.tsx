@@ -84,6 +84,12 @@ export function EditalCard({ edital, className }: EditalCardProps) {
                 <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-destructive" />
                 <span>Encerramento: {formatDate(edital.closingDate)}</span>
             </div>
+            {edital.examDate && (
+              <div className="flex items-center text-muted-foreground">
+                  <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-accent" />
+                  <span className="font-semibold">Prova: {formatDate(edital.examDate)}</span>
+              </div>
+            )}
         </div>
       </CardContent>
       <CardFooter className="pt-0">
