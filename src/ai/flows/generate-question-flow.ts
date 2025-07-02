@@ -11,16 +11,16 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 
 const GenerateQuestionInputSchema = z.object({
-  subjectName: z.string().describe('The subject the question should be about.'),
-  topicName: z.string().describe('The specific topic within the subject.'),
+  subjectName: z.string().describe('A matéria sobre a qual a questão deve ser.'),
+  topicName: z.string().describe('O tópico específico dentro da matéria.'),
 });
 export type GenerateQuestionInput = z.infer<typeof GenerateQuestionInputSchema>;
 
 const GenerateQuestionOutputSchema = z.object({
-  question: z.string().describe('The generated question text.'),
-  options: z.array(z.string()).length(4).describe('An array of 4 possible answers.'),
-  correctAnswerIndex: z.number().min(0).max(3).describe('The index (0-3) of the correct answer in the options array.'),
-  explanation: z.string().describe('A brief explanation for why the correct answer is right.'),
+  question: z.string().describe('O texto da pergunta gerada.'),
+  options: z.array(z.string()).length(4).describe('Um array com 4 respostas possíveis.'),
+  correctAnswerIndex: z.number().min(0).max(3).describe('O índice (0-3) da resposta correta no array de opções.'),
+  explanation: z.string().describe('Uma breve explicação do porquê a resposta correta está certa.'),
 });
 export type GenerateQuestionOutput = z.infer<typeof GenerateQuestionOutputSchema>;
 

@@ -23,6 +23,7 @@ const nextConfig = {
     // warnings and the runtime error.
     serverComponentsExternalPackages: [
       '@opentelemetry/sdk-node',
+      '@opentelemetry/instrumentation',
       'require-in-the-middle',
       'handlebars',
       'firebase-admin',
