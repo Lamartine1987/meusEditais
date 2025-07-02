@@ -1,6 +1,9 @@
 'use server';
-import genkit from '@genkit-ai/ai';
+import genkitImport from '@genkit-ai/ai';
 import {googleAI} from '@genkit-ai/googleai';
+
+// Workaround for CJS/ESM module resolution issue
+const genkit = (genkitImport as any).default || genkitImport;
 
 export const ai = genkit({
   plugins: [
