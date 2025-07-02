@@ -22,10 +22,6 @@ const nextConfig = {
     // Node.js require() instead of bundling them. This resolves build
     // warnings and the runtime error.
     serverComponentsExternalPackages: [
-      '@opentelemetry/sdk-node',
-      '@opentelemetry/instrumentation',
-      'require-in-the-middle',
-      'handlebars',
       'firebase-admin',
     ],
   },
