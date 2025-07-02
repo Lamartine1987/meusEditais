@@ -9,8 +9,7 @@
       {
         "source": "**",
         "run": {
-          "serviceId": "meuseditaisbackend",
-          "region": "us-central1"
+          "serviceId": "meuseditaisbackend"
         }
       }
     ]
