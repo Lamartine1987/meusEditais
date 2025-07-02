@@ -30,6 +30,7 @@ export async function generateQuizQuestion(input: GenerateQuestionInput): Promis
 
 const prompt = ai.definePrompt({
   name: 'generateQuizQuestionPrompt',
+  model: 'googleai/gemini-1.5-flash-latest',
   input: { schema: GenerateQuestionInputSchema },
   output: { schema: GenerateQuestionOutputSchema },
   prompt: `Você é uma "Banca Examinadora" especialista em criar questões para concursos públicos brasileiros.
