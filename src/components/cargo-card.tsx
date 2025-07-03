@@ -57,7 +57,7 @@ export function CargoCard({ editalId, cargo, isUserRegisteredForThisCargo, onReg
       return `${cargo.vacancies} ${cargo.vacancies === 1 ? 'vaga' : 'vagas'}`;
     }
     if (hasReserve) {
-      return 'Cadastro Reserva';
+      return 'CR (Cadastro Reserva)';
     }
     return null;
   };
