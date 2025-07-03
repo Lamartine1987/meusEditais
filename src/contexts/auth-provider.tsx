@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { User as AppUser, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, PlanId, PlanDetails } from '@/types';
+import type { User as AppUser, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, PlanId, PlanDetails, NoteEntry } from '@/types';
 import React, { createContext, useState, useEffect, ReactNode, useRef } from 'react'; // Added useRef
 import { 
   getAuth, 
@@ -36,6 +36,8 @@ interface AuthContextType {
   addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'date'>) => Promise<void>;
   addRevisionSchedule: (compositeTopicId: string, daysToReview: number) => Promise<void>;
   toggleRevisionReviewedStatus: (revisionId: string) => Promise<void>;
+  addNote: (compositeTopicId: string, text: string) => Promise<void>;
+  deleteNote: (noteId: string) => Promise<void>;
   cancelSubscription: () => Promise<void>;
   startFreeTrial: () => Promise<void>;
   changeCargoForPlanoCargo: (newCargoCompositeId: string) => Promise<void>;
@@ -92,6 +94,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 studyLogs: [],
                 questionLogs: [],
                 revisionSchedules: [],
+                notes: [],
                 activePlan: null,
                 planDetails: null,
                 stripeCustomerId: null,
@@ -125,6 +128,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               studyLogs: dbData.studyLogs || [],
               questionLogs: dbData.questionLogs || [],
               revisionSchedules: dbData.revisionSchedules || [],
+              notes: dbData.notes || [],
               activePlan: dbData.activePlan || null,
               planDetails: dbData.planDetails || null,
               stripeCustomerId: dbData.stripeCustomerId || null,
@@ -163,7 +167,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser({ // Fallback minimal user
               id: firebaseUser.uid, name: firebaseUser.displayName || 'Usuário', email: firebaseUser.email || '',
               registeredCargoIds: [], studiedTopicIds: [], studyLogs: [], questionLogs: [], revisionSchedules: [],
-              activePlan: null, planDetails: null, stripeCustomerId: null, hasHadFreeTrial: false, planHistory: [],
+              notes: [], activePlan: null, planDetails: null, stripeCustomerId: null, hasHadFreeTrial: false, planHistory: [],
             });
           } finally {
             setLoading(false); // Ensure loading is set to false
@@ -438,6 +442,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
   
+    const addNote = async (compositeTopicId: string, text: string) => {
+        if (user) {
+            const newNote: NoteEntry = {
+                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                compositeTopicId,
+                date: new Date().toISOString(),
+                text,
+            };
+            const updatedNotes = [...(user.notes || []), newNote];
+            try {
+                await update(ref(db, `users/${user.id}`), { notes: updatedNotes });
+                toast({ title: "Anotação Salva!", description: "Sua anotação foi salva com sucesso.", variant: "default", className: "bg-accent text-accent-foreground" });
+            } catch (error) {
+                console.error("Error adding note:", error);
+                toast({ title: "Erro ao Salvar", description: "Não foi possível salvar sua anotação.", variant: "destructive" });
+            }
+        }
+    };
+
+    const deleteNote = async (noteId: string) => {
+        if (user) {
+            const updatedNotes = (user.notes || []).filter(note => note.id !== noteId);
+            try {
+                await update(ref(db, `users/${user.id}`), { notes: updatedNotes });
+                toast({ title: "Anotação Excluída", description: "Sua anotação foi removida.", variant: "default" });
+            } catch (error) {
+                console.error("Error deleting note:", error);
+                toast({ title: "Erro ao Excluir", description: "Não foi possível remover a anotação.", variant: "destructive" });
+            }
+        }
+    };
+
   const isPlanoCargoWithinGracePeriod = (): boolean => {
     if (user?.activePlan === 'plano_cargo' && user.planDetails?.startDate) {
         // Stripe's checkout.session.completed provides current_period_start in seconds.
@@ -603,6 +639,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       user, loading, login, register, sendPasswordReset, logout, updateUser, 
       registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, 
       addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
+      addNote, deleteNote,
       cancelSubscription, startFreeTrial, changeCargoForPlanoCargo, isPlanoCargoWithinGracePeriod
     }}>
       {children}

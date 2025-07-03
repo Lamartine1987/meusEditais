@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -11,7 +12,7 @@ import {
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
 import { AppLogo } from './app-logo';
-import { Home, Briefcase, BarChart3, Gem, Trophy } from 'lucide-react';
+import { Home, Briefcase, BarChart3, Gem, Trophy, Star } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar'; 
 import { useAuth } from '@/hooks/use-auth';
 
@@ -92,6 +93,19 @@ export function AppSidebar() {
                   <Link href="/ranking">
                     <Trophy />
                     <span>Ranking</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === '/favoritos'}
+                  tooltip={{content: "Favoritos", side:"right", align:"center"}}
+                  onClick={closeMobileSidebar}
+                >
+                  <Link href="/favoritos">
+                    <Star />
+                    <span>Favoritos</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

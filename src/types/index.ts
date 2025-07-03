@@ -1,4 +1,11 @@
 
+export interface NoteEntry {
+  id: string; // Unique ID for the note
+  compositeTopicId: string;
+  date: string; // ISO string date
+  text: string; // The note content
+}
+
 export interface StudyLogEntry {
   compositeTopicId: string;
   date: string; // ISO string date for when the log was saved
@@ -50,6 +57,7 @@ export interface User {
   studyLogs?: StudyLogEntry[];
   questionLogs?: QuestionLogEntry[];
   revisionSchedules?: RevisionScheduleEntry[];
+  notes?: NoteEntry[];
   activePlan?: PlanId | null;
   planDetails?: PlanDetails | null;
   stripeCustomerId?: string | null; 

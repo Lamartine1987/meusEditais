@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback, ChangeEvent } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import type { Edital, Cargo, Subject as SubjectType, Topic as TopicType, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry } from '@/types';
+import type { Edital, Cargo, Subject as SubjectType, Topic as TopicType, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, NoteEntry } from '@/types';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon, ClipboardList, CheckCircle, XCircle, TrendingUp, CalendarClock, Info, AlertTriangle, Gem, FileText, History } from 'lucide-react';
+import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon, ClipboardList, CheckCircle, XCircle, TrendingUp, CalendarClock, Info, AlertTriangle, Gem, FileText, History, NotebookPen, Trash2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
@@ -23,6 +23,7 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Textarea } from '@/components/ui/textarea';
 
 const formatDuration = (totalSeconds: number): string => {
   const minutes = Math.floor(totalSeconds / 60);
@@ -51,7 +52,7 @@ export default function SubjectTopicsPage() {
   const cargoId = params.cargoId as string;
   const subjectId = params.subjectId as string;
 
-  const { user, toggleTopicStudyStatus, addStudyLog, addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus, loading: authLoading } = useAuth();
+  const { user, toggleTopicStudyStatus, addStudyLog, addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus, addNote, deleteNote, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [edital, setEdital] = useState<Edital | null>(null);
@@ -73,6 +74,8 @@ export default function SubjectTopicsPage() {
   const [pdfName, setPdfName] = useState('');
   const [startPage, setStartPage] = useState('');
   const [endPage, setEndPage] = useState('');
+  
+  const [noteText, setNoteText] = useState('');
 
   const [hasAccess, setHasAccess] = useState(false);
 
@@ -380,6 +383,32 @@ export default function SubjectTopicsPage() {
         .sort((a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime());
   }, [user, editalId, cargoId, subjectId]);
 
+  const handleSaveNote = async (topicId: string) => {
+    if (!user || !noteText.trim() || !hasAccess) return;
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    try {
+        await addNote(compositeTopicId, noteText);
+        setNoteText(''); // Clear textarea after saving
+    } catch (error) {
+        // toast is handled in useAuth
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+      if (!user || !hasAccess) return;
+      try {
+          await deleteNote(noteId);
+      } catch (error) {
+          // toast is handled in useAuth
+      }
+  };
+
+  const getNotesForTopic = useCallback((topicId: string): NoteEntry[] => {
+      if (!user?.notes) return [];
+      const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+      return user.notes.filter(note => note.compositeTopicId === compositeTopicId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [user, editalId, cargoId, subjectId]);
+
 
   if (loadingData || authLoading) {
     return (
@@ -496,6 +525,7 @@ export default function SubjectTopicsPage() {
                     setPdfName('');
                     setStartPage('');
                     setEndPage('');
+                    setNoteText('');
                 }}
               >
                 {subject.topics.map((topic: TopicType) => {
@@ -512,6 +542,7 @@ export default function SubjectTopicsPage() {
                     performancePercentage = (latestQuestionLog.correctQuestions / latestQuestionLog.totalQuestions) * 100;
                   }
                   const revisionSchedules = getRevisionSchedulesForTopic(topic.id);
+                  const topicNotes = getNotesForTopic(topic.id);
                   const isRevisionDue = revisionSchedules.some(r => !r.isReviewed && (isToday(parseISO(r.scheduledDate)) || isPast(parseISO(r.scheduledDate))));
 
 
@@ -693,6 +724,47 @@ export default function SubjectTopicsPage() {
                             </Button>
                         </div>
                         
+                        <div className="p-4 border rounded-lg bg-background shadow-sm space-y-4">
+                            <h4 className="text-base font-semibold text-foreground flex items-center">
+                                <NotebookPen className="mr-2 h-5 w-5 text-primary" />
+                                Minhas Anotações
+                            </h4>
+                            <Textarea 
+                                placeholder="Digite suas observações importantes aqui..."
+                                value={noteText}
+                                onChange={(e) => setNoteText(e.target.value)}
+                                disabled={!hasAccess}
+                                rows={4}
+                            />
+                            <Button onClick={() => handleSaveNote(topic.id)} disabled={!noteText.trim() || !hasAccess}>
+                                <Save className="mr-2 h-4 w-4"/>
+                                Salvar Anotação
+                            </Button>
+                            {topicNotes.length > 0 && (
+                              <div className="space-y-3 pt-3">
+                                <h5 className="text-sm font-semibold text-muted-foreground">Anotações Salvas:</h5>
+                                <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                                  {topicNotes.map(note => (
+                                    <li key={note.id} className="text-sm p-3 border rounded-md bg-muted/50 shadow-sm relative group">
+                                        <p className="whitespace-pre-wrap">{note.text}</p>
+                                        <small className="text-xs text-muted-foreground/80 mt-2 block">
+                                            {format(parseISO(note.date), "dd/MM/yy 'às' HH:mm")}
+                                        </small>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            onClick={() => handleDeleteNote(note.id)}
+                                        >
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                        </div>
+
                         {topicStudyLogs.length > 0 && (
                           <div className="space-y-3 pt-3">
                             <h4 className="text-sm font-semibold text-muted-foreground flex items-center">
