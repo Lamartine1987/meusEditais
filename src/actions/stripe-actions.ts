@@ -422,3 +422,5 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   console.log(`[handleStripeWebhook] Successfully processed event type: ${event.type}. Event ID: ${event.id}. Returning 200 OK to Stripe.`);
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
+
+    
