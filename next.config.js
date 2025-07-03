@@ -16,13 +16,14 @@ const nextConfig = {
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
   },
   experimental: {
-    // Genkit and its OpenTelemetry dependencies use packages that are not fully
-    // compatible with webpack bundling. This option tells Next.js to treat
-    // these packages as "external" on the server, loading them with a native
-    // Node.js require() instead of bundling them. This resolves build
-    // warnings and the runtime error.
+    // Packages like firebase-admin and stripe are not fully compatible with
+    // webpack bundling. This option tells Next.js to treat these packages
+    // as "external" on the server, loading them with a native Node.js
+    // require() instead of bundling them. This resolves build warnings
+    // and runtime errors.
     serverComponentsExternalPackages: [
       'firebase-admin',
+      'stripe',
     ],
   },
 };
