@@ -33,6 +33,7 @@ interface AuthContextType {
   unregisterFromCargo: (editalId: string, cargoId: string) => Promise<void>;
   toggleTopicStudyStatus: (compositeTopicId: string) => Promise<void>;
   addStudyLog: (compositeTopicId: string, logData: { duration?: number; pdfName?: string; startPage?: number; endPage?: number; }) => Promise<void>;
+  deleteStudyLog: (logId: string) => Promise<void>;
   addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'date'>) => Promise<void>;
   addRevisionSchedule: (compositeTopicId: string, daysToReview: number) => Promise<void>;
   toggleRevisionReviewedStatus: (revisionId: string) => Promise<void>;
@@ -364,6 +365,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const addStudyLog = async (compositeTopicId: string, logData: { duration?: number, pdfName?: string, startPage?: number, endPage?: number }) => {
     if (user) {
         const newLog: StudyLogEntry = {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             compositeTopicId,
             date: new Date().toISOString(),
             duration: logData.duration || 0, // Default to 0 if no duration is passed
@@ -381,6 +383,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const deleteStudyLog = async (logId: string) => {
+    if (user) {
+        const updatedStudyLogs = (user.studyLogs || []).filter(log => log.id !== logId);
+        try {
+            await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
+            toast({ title: "Registro Excluído", description: "O registro de estudo foi removido.", variant: "default" });
+        } catch (error) {
+            console.error("Error deleting study log:", error);
+            toast({ title: "Erro ao Excluir", description: "Não foi possível remover o registro.", variant: "destructive" });
+        }
+    }
+  };
 
   const addQuestionLog = async (logEntryData: Omit<QuestionLogEntry, 'date'>) => {
     if (user) {
@@ -638,6 +652,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     <AuthContext.Provider value={{ 
       user, loading, login, register, sendPasswordReset, logout, updateUser, 
       registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, 
+      deleteStudyLog,
       addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
       addNote, deleteNote,
       cancelSubscription, startFreeTrial, changeCargoForPlanoCargo, isPlanoCargoWithinGracePeriod

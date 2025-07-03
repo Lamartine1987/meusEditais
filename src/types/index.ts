@@ -7,6 +7,7 @@ export interface NoteEntry {
 }
 
 export interface StudyLogEntry {
+  id: string; // Unique ID for the log
   compositeTopicId: string;
   date: string; // ISO string date for when the log was saved
   duration: number; // in seconds

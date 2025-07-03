@@ -52,7 +52,7 @@ export default function SubjectTopicsPage() {
   const cargoId = params.cargoId as string;
   const subjectId = params.subjectId as string;
 
-  const { user, toggleTopicStudyStatus, addStudyLog, addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus, addNote, deleteNote, loading: authLoading } = useAuth();
+  const { user, toggleTopicStudyStatus, addStudyLog, deleteStudyLog, addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus, addNote, deleteNote, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [edital, setEdital] = useState<Edital | null>(null);
@@ -77,6 +77,7 @@ export default function SubjectTopicsPage() {
   
   const [noteText, setNoteText] = useState('');
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
+  const [logToDelete, setLogToDelete] = useState<string | null>(null);
 
   const [hasAccess, setHasAccess] = useState(false);
 
@@ -376,14 +377,6 @@ export default function SubjectTopicsPage() {
     }
   };
 
-  const getRevisionSchedulesForTopic = useCallback((topicId: string): RevisionScheduleEntry[] => {
-    if (!user?.revisionSchedules) return [];
-    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
-    return user.revisionSchedules
-        .filter(rs => rs.compositeTopicId === compositeTopicId)
-        .sort((a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime());
-  }, [user, editalId, cargoId, subjectId]);
-
   const handleSaveNote = async (topicId: string) => {
     if (!user || !noteText.trim() || !hasAccess) return;
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
@@ -406,12 +399,31 @@ export default function SubjectTopicsPage() {
     }
   };
 
+  const handleDeleteLogConfirm = async () => {
+    if (!logToDelete || !user || !hasAccess) return;
+    try {
+      await deleteStudyLog(logToDelete);
+    } catch (error) {
+      // toast is handled in auth-provider
+    } finally {
+      setLogToDelete(null);
+    }
+  };
+
   const getNotesForTopic = useCallback((topicId: string): NoteEntry[] => {
       if (!user?.notes) return [];
       const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
       return user.notes.filter(note => note.compositeTopicId === compositeTopicId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [user, editalId, cargoId, subjectId]);
 
+
+  const getRevisionSchedulesForTopic = useCallback((topicId: string): RevisionScheduleEntry[] => {
+    if (!user?.revisionSchedules) return [];
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    return user.revisionSchedules
+        .filter(rs => rs.compositeTopicId === compositeTopicId)
+        .sort((a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime());
+  }, [user, editalId, cargoId, subjectId]);
 
   if (loadingData || authLoading) {
     return (
@@ -775,8 +787,8 @@ export default function SubjectTopicsPage() {
                               Registros de Estudo Salvos:
                             </h4>
                             <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
-                              {topicStudyLogs.map((log, index) => (
-                                <li key={index} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex flex-col gap-1.5">
+                              {topicStudyLogs.map((log) => (
+                                <li key={log.id} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex flex-col gap-1.5 relative group">
                                     <div className="flex justify-between items-center w-full">
                                         <span className="font-medium">{format(parseISO(log.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
                                         {log.duration > 0 && <Badge variant="outline" className="font-mono text-xs">{formatDuration(log.duration)}</Badge>}
@@ -796,6 +808,14 @@ export default function SubjectTopicsPage() {
                                             </div>
                                         </div>
                                     )}
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        onClick={() => setLogToDelete(log.id)}
+                                    >
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
                                 </li>
                               ))}
                             </ul>
@@ -905,6 +925,23 @@ export default function SubjectTopicsPage() {
             <AlertDialogFooter>
                 <AlertDialogCancel onClick={() => setNoteToDelete(null)}>Cancelar</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDeleteNoteConfirm} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+            </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {logToDelete && (
+        <AlertDialog open={!!logToDelete} onOpenChange={(open) => !open && setLogToDelete(null)}>
+            <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                <AlertDialogDescription>
+                Tem certeza que deseja excluir este registro de estudo? Esta ação não pode ser desfeita.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setLogToDelete(null)}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteLogConfirm} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
             </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
