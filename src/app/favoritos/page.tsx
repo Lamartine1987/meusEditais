@@ -10,7 +10,7 @@ import { Loader2, AlertTriangle, Star, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import type { NoteEntry, Edital, Cargo, Subject as SubjectType } from '@/types';
+import type { NoteEntry, Edital, Cargo, Subject as SubjectType, Topic } from '@/types';
 import { format, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -73,20 +73,46 @@ export default function FavoritosPage() {
 
     return user.notes.map(note => {
       let context: Partial<NoteWithContext> = {};
-      const ids = note.compositeTopicId.split('_');
-      if (ids.length >= 4) {
-        const [editalId, cargoId, subjectId, topicId] = ids.slice(0, 4);
-        const edital = allEditaisData.find(e => e.id === editalId);
-        const cargo = edital?.cargos?.find(c => c.id === cargoId);
-        const subject = cargo?.subjects?.find(s => s.id === subjectId);
-        const topic = subject?.topics?.find(t => t.id === topicId);
+      
+      let foundEdital: Edital | undefined;
+      let foundCargo: Cargo | undefined;
+      let foundSubject: SubjectType | undefined;
+      let foundTopic: Topic | undefined;
 
-        context.editalTitle = edital?.title;
-        context.cargoName = cargo?.name;
-        context.subjectName = subject?.name;
-        context.topicName = topic?.name;
-        context.topicLink = `/editais/${editalId}/cargos/${cargoId}/materias/${subjectId}`;
+      for (const edital of allEditaisData) {
+        if (note.compositeTopicId.startsWith(edital.id + '_')) {
+            const restAfterEdital = note.compositeTopicId.substring(edital.id.length + 1);
+            for (const cargo of edital.cargos || []) {
+                if (restAfterEdital.startsWith(cargo.id + '_')) {
+                    const restAfterCargo = restAfterEdital.substring(cargo.id.length + 1);
+                    for (const subject of cargo.subjects || []) {
+                        if (restAfterCargo.startsWith(subject.id + '_')) {
+                            const topicId = restAfterCargo.substring(subject.id.length + 1);
+                            const topic = subject.topics?.find(t => t.id === topicId);
+                            if (topic) {
+                                foundEdital = edital;
+                                foundCargo = cargo;
+                                foundSubject = subject;
+                                foundTopic = topic;
+                                break; // topic found
+                            }
+                        }
+                    }
+                }
+                if (foundTopic) break; // cargo found
+            }
+        }
+        if (foundTopic) break; // edital found
       }
+
+      if (foundEdital && foundCargo && foundSubject && foundTopic) {
+        context.editalTitle = foundEdital.title;
+        context.cargoName = foundCargo.name;
+        context.subjectName = foundSubject.name;
+        context.topicName = foundTopic.name;
+        context.topicLink = `/editais/${foundEdital.id}/cargos/${foundCargo.id}/materias/${foundSubject.id}`;
+      }
+
       return { ...note, ...context };
     }).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [user?.notes, allEditaisData]);
