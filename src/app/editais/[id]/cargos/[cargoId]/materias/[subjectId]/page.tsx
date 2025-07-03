@@ -788,10 +788,20 @@ export default function SubjectTopicsPage() {
                             </h4>
                             <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
                               {topicStudyLogs.map((log) => (
-                                <li key={log.id} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex flex-col gap-1.5 relative group">
+                                <li key={log.id} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex flex-col gap-1.5 group">
                                     <div className="flex justify-between items-center w-full">
                                         <span className="font-medium">{format(parseISO(log.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
-                                        {log.duration > 0 && <Badge variant="outline" className="font-mono text-xs">{formatDuration(log.duration)}</Badge>}
+                                        <div className="flex items-center">
+                                            {log.duration > 0 && <Badge variant="outline" className="font-mono text-xs">{formatDuration(log.duration)}</Badge>}
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                onClick={() => setLogToDelete(log.id)}
+                                            >
+                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                            </Button>
+                                        </div>
                                     </div>
                                     {(log.pdfName || log.startPage !== undefined) && (
                                         <div className="flex items-center text-muted-foreground/90 border-t pt-1.5 mt-1.5">
@@ -808,14 +818,6 @@ export default function SubjectTopicsPage() {
                                             </div>
                                         </div>
                                     )}
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        onClick={() => setLogToDelete(log.id)}
-                                    >
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
                                 </li>
                               ))}
                             </ul>
