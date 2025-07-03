@@ -7,7 +7,7 @@ import type { Edital } from '@/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CalendarDays, Landmark, ArrowRight } from 'lucide-react';
+import { CalendarDays, Landmark, ArrowRight, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface EditalCardProps {
@@ -38,6 +38,43 @@ export function EditalCard({ edital, className }: EditalCardProps) {
   };
   
   const currentStatus = statusMap[edital.status] || { text: edital.status, variant: 'outline' };
+
+  const getTotalVacanciesText = () => {
+    if (!edital.cargos || edital.cargos.length === 0) {
+      return null;
+    }
+
+    const totalVacancies = edital.cargos.reduce((acc, cargo) => acc + (cargo.vacancies || 0), 0);
+    
+    const reserveInfo = edital.cargos.reduce((acc, cargo) => {
+        if (typeof cargo.reserveList === 'number') {
+            acc.numericTotal += cargo.reserveList;
+        } else if (cargo.reserveList === true) {
+            acc.hasBoolean = true;
+        }
+        return acc;
+    }, { numericTotal: 0, hasBoolean: false });
+
+    let vacanciesText = '';
+    if (totalVacancies > 0) {
+        vacanciesText = `${totalVacancies} ${totalVacancies === 1 ? 'vaga' : 'vagas'}`;
+    }
+
+    let reserveText = '';
+    if (reserveInfo.numericTotal > 0) {
+        reserveText = `${reserveInfo.numericTotal} CR`;
+    } else if (reserveInfo.hasBoolean) {
+        reserveText = 'CR';
+    }
+
+    if (vacanciesText && reserveText) {
+        return `${vacanciesText} + ${reserveText}`;
+    }
+    
+    return vacanciesText || reserveText || null;
+  };
+
+  const totalVacanciesText = getTotalVacanciesText();
 
   return (
     <Card className={cn("flex flex-col overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-xl bg-card", className)}>
@@ -75,6 +112,14 @@ export function EditalCard({ edital, className }: EditalCardProps) {
       </CardHeader>
       <CardContent className="flex-grow pt-0 pb-3">
         <p className="text-sm text-muted-foreground line-clamp-3 mb-3">{edital.summary}</p>
+        
+        {totalVacanciesText && (
+          <div className="flex items-center text-xs text-muted-foreground font-medium mb-2">
+            <Users className="h-4 w-4 mr-1.5 text-primary" />
+            <span>{totalVacanciesText} no total</span>
+          </div>
+        )}
+
         <div className="space-y-1 text-xs">
             <div className="flex items-center text-muted-foreground">
                 <CalendarDays className="h-3.5 w-3.5 mr-1.5 text-primary" />
