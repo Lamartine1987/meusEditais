@@ -400,12 +400,20 @@ export default function SubjectTopicsPage() {
   };
 
   const handleDeleteLogConfirm = async () => {
-    if (!logToDelete || !user || !hasAccess) return;
+    console.log('[handleDeleteLogConfirm] Attempting to delete log. ID:', logToDelete);
+    if (!logToDelete || !user || !hasAccess) {
+      console.error('[handleDeleteLogConfirm] Aborting delete. Reason:', { hasLogId: !!logToDelete, hasUser: !!user, hasAccess });
+      return;
+    }
     try {
+      console.log('[handleDeleteLogConfirm] Calling deleteStudyLog from useAuth with ID:', logToDelete);
       await deleteStudyLog(logToDelete);
+      console.log('[handleDeleteLogConfirm] deleteStudyLog call finished.');
     } catch (error) {
+      console.error('[handleDeleteLogConfirm] Error during deleteStudyLog call:', error);
       // toast is handled in auth-provider
     } finally {
+      console.log('[handleDeleteLogConfirm] Closing delete confirmation dialog.');
       setLogToDelete(null);
     }
   };

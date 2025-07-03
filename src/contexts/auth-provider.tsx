@@ -384,15 +384,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const deleteStudyLog = async (logId: string) => {
+    console.log('[AuthProvider/deleteStudyLog] Received request to delete log ID:', logId);
     if (user) {
+        const initialLogCount = (user.studyLogs || []).length;
+        console.log(`[AuthProvider/deleteStudyLog] User found. Initial log count: ${initialLogCount}.`);
         const updatedStudyLogs = (user.studyLogs || []).filter(log => log.id !== logId);
+        const finalLogCount = updatedStudyLogs.length;
+
+        if (initialLogCount === finalLogCount) {
+             console.warn(`[AuthProvider/deleteStudyLog] Warning: Log ID "${logId}" not found in user's studyLogs. No deletion will occur.`);
+             toast({ title: "Atenção", description: "O registro a ser excluído não foi encontrado. A lista pode já estar atualizada.", variant: "default" });
+             return;
+        }
+
+        console.log(`[AuthProvider/deleteStudyLog] Filtered logs. New count: ${finalLogCount}. Preparing to update DB.`);
         try {
             await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
+            console.log(`[AuthProvider/deleteStudyLog] DB update successful for user ${user.id}.`);
             toast({ title: "Registro Excluído", description: "O registro de estudo foi removido.", variant: "default" });
         } catch (error) {
-            console.error("Error deleting study log:", error);
-            toast({ title: "Erro ao Excluir", description: "Não foi possível remover o registro.", variant: "destructive" });
+            console.error("[AuthProvider/deleteStudyLog] Error deleting study log from DB:", error);
+            toast({ title: "Erro ao Excluir", description: "Não foi possível remover o registro do banco de dados.", variant: "destructive" });
         }
+    } else {
+        console.error('[AuthProvider/deleteStudyLog] Aborted: No user is available in the context.');
     }
   };
 
