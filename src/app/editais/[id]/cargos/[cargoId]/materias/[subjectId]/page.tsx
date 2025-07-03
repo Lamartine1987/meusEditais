@@ -76,6 +76,7 @@ export default function SubjectTopicsPage() {
   const [endPage, setEndPage] = useState('');
   
   const [noteText, setNoteText] = useState('');
+  const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
 
   const [hasAccess, setHasAccess] = useState(false);
 
@@ -394,13 +395,15 @@ export default function SubjectTopicsPage() {
     }
   };
 
-  const handleDeleteNote = async (noteId: string) => {
-      if (!user || !hasAccess) return;
-      try {
-          await deleteNote(noteId);
-      } catch (error) {
-          // toast is handled in useAuth
-      }
+  const handleDeleteNoteConfirm = async () => {
+    if (!noteToDelete || !user || !hasAccess) return;
+    try {
+      await deleteNote(noteToDelete);
+    } catch (error) {
+      // toast is handled in useAuth
+    } finally {
+      setNoteToDelete(null);
+    }
   };
 
   const getNotesForTopic = useCallback((topicId: string): NoteEntry[] => {
@@ -754,7 +757,7 @@ export default function SubjectTopicsPage() {
                                             variant="ghost"
                                             size="icon"
                                             className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            onClick={() => handleDeleteNote(note.id)}
+                                            onClick={() => setNoteToDelete(note.id)}
                                         >
                                             <Trash2 className="h-4 w-4 text-destructive" />
                                         </Button>
@@ -886,6 +889,23 @@ export default function SubjectTopicsPage() {
                     <AlertDialogCancel onClick={() => setIsRevisionModalOpen(false)}>Cancelar</AlertDialogCancel>
                     <AlertDialogAction onClick={handleSaveRevisionSchedule}>Salvar Agendamento</AlertDialogAction>
                 </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {noteToDelete && (
+        <AlertDialog open={!!noteToDelete} onOpenChange={(open) => !open && setNoteToDelete(null)}>
+            <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                <AlertDialogDescription>
+                Tem certeza que deseja excluir esta anotação? Esta ação não pode ser desfeita.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setNoteToDelete(null)}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteNoteConfirm} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+            </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
       )}
