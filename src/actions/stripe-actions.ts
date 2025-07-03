@@ -138,55 +138,42 @@ export async function createCheckoutSession(
   };
   console.log('[createCheckoutSession] Metadata to be sent to Stripe session:', metadata);
 
-  try {
-    console.log(`[createCheckoutSession] Creating Stripe checkout session with PriceID: ${priceId}, CustomerID: ${stripeCustomerId}`);
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      mode: 'payment', // Use 'payment' for one-time purchases to enable installments
-      payment_method_options: {
-        card: {
-          installments: {
-            enabled: true,
-          },
+  // By not wrapping this in a try-catch, we allow the special `redirect()` error
+  // to be handled by the Next.js framework correctly. Any other error from
+  // `stripe.checkout.sessions.create` will also propagate and be caught by the
+  // client-side handler in the component, which will display a toast.
+  console.log(`[createCheckoutSession] Creating Stripe checkout session with PriceID: ${priceId}, CustomerID: ${stripeCustomerId}`);
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ['card'],
+    mode: 'payment',
+    payment_method_options: {
+      card: {
+        installments: {
+          enabled: true,
         },
       },
-      customer: stripeCustomerId,
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      metadata: metadata,
-    });
-    console.log(`[createCheckoutSession] Stripe checkout session created. ID: ${session.id}, URL available: ${!!session.url}`);
+    },
+    customer: stripeCustomerId,
+    line_items: [
+      {
+        price: priceId,
+        quantity: 1,
+      },
+    ],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    metadata: metadata,
+  });
+  console.log(`[createCheckoutSession] Stripe checkout session created. ID: ${session.id}, URL available: ${!!session.url}`);
 
-    if (session.url) {
-      redirect(session.url);
-    } else {
-      const errorMessage = 'Stripe Checkout session was ostensibly created, but session.url is null or undefined. This should not happen if the session was successful.';
-      console.error(`[createCheckoutSession] ${errorMessage}`, session);
-      throw new Error('Could not create Stripe Checkout session or the session URL is missing. Check server logs.');
-    }
-  } catch (error: any) {
-    if (
-      (error && typeof error.digest === 'string' && error.digest.toUpperCase().includes('NEXT_REDIRECT')) ||
-      (error && typeof error.message === 'string' && error.message.toUpperCase().includes('NEXT_REDIRECT'))
-    ) {
-      console.log('[createCheckoutSession] Caught NEXT_REDIRECT error, re-throwing.');
-      throw error; 
-    }
-
-    console.error('[createCheckoutSession] Error creating Stripe checkout session (not a redirect error):', error);
-    if (error instanceof Error) {
-        const displayMessage = error.message && !error.message.toUpperCase().includes('NEXT_REDIRECT')
-            ? error.message
-            : 'An issue occurred with the payment provider.';
-        throw new Error(`Stripe Error during session creation: ${displayMessage}`);
-    }
-    throw new Error('An unknown error occurred while creating the Stripe checkout session.');
+  if (session.url) {
+    redirect(session.url);
+  } else {
+    // This case is highly unlikely if the session creation was successful.
+    const errorMessage = 'Stripe Checkout session was created, but session.url is null or undefined.';
+    console.error(`[createCheckoutSession] ${errorMessage}`, session);
+    // Throw a regular error that will be caught by the client and shown in a toast.
+    throw new Error('Could not create Stripe Checkout session or the session URL is missing. Check server logs.');
   }
 }
 
