@@ -138,41 +138,48 @@ export async function createCheckoutSession(
   };
   console.log('[createCheckoutSession] Metadata to be sent to Stripe session:', metadata);
 
-  // By not wrapping this in a try-catch, we allow the special `redirect()` error
-  // to be handled by the Next.js framework correctly. Any other error from
-  // `stripe.checkout.sessions.create` will also propagate and be caught by the
-  // client-side handler in the component, which will display a toast.
-  console.log(`[createCheckoutSession] Creating Stripe checkout session with PriceID: ${priceId}, CustomerID: ${stripeCustomerId}`);
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
-    mode: 'payment',
-    payment_method_options: {
-      card: {
-        installments: {
-          enabled: true,
+  let session: Stripe.Checkout.Session;
+  try {
+    console.log(`[createCheckoutSession] Creating Stripe checkout session with PriceID: ${priceId}, CustomerID: ${stripeCustomerId}`);
+    session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      payment_method_options: {
+        card: {
+          installments: {
+            enabled: true,
+          },
         },
       },
-    },
-    customer: stripeCustomerId,
-    line_items: [
-      {
-        price: priceId,
-        quantity: 1,
-      },
-    ],
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    metadata: metadata,
-  });
+      customer: stripeCustomerId,
+      line_items: [
+        {
+          price: priceId,
+          quantity: 1,
+        },
+      ],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: metadata,
+    });
+  } catch (error: any) {
+    console.error('[createCheckoutSession] Stripe checkout session creation failed:', error.message);
+    if (error.code === 'resource_missing' && error.param === 'line_items[0][price]') {
+      throw new Error(`O Price ID '${priceId}' não foi encontrado no Stripe. Verifique se ele está correto e ativo.`);
+    }
+    if (error.message.includes('mode=payment')) {
+       throw new Error(`O preço configurado no Stripe não é compatível com pagamento único (one-time). Verifique se o Price ID '${priceId}' é do tipo 'Avulso' no painel do Stripe.`);
+    }
+    throw new Error(`Erro ao criar sessão de checkout no Stripe: ${error.message}`);
+  }
+  
   console.log(`[createCheckoutSession] Stripe checkout session created. ID: ${session.id}, URL available: ${!!session.url}`);
 
   if (session.url) {
     redirect(session.url);
   } else {
-    // This case is highly unlikely if the session creation was successful.
     const errorMessage = 'Stripe Checkout session was created, but session.url is null or undefined.';
     console.error(`[createCheckoutSession] ${errorMessage}`, session);
-    // Throw a regular error that will be caught by the client and shown in a toast.
     throw new Error('Could not create Stripe Checkout session or the session URL is missing. Check server logs.');
   }
 }
