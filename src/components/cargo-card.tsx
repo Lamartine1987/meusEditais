@@ -47,18 +47,31 @@ export function CargoCard({ editalId, cargo, isUserRegisteredForThisCargo, onReg
   };
 
   const getVacanciesText = () => {
-    const hasVacancies = typeof cargo.vacancies === 'number' && cargo.vacancies > 0;
-    const hasReserve = !!cargo.reserveList;
+    const hasImmediateVacancies = typeof cargo.vacancies === 'number' && cargo.vacancies > 0;
+    const reserveInfo = cargo.reserveList;
 
-    if (hasVacancies && hasReserve) {
-      return `${cargo.vacancies} ${cargo.vacancies === 1 ? 'vaga' : 'vagas'} + CR`;
+    let immediateText = '';
+    if (hasImmediateVacancies) {
+      immediateText = `${cargo.vacancies} ${cargo.vacancies === 1 ? 'vaga' : 'vagas'}`;
     }
-    if (hasVacancies) {
-      return `${cargo.vacancies} ${cargo.vacancies === 1 ? 'vaga' : 'vagas'}`;
+
+    let reserveText = '';
+    if (typeof reserveInfo === 'number' && reserveInfo > 0) {
+      reserveText = `${reserveInfo} CR`;
+    } else if (reserveInfo === true) {
+      reserveText = 'CR';
     }
-    if (hasReserve) {
-      return 'CR (Cadastro Reserva)';
+
+    if (immediateText && reserveText) {
+      return `${immediateText} + ${reserveText}`;
     }
+    if (immediateText) {
+      return immediateText;
+    }
+    if (reserveText) {
+      return reserveInfo === true ? 'CR (Cadastro Reserva)' : `${reserveText}`;
+    }
+
     return null;
   };
   const vacanciesText = getVacanciesText();
