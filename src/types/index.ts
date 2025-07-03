@@ -45,6 +45,7 @@ export interface PlanDetails {
   selectedEditalId?: string; // e.g., "edital1"
   // Stripe specific fields
   stripeSubscriptionId?: string | null;
+  stripePaymentIntentId?: string | null;
   stripeCustomerId?: string | null; 
 }
 

@@ -142,7 +142,14 @@ export async function createCheckoutSession(
     console.log(`[createCheckoutSession] Creating Stripe checkout session with PriceID: ${priceId}, CustomerID: ${stripeCustomerId}`);
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      mode: 'subscription',
+      mode: 'payment', // Use 'payment' for one-time purchases to enable installments
+      payment_method_options: {
+        card: {
+          installments: {
+            enabled: true,
+          },
+        },
+      },
       customer: stripeCustomerId,
       line_items: [
         {
@@ -153,9 +160,6 @@ export async function createCheckoutSession(
       success_url: successUrl,
       cancel_url: cancelUrl,
       metadata: metadata,
-      subscription_data: {
-        metadata: metadata, // Also pass metadata to subscription for easier retrieval later if needed
-      },
     });
     console.log(`[createCheckoutSession] Stripe checkout session created. ID: ${session.id}, URL available: ${!!session.url}`);
 
@@ -238,10 +242,10 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const planIdFromMetadata = session.metadata?.planId as PlanId | undefined;
         const selectedCargoCompositeId = session.metadata?.selectedCargoCompositeId;
         const selectedEditalId = session.metadata?.selectedEditalId; 
-        const subscriptionId = session.subscription;
+        const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null;
         const stripeCustomerIdFromSession = session.customer;
 
-        console.log(`[handleStripeWebhook] Extracted Metadata - UserID: ${userId}, PlanID (from metadata): ${planIdFromMetadata}, SelectedCargoCompositeID: ${selectedCargoCompositeId}, SelectedEditalID: ${selectedEditalId}, SubscriptionID: ${subscriptionId}, StripeCustomerID (from session): ${stripeCustomerIdFromSession}`);
+        console.log(`[handleStripeWebhook] Extracted Metadata - UserID: ${userId}, PlanID: ${planIdFromMetadata}, CargoID: ${selectedCargoCompositeId}, EditalID: ${selectedEditalId}, PaymentIntentID: ${paymentIntentId}, CustomerID: ${stripeCustomerIdFromSession}`);
 
         if (!userId || !planIdFromMetadata) {
           console.error('[handleStripeWebhook] Webhook Error: Missing userId or planIdFromMetadata in checkout session metadata.', session.metadata);
@@ -252,18 +256,13 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             console.error(`[handleStripeWebhook] CRITICAL WARNING: Checkout session ${session.id} completed, but planId in metadata is 'plano_trial'. This indicates a potential issue in checkout session creation if a paid plan was expected. UserID: ${userId}.`);
             return new Response('Webhook Error: Invalid planId ("plano_trial") received for a completed checkout session. Configuration error likely.', { status: 400 });
         }
-
-        if (!subscriptionId || typeof subscriptionId !== 'string') {
-          console.error('[handleStripeWebhook] Webhook Error: Missing or invalid subscription ID in checkout session.', session);
-          return new Response('Webhook Error: Missing or invalid subscription ID.', { status: 400 });
-        }
-
+        
         if (!stripeCustomerIdFromSession || typeof stripeCustomerIdFromSession !== 'string') {
           console.error('[handleStripeWebhook] Webhook Error: Missing or invalid customer ID in checkout session.', session);
           return new Response('Webhook Error: Missing or invalid customer ID.', { status: 400 });
         }
         
-        console.log(`[handleStripeWebhook] All critical IDs seem present. Proceeding to retrieve subscription details.`);
+        console.log(`[handleStripeWebhook] All critical IDs seem present. Proceeding to update user plan.`);
         
         const userFirebaseRef = adminDb.ref(`users/${userId}`); // Use adminDb ref
         let currentUserDataBeforeUpdate: any = {};
@@ -279,25 +278,14 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             console.error(`[handleStripeWebhook] Webhook Error: Failed to read user ${userId} data from DB before update:`, dbReadError);
             return new Response('Webhook Error: Database read error before update. Check server logs.', { status: 500 });
         }
-
-
-        let subscriptionDetails: Stripe.Subscription;
-        try {
-          console.log(`[handleStripeWebhook] Retrieving Stripe subscription with ID: ${subscriptionId}`);
-          subscriptionDetails = await stripe.subscriptions.retrieve(subscriptionId);
-          console.log(`[handleStripeWebhook] Successfully retrieved subscription details for ${subscriptionId}. Current period end (UTC seconds): ${subscriptionDetails.current_period_end}`);
-        } catch (subRetrieveError: any) {
-          console.error(`[handleStripeWebhook] Error retrieving subscription ${subscriptionId} from Stripe:`, subRetrieveError);
-          return new Response(`Webhook Error: Could not retrieve subscription details from Stripe. ${subRetrieveError.message}`, { status: 500 });
-        }
         
-        const currentPeriodEnd = subscriptionDetails.current_period_end;
-        const expiryDateISO = formatISO(new Date(currentPeriodEnd * 1000));
-        console.log(`[handleStripeWebhook] Subscription current_period_end (epoch): ${currentPeriodEnd}, converted to ISO: ${expiryDateISO}`);
-
+        // Since we are using 'payment' mode, we calculate the expiry date ourselves.
         const now = new Date();
         const startDateISO = formatISO(now);
-        
+        const expiryDate = new Date(new Date().setFullYear(now.getFullYear() + 1));
+        const expiryDateISO = formatISO(expiryDate);
+        console.log(`[handleStripeWebhook] Payment mode: Plan expiry set for 1 year. Start: ${startDateISO}, Expiry: ${expiryDateISO}`);
+
         const newHasHadFreeTrialValue = currentUserDataBeforeUpdate.hasHadFreeTrial || true;
 
         const planDetailsPayload = {
@@ -306,7 +294,8 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           expiryDate: expiryDateISO,
           ...(selectedCargoCompositeId && { selectedCargoCompositeId }), 
           ...(selectedEditalId && { selectedEditalId }), 
-          stripeSubscriptionId: subscriptionId,
+          stripeSubscriptionId: null, // No subscription ID in 'payment' mode
+          stripePaymentIntentId: paymentIntentId,
           stripeCustomerId: stripeCustomerIdFromSession,
         };
         console.log(`[handleStripeWebhook] Plan details payload to be saved to Firebase:`, planDetailsPayload);
