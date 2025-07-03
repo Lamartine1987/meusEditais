@@ -136,12 +136,12 @@ export async function createCheckoutSession(
     ...(specificDetails?.selectedCargoCompositeId && { selectedCargoCompositeId: specificDetails.selectedCargoCompositeId }),
     ...(specificDetails?.selectedEditalId && { selectedEditalId: specificDetails.selectedEditalId }),
   };
+  
   console.log('[createCheckoutSession] Metadata to be sent to Stripe session:', metadata);
 
   let session: Stripe.Checkout.Session;
   try {
-    console.log(`[createCheckoutSession] Creating Stripe checkout session with PriceID: ${priceId}, CustomerID: ${stripeCustomerId}`);
-    session = await stripe.checkout.sessions.create({
+    const sessionPayload: Stripe.Checkout.SessionCreateParams = {
       payment_method_types: ['card'],
       mode: 'payment',
       payment_method_options: {
@@ -161,7 +161,13 @@ export async function createCheckoutSession(
       success_url: successUrl,
       cancel_url: cancelUrl,
       metadata: metadata,
-    });
+    };
+
+    console.log(`[createCheckoutSession] Creating Stripe checkout session. PriceID: ${priceId}, CustomerID: ${stripeCustomerId}`);
+    console.log('[createCheckoutSession] Full session creation payload:', JSON.stringify(sessionPayload, null, 2));
+
+    session = await stripe.checkout.sessions.create(sessionPayload);
+    
   } catch (error: any) {
     console.error('[createCheckoutSession] Stripe checkout session creation failed:', error.message);
     if (error.code === 'resource_missing' && error.param === 'line_items[0][price]') {
