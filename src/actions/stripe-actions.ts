@@ -155,7 +155,7 @@ export async function createCheckoutSession(
               { type: 'fixed_count', count: 5 },
               { type: 'fixed_count', count: 6 },
             ],
-          },
+          } as any,
         },
       },
       customer: stripeCustomerId,
