@@ -19,7 +19,7 @@ export function getStripeClient(): Stripe {
 
   if (!stripeClientInstance) {
     stripeClientInstance = new Stripe(secretKey, {
-      apiVersion: '2024-06-20',
+      apiVersion: '2023-10-16',
       typescript: true,
     });
     console.log("[StripeClient] Stripe client instance (PRODUCTION MODE) created successfully.");
