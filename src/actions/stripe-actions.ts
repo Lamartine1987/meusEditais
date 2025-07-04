@@ -148,6 +148,13 @@ export async function createCheckoutSession(
         card: {
           installments: {
             enabled: true,
+            plans: [
+              { type: 'fixed_count', count: 2 },
+              { type: 'fixed_count', count: 3 },
+              { type: 'fixed_count', count: 4 },
+              { type: 'fixed_count', count: 5 },
+              { type: 'fixed_count', count: 6 },
+            ],
           },
         },
       },
@@ -428,6 +435,3 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   console.log(`[handleStripeWebhook] Successfully processed event type: ${event.type}. Event ID: ${event.id}. Returning 200 OK to Stripe.`);
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
-
-    
-    
