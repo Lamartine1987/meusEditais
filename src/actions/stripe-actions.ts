@@ -148,14 +148,7 @@ export async function createCheckoutSession(
         card: {
           installments: {
             enabled: true,
-            plans: [
-              { type: 'fixed_count', count: 2, interval: 'month' },
-              { type: 'fixed_count', count: 3, interval: 'month' },
-              { type: 'fixed_count', count: 4, interval: 'month' },
-              { type: 'fixed_count', count: 5, interval: 'month' },
-              { type: 'fixed_count', count: 6, interval: 'month' },
-            ],
-          } as any,
+          },
         },
       },
       customer: stripeCustomerId,
@@ -176,7 +169,7 @@ export async function createCheckoutSession(
     session = await stripe.checkout.sessions.create(sessionPayload);
     
   } catch (error: any) {
-    console.error('[createCheckoutSession] Stripe checkout session creation failed:', error.message);
+    console.error('[createCheckoutSession] Stripe checkout session creation failed:', error.message, error);
     if (error.code === 'resource_missing' && error.param === 'line_items[0][price]') {
       throw new Error(`O Price ID '${priceId}' não foi encontrado no Stripe. Verifique se ele está correto e ativo.`);
     }
@@ -214,7 +207,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   }
   if (!webhookSecret || webhookSecret.trim() === '') {
     const currentWebhookKeyValue = webhookSecret === undefined ? 'undefined' : (webhookSecret === null ? 'null' : `'${webhookSecret}'`);
-    const msg = `CRITICAL: STRIPE_WEBHOOK_SECRET_PROD is not set or is empty in environment variables. This is a server-side configuration issue. Current value: ${currentWebhookKeyValue}. Ensure secret is linked in apphosting.yaml and has a non-empty value.`;
+    const msg = `CRITICAL: STRIPE_WEBHOOK_SECRET_PROD is not set or is empty in environment variables. This is a server-side configuration issue. Current value: ${currentKeyValue}. Ensure secret is linked in apphosting.yaml and has a non-empty value.`;
     console.error(`[handleStripeWebhook] ${msg}`);
     return new Response('Webhook Error: Webhook secret not configured or is empty. Server configuration issue.', { status: 500 });
   }
@@ -435,4 +428,3 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   console.log(`[handleStripeWebhook] Successfully processed event type: ${event.type}. Event ID: ${event.id}. Returning 200 OK to Stripe.`);
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
-
