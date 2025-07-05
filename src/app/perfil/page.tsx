@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import type { PlanId, Edital as EditalType, Cargo as CargoType } from '@/types';
@@ -34,6 +34,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from '@/components/ui/switch';
 
 
 const profileSchema = z.object({
@@ -43,7 +44,7 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export default function ProfilePage() {
-  const { user, updateUser, sendPasswordReset, cancelSubscription, loading: authLoading, changeCargoForPlanoCargo, isPlanoCargoWithinGracePeriod } = useAuth();
+  const { user, updateUser, sendPasswordReset, cancelSubscription, loading: authLoading, changeCargoForPlanoCargo, isPlanoCargoWithinGracePeriod, setRankingParticipation } = useAuth();
   const { toast } = useToast();
   const [isPasswordResetting, setIsPasswordResetting] = useState(false);
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
@@ -293,6 +294,10 @@ export default function ProfilePage() {
     if (nameParts.length === 1) return nameParts[0][0].toUpperCase();
     return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
   };
+  
+  const handleRankingToggle = async (checked: boolean) => {
+    await setRankingParticipation(checked);
+  };
 
 
   if (authLoading || dataLoading) { 
@@ -385,6 +390,31 @@ export default function ProfilePage() {
             </CardFooter>
           </form>
         </Card>
+        
+        <Card className="shadow-lg rounded-xl bg-card">
+          <CardHeader>
+            <CardTitle className="text-xl flex items-center"><Trophy className="mr-3 h-6 w-6 text-primary" />Preferências</CardTitle>
+            <CardDescription>Gerencie suas preferências de privacidade e participação.</CardDescription>
+          </CardHeader>
+          <Separator />
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between space-x-2">
+              <Label htmlFor="ranking-switch" className="flex flex-col space-y-1">
+                <span className="font-semibold">Participar do Ranking</span>
+                <span className="font-normal leading-snug text-muted-foreground">
+                  Permitir que seu progresso seja exibido publicamente.
+                </span>
+              </Label>
+              <Switch
+                id="ranking-switch"
+                checked={user.isRankingParticipant === true}
+                onCheckedChange={handleRankingToggle}
+                disabled={authLoading}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
 
         <Card className="shadow-lg rounded-xl bg-card">
           <CardHeader>

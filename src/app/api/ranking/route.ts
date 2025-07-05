@@ -45,51 +45,56 @@ export async function GET(req: Request) {
     }
 
 
-    const rankingData: PublicRankingUser[] = Object.keys(allUsersData).map(userId => {
-      const userData: User = allUsersData[userId];
-      
-      const studyLogsToConsider = (userData.studyLogs || []).filter((log: StudyLogEntry) => {
-          if (!dateInterval) return true;
-          try {
-              const logDate = parseISO(log.date);
-              return isWithinInterval(logDate, dateInterval);
-          } catch {
-              return false;
-          }
+    const rankingData: PublicRankingUser[] = Object.keys(allUsersData)
+      .filter(userId => {
+        const userData: User = allUsersData[userId];
+        return userData.isRankingParticipant === true;
+      })
+      .map(userId => {
+        const userData: User = allUsersData[userId];
+        
+        const studyLogsToConsider = (userData.studyLogs || []).filter((log: StudyLogEntry) => {
+            if (!dateInterval) return true;
+            try {
+                const logDate = parseISO(log.date);
+                return isWithinInterval(logDate, dateInterval);
+            } catch {
+                return false;
+            }
+        });
+
+        const questionLogsToConsider = (userData.questionLogs || []).filter((log: QuestionLogEntry) => {
+            if (!dateInterval) return true;
+            try {
+                const logDate = parseISO(log.date);
+                return isWithinInterval(logDate, dateInterval);
+            } catch {
+                return false;
+            }
+        });
+        
+        const totalStudyTime = studyLogsToConsider.reduce(
+          (acc: number, log: StudyLogEntry) => acc + (log.duration || 0),
+          0
+        );
+        
+        const totalQuestionsAnswered = questionLogsToConsider.reduce(
+          (acc: number, log: QuestionLogEntry) => acc + (log.totalQuestions || 0),
+          0
+        );
+
+        // Scoring logic: 1 point per minute of study + 1 point per question answered
+        const score = Math.floor(totalStudyTime / 60) + totalQuestionsAnswered;
+
+        return {
+          id: userId,
+          name: userData.name || 'Usuário Anônimo',
+          avatarUrl: userData.avatarUrl,
+          totalStudyTime: totalStudyTime,
+          totalQuestionsAnswered: totalQuestionsAnswered,
+          score: score,
+        };
       });
-
-      const questionLogsToConsider = (userData.questionLogs || []).filter((log: QuestionLogEntry) => {
-          if (!dateInterval) return true;
-          try {
-              const logDate = parseISO(log.date);
-              return isWithinInterval(logDate, dateInterval);
-          } catch {
-              return false;
-          }
-      });
-      
-      const totalStudyTime = studyLogsToConsider.reduce(
-        (acc: number, log: StudyLogEntry) => acc + (log.duration || 0),
-        0
-      );
-      
-      const totalQuestionsAnswered = questionLogsToConsider.reduce(
-        (acc: number, log: QuestionLogEntry) => acc + (log.totalQuestions || 0),
-        0
-      );
-
-      // Scoring logic: 1 point per minute of study + 1 point per question answered
-      const score = Math.floor(totalStudyTime / 60) + totalQuestionsAnswered;
-
-      return {
-        id: userId,
-        name: userData.name || 'Usuário Anônimo',
-        avatarUrl: userData.avatarUrl,
-        totalStudyTime: totalStudyTime,
-        totalQuestionsAnswered: totalQuestionsAnswered,
-        score: score,
-      };
-    });
 
     // Filtra usuários que não têm pontuação e ordena os demais
     const sortedRanking = rankingData

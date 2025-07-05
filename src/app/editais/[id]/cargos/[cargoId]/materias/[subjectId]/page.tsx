@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon, ClipboardList, CheckCircle, XCircle, TrendingUp, CalendarClock, Info, AlertTriangle, Gem, FileText, History, NotebookPen, Trash2 } from 'lucide-react';
+import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon, ClipboardList, CheckCircle, XCircle, TrendingUp, CalendarClock, Info, AlertTriangle, Gem, FileText, History, NotebookPen, Trash2, Trophy } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
@@ -52,7 +52,7 @@ export default function SubjectTopicsPage() {
   const cargoId = params.cargoId as string;
   const subjectId = params.subjectId as string;
 
-  const { user, toggleTopicStudyStatus, addStudyLog, deleteStudyLog, addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus, addNote, deleteNote, loading: authLoading } = useAuth();
+  const { user, toggleTopicStudyStatus, addStudyLog, deleteStudyLog, addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus, addNote, deleteNote, loading: authLoading, setRankingParticipation } = useAuth();
   const { toast } = useToast();
 
   const [edital, setEdital] = useState<Edital | null>(null);
@@ -80,6 +80,11 @@ export default function SubjectTopicsPage() {
   const [logToDelete, setLogToDelete] = useState<string | null>(null);
 
   const [hasAccess, setHasAccess] = useState(false);
+
+  const [isRankingModalOpen, setIsRankingModalOpen] = useState(false);
+  const [pendingLogData, setPendingLogData] = useState<{ topicId: string; logData: any } | null>(null);
+  const [isSavingWithRankingChoice, setIsSavingWithRankingChoice] = useState(false);
+
 
   useEffect(() => {
     if (!user || authLoading) return;
@@ -221,6 +226,20 @@ export default function SubjectTopicsPage() {
     }));
   };
 
+  const saveStudyLog = async (topicId: string, logData: any) => {
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    try {
+      await addStudyLog(compositeTopicId, logData);
+      toast({ title: "Registro Salvo!", description: "Seu progresso de estudo foi salvo com sucesso.", variant: "default", className:"bg-accent text-accent-foreground" });
+      handleTimerReset(topicId);
+      setPdfName('');
+      setStartPage('');
+      setEndPage('');
+    } catch (error) {
+      toast({ title: "Erro ao Salvar", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
+    }
+  }
+
   const handleSaveLog = async (topicId: string) => {
     if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
 
@@ -229,7 +248,6 @@ export default function SubjectTopicsPage() {
     const startPageNum = startPage ? parseInt(startPage, 10) : undefined;
     const endPageNum = endPage ? parseInt(endPage, 10) : undefined;
 
-    // --- Validation ---
     if (durationToSave === 0 && !pdfNameToSave && startPageNum === undefined && endPageNum === undefined) {
       toast({ title: "Nada para Salvar", description: "Use o cronômetro ou preencha as informações de leitura para salvar um registro.", variant: "default" });
       return;
@@ -243,7 +261,6 @@ export default function SubjectTopicsPage() {
       return;
     }
 
-    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
     const logData = {
       duration: durationToSave,
       ...(pdfNameToSave && { pdfName: pdfNameToSave }),
@@ -251,21 +268,30 @@ export default function SubjectTopicsPage() {
       ...(endPageNum !== undefined && { endPage: endPageNum }),
     };
 
-    try {
-      await addStudyLog(compositeTopicId, logData);
-      toast({ title: "Registro Salvo!", description: "Seu progresso de estudo foi salvo com sucesso.", variant: "default", className:"bg-accent text-accent-foreground" });
-      
-      // Reset all inputs on successful save
-      handleTimerReset(topicId);
-      setPdfName('');
-      setStartPage('');
-      setEndPage('');
-
-    } catch (error) {
-      toast({ title: "Erro ao Salvar", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
+    if (user.isRankingParticipant === null && (user.studyLogs || []).length === 0) {
+      setPendingLogData({ topicId, logData });
+      setIsRankingModalOpen(true);
+    } else {
+      await saveStudyLog(topicId, logData);
     }
   };
   
+  const handleRankingChoice = async (participate: boolean) => {
+    if (!pendingLogData || !user) return;
+    setIsSavingWithRankingChoice(true);
+    try {
+      await setRankingParticipation(participate);
+      await saveStudyLog(pendingLogData.topicId, pendingLogData.logData);
+      setIsRankingModalOpen(false);
+      setPendingLogData(null);
+    } catch (e) {
+      // Toasts are handled internally
+    } finally {
+      setIsSavingWithRankingChoice(false);
+    }
+  };
+
+
   const getTopicStudyLogs = useCallback((topicId: string): StudyLogEntry[] => {
     if (!user?.studyLogs) return [];
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
@@ -954,6 +980,28 @@ export default function SubjectTopicsPage() {
                 <AlertDialogAction onClick={handleDeleteLogConfirm} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
             </AlertDialogFooter>
             </AlertDialogContent>
+        </AlertDialog>
+      )}
+      
+      {isRankingModalOpen && (
+        <AlertDialog open={isRankingModalOpen} onOpenChange={setIsRankingModalOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center"><Trophy className="mr-2 h-5 w-5 text-yellow-500" /> Participar do Ranking?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Ao participar, seu nome e progresso (tempo de estudo e questões) serão exibidos publicamente. Você pode alterar essa preferência a qualquer momento em seu perfil.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <Button variant="outline" onClick={() => handleRankingChoice(false)} disabled={isSavingWithRankingChoice}>
+                Não, obrigado
+              </Button>
+              <Button onClick={() => handleRankingChoice(true)} disabled={isSavingWithRankingChoice}>
+                {isSavingWithRankingChoice && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Sim, participar
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
         </AlertDialog>
       )}
     </PageWrapper>

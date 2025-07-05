@@ -65,6 +65,7 @@ export interface User {
   stripeCustomerId?: string | null; 
   hasHadFreeTrial?: boolean; // Tracks if the user has used the free trial
   planHistory?: PlanDetails[];
+  isRankingParticipant?: boolean | null; // null = undecided, true = yes, false = no
 }
 
 export interface Topic {

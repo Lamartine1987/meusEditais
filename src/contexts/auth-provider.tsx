@@ -43,6 +43,7 @@ interface AuthContextType {
   startFreeTrial: () => Promise<void>;
   changeCargoForPlanoCargo: (newCargoCompositeId: string) => Promise<void>;
   isPlanoCargoWithinGracePeriod: () => boolean;
+  setRankingParticipation: (participate: boolean) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -101,6 +102,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 stripeCustomerId: null,
                 hasHadFreeTrial: false,
                 planHistory: [],
+                isRankingParticipant: null, // Default for new users
               };
               await set(userRef, dbData); // Persist this initial structure
             } else {
@@ -135,6 +137,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               stripeCustomerId: dbData.stripeCustomerId || null,
               hasHadFreeTrial: dbData.hasHadFreeTrial || false,
               planHistory: dbData.planHistory || [],
+              isRankingParticipant: dbData.isRankingParticipant ?? null, // Handle null/undefined
             };
 
             let trialExpiredToastShown = false;
@@ -169,6 +172,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               id: firebaseUser.uid, name: firebaseUser.displayName || 'Usuário', email: firebaseUser.email || '',
               registeredCargoIds: [], studiedTopicIds: [], studyLogs: [], questionLogs: [], revisionSchedules: [],
               notes: [], activePlan: null, planDetails: null, stripeCustomerId: null, hasHadFreeTrial: false, planHistory: [],
+              isRankingParticipant: null,
             });
           } finally {
             setLoading(false); // Ensure loading is set to false
@@ -663,6 +667,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // finally { setLoading(false); }
   };
 
+  const setRankingParticipation = async (participate: boolean) => {
+    if (user) {
+      try {
+        await update(ref(db, `users/${user.id}`), { isRankingParticipant: participate });
+        // The onValue listener will update the local state.
+        toast({
+          title: "Preferência de Ranking Salva!",
+          description: participate
+            ? "Você agora está participando do ranking."
+            : "Você escolheu não participar do ranking. Seus dados permanecerão anônimos.",
+          variant: "default",
+          className: "bg-accent text-accent-foreground",
+        });
+      } catch (error) {
+        console.error("Error setting ranking participation:", error);
+        toast({ title: "Erro", description: "Não foi possível salvar sua preferência de ranking.", variant: "destructive" });
+        throw error;
+      }
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, loading, login, register, sendPasswordReset, logout, updateUser, 
@@ -670,7 +695,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       deleteStudyLog,
       addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
       addNote, deleteNote,
-      cancelSubscription, startFreeTrial, changeCargoForPlanoCargo, isPlanoCargoWithinGracePeriod
+      cancelSubscription, startFreeTrial, changeCargoForPlanoCargo, isPlanoCargoWithinGracePeriod,
+      setRankingParticipation
     }}>
       {children}
     </AuthContext.Provider>
