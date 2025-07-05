@@ -5,7 +5,7 @@ let stripeClientInstance: Stripe | null = null;
 
 // This function should only be called server-side (e.g., in Server Actions or API routes)
 export function getStripeClient(): Stripe {
-  const secretKey = process.env.STRIPE_SECRET_KEY_PROD; // Changed back to _PROD
+  const secretKey = process.env.STRIPE_SECRET_KEY_PROD;
 
   // Verbose logging for debugging
   console.log(`[StripeClient] Attempting to initialize. STRIPE_SECRET_KEY_PROD value from process.env: '${secretKey === undefined ? "undefined" : (secretKey === null ? "null" : (secretKey.trim() === "" ? "EMPTY_STRING" : "****** (present)"))}'`);
@@ -19,7 +19,7 @@ export function getStripeClient(): Stripe {
 
   if (!stripeClientInstance) {
     stripeClientInstance = new Stripe(secretKey, {
-      apiVersion: '2023-10-16',
+      apiVersion: '2024-06-20', // Reverted to fix the build error
       typescript: true,
     });
     console.log("[StripeClient] Stripe client instance (PRODUCTION MODE) created successfully.");
