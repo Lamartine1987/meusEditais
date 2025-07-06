@@ -11,6 +11,11 @@ env:
   - variable: GOOGLE_API_KEY
     secret: GOOGLE_API_KEY # Nome do secret no Secret Manager
 
+  # ✅ Chave de API do Resend - Essencial para o envio de e-mails.
+  # Você deve salvá-la no Secret Manager com o nome RESEND_API_KEY.
+  - variable: RESEND_API_KEY
+    secret: RESEND_API_KEY # Nome do secret no Secret Manager
+
   # ✅ Segredos para o ambiente de PRODUÇÃO do Stripe
   - variable: STRIPE_SECRET_KEY_PROD
     secret: STRIPE_SECRET_KEY_PROD # Nome do secret no Secret Manager
