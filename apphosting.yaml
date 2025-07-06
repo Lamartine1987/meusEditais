@@ -1,4 +1,3 @@
-
 # Configurações do backend do Firebase App Hosting
 # https://firebase.google.com/docs/app-hosting/configure
 
@@ -6,21 +5,18 @@ runConfig:
   maxInstances: 1
 
 env:
-  # ✅ Chave de API da Gemini - Essencial para as funcionalidades de IA.
-  # Você deve criar esta chave no Google AI Studio e salvá-la no Secret Manager.
+  # ✅ Chaves de API e Segredos - Disponíveis apenas quando a aplicação está rodando (RUNTIME)
+  # para evitar erros de permissão durante o build.
   - variable: GOOGLE_API_KEY
     secret: GOOGLE_API_KEY # Nome do secret no Secret Manager
     availability:
       - RUNTIME
 
-  # ✅ Chave de API do Resend - Essencial para o envio de e-mails.
-  # Você deve salvá-la no Secret Manager com o nome RESEND_API_KEY.
   - variable: RESEND_API_KEY
     secret: RESEND_API_KEY # Nome do secret no Secret Manager
     availability:
       - RUNTIME
 
-  # ✅ Segredos para o ambiente de PRODUÇÃO do Stripe
   - variable: STRIPE_SECRET_KEY_PROD
     secret: STRIPE_SECRET_KEY_PROD # Nome do secret no Secret Manager
     availability:
@@ -31,7 +27,6 @@ env:
     availability:
       - RUNTIME
 
-  # ✅ IDs de Preço - Devem corresponder aos IDs de preço de PRODUÇÃO
   - variable: STRIPE_PRICE_ID_PLANO_CARGO
     secret: STRIPE_PRICE_ID_PLANO_CARGO
     availability:
@@ -49,7 +44,7 @@ env:
 
   # ✅ Chaves Públicas e URLs - Precisam estar disponíveis durante o BUILD
   # para serem embutidas no código do cliente. A disponibilidade padrão
-  # (BUILD e RUNTIME) está correta para elas.
+  # (BUILD e RUNTIME) é mantida ao não especificar a chave 'availability'.
   - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
     secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY # Nome do secret no Secret Manager
 
