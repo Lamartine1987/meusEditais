@@ -24,6 +24,7 @@ const nextConfig = {
     serverComponentsExternalPackages: [
       'firebase-admin',
       'stripe',
+      'firebase',
     ],
   },
 };
