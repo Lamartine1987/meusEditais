@@ -369,7 +369,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             try {
               console.log(`[handleStripeWebhook] Attempting to send subscription confirmation email to ${userEmailForNotification}`);
               await sendSubscriptionConfirmationEmail(userEmailForNotification, userNameForNotification, planIdFromMetadata);
-              console.log(`[handleStripeWebhook] Mock subscription confirmation email sent successfully.`);
+              console.log(`[handleStripeWebhook] Successfully triggered subscription confirmation email via email service.`);
             } catch (emailError: any) {
               console.error(`[handleStripeWebhook] WARNING: Failed to send subscription confirmation email for user ${userId}. Error: ${emailError.message}`);
               // Do not block the webhook response for email failure.

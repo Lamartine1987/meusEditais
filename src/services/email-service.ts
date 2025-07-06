@@ -1,25 +1,20 @@
 
 'use server';
 
-/**
- * @fileOverview A mock email service for sending transactional emails.
- * In a real application, this would integrate with a service like SendGrid, Mailgun, or AWS SES.
- */
 import type { PlanId } from '@/types';
 
-const getPlanDisplayName = (planId: PlanId): string => {
+const getPlanInfo = (planId: PlanId): { name: string; benefits: string } => {
     switch (planId) {
-        case 'plano_cargo': return "Plano Cargo";
-        case 'plano_edital': return "Plano Edital";
-        case 'plano_anual': return "Plano Anual";
-        case 'plano_trial': return "Teste Gratuito";
-        default: return "Plano";
+        case 'plano_cargo': return { name: "Plano Cargo", benefits: "Acesso a 1 cargo específico, Funcionalidades de estudo completas, Acompanhamento de progresso detalhado." };
+        case 'plano_edital': return { name: "Plano Edital", benefits: "Acesso a todos os cargos de 1 edital, Flexibilidade para múltiplas vagas, Suporte para upgrade." };
+        case 'plano_anual': return { name: "Plano Anual", benefits: "Acesso ILIMITADO a todos os editais e cargos, Liberdade total para explorar concursos, O melhor custo-benefício." };
+        case 'plano_trial': return { name: "Teste Gratuito", benefits: "Acesso completo por 5 dias, Explore todos os recursos, Sem compromisso." };
+        default: return { name: "Plano", benefits: "Acesso aos recursos da plataforma." };
     }
 };
 
 /**
- * Sends a subscription confirmation email.
- * This is a mock function that logs to the console.
+ * Sends a subscription confirmation email by calling the external API endpoint.
  *
  * @param to - The recipient's email address.
  * @param name - The recipient's name.
@@ -30,31 +25,46 @@ export async function sendSubscriptionConfirmationEmail(
     name: string,
     planId: PlanId,
 ): Promise<void> {
-    const planName = getPlanDisplayName(planId);
-    const subject = `Confirmação de Assinatura: ${planName}`;
-    const body = `
-        Olá ${name},
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+    // The endpoint provided in the screenshot
+    const emailApiUrl = `${appUrl}/api/send-welcome-email`; 
 
-        Obrigado por assinar o ${planName} na plataforma Meus Editais!
+    const { name: planName, benefits: keyBenefits } = getPlanInfo(planId);
+    const companyName = "Meus Editais";
 
-        Sua assinatura está ativa e você já pode aproveitar todos os benefícios.
+    const payload = {
+        userName: name,
+        userEmail: to,
+        planName,
+        companyName,
+        keyBenefits,
+    };
 
-        Para gerenciar sua conta e assinatura, acesse seu perfil:
-        ${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'}/perfil
+    console.log(`[EmailService] Attempting to send welcome email via API: ${emailApiUrl}`);
+    console.log(`[EmailService] Payload: ${JSON.stringify(payload)}`);
 
-        Atenciosamente,
-        Equipe Meus Editais
-    `;
+    try {
+        const response = await fetch(emailApiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        });
 
-    console.log("--- MOCK EMAIL SENDER ---");
-    console.log(`To: ${to}`);
-    console.log(`Subject: ${subject}`);
-    console.log(`Body: ${body.trim().replace(/^ +/gm, '')}`);
-    console.log("-------------------------");
-    
-    // In a real application, you would use an email API here.
-    // For example, using a library like 'nodemailer' or an SDK for SendGrid/Mailgun.
-    // await emailProvider.send({ to, subject, body });
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`API call to email service failed with status ${response.status}: ${errorBody}`);
+        }
 
-    return Promise.resolve();
+        const responseData = await response.json();
+        console.log("[EmailService] Successfully triggered email via external API:", responseData);
+
+    } catch (error: any) {
+        console.error("[EmailService] Failed to send email via external API:", error.message);
+        // Re-throw the error so the calling function (webhook) is aware of the failure.
+        // The webhook handler has a try/catch block that will log this as a warning
+        // without stopping the entire webhook process.
+        throw error;
+    }
 }
