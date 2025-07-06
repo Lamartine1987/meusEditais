@@ -8,6 +8,7 @@ import { redirect } from 'next/navigation';
 import { adminDb } from '@/lib/firebase-admin'; // Use Admin DB
 import { formatISO } from 'date-fns';
 import type Stripe from 'stripe';
+import { sendSubscriptionConfirmationEmail } from '@/services/email-service';
 
 const planToPriceMap: Record<PlanId, string | undefined> = {
   plano_cargo: process.env.STRIPE_PRICE_ID_PLANO_CARGO,
@@ -248,8 +249,10 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const selectedEditalId = session.metadata?.selectedEditalId; 
         const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null;
         const stripeCustomerIdFromSession = session.customer;
+        const userEmail = session.customer_details?.email; // Get email from session
+        const userName = session.customer_details?.name; // Get name from session
 
-        console.log(`[handleStripeWebhook] Extracted Metadata - UserID: ${userId}, PlanID: ${planIdFromMetadata}, CargoID: ${selectedCargoCompositeId}, EditalID: ${selectedEditalId}, PaymentIntentID: ${paymentIntentId}, CustomerID: ${stripeCustomerIdFromSession}`);
+        console.log(`[handleStripeWebhook] Extracted Metadata - UserID: ${userId}, PlanID: ${planIdFromMetadata}, CargoID: ${selectedCargoCompositeId}, EditalID: ${selectedEditalId}, PaymentIntentID: ${paymentIntentId}, CustomerID: ${stripeCustomerIdFromSession}, Email: ${userEmail}, Name: ${userName}`);
 
         if (!userId || !planIdFromMetadata) {
           console.error('[handleStripeWebhook] Webhook Error: Missing userId or planIdFromMetadata in checkout session metadata.', session.metadata);
@@ -359,6 +362,15 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           console.log(`[handleStripeWebhook] FINAL DB UPDATE PAYLOAD for user ${userId}:`, JSON.stringify(updatePayload, null, 2));
           await userFirebaseRef.update(updatePayload); // Use admin ref update for a single atomic operation
           console.log(`[handleStripeWebhook] Successfully updated user data for ${userId} in Firebase.`);
+
+          // Send confirmation email after successful DB update
+          const finalUserName = userName || currentUserDataBeforeUpdate.name || 'Usuário';
+          if (userEmail) {
+            console.log(`[handleStripeWebhook] >>>>> EMAIL TRIGGER: Preparing to send confirmation email to ${userEmail} for plan ${planIdFromMetadata}.`);
+            await sendSubscriptionConfirmationEmail(userEmail, finalUserName, planIdFromMetadata);
+          } else {
+            console.warn(`[handleStripeWebhook] Could not send confirmation email because user email was not available in the Stripe session.`);
+          }
 
         } catch (dbError: any) {
           console.error(`[handleStripeWebhook] Webhook Error: Failed to update user ${userId} in database:`, dbError);

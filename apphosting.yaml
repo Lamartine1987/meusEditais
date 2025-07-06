@@ -8,17 +8,22 @@ env:
   # ✅ Chaves de API e Segredos - Disponíveis apenas quando a aplicação está rodando (RUNTIME)
   # para evitar erros de permissão durante o build.
   - variable: GOOGLE_API_KEY
-    secret: GOOGLE_API_KEY # Nome do secret no Secret Manager
+    secret: GOOGLE_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: RESEND_API_KEY
+    secret: RESEND_API_KEY
     availability:
       - RUNTIME
 
   - variable: STRIPE_SECRET_KEY_PROD
-    secret: STRIPE_SECRET_KEY_PROD # Nome do secret no Secret Manager
+    secret: STRIPE_SECRET_KEY_PROD
     availability:
       - RUNTIME
 
   - variable: STRIPE_WEBHOOK_SECRET_PROD
-    secret: STRIPE_WEBHOOK_SECRET_PROD # Nome do secret no Secret Manager
+    secret: STRIPE_WEBHOOK_SECRET_PROD
     availability:
       - RUNTIME
 
@@ -41,7 +46,7 @@ env:
   # para serem embutidas no código do cliente. A disponibilidade padrão
   # (BUILD e RUNTIME) é mantida ao não especificar a chave 'availability'.
   - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY # Nome do secret no Secret Manager
+    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 
   - variable: NEXT_PUBLIC_APP_URL
-    secret: NEXT_PUBLIC_APP_URL # Ou defina 'value: "https://seu-dominio.web.app"'
+    secret: NEXT_PUBLIC_APP_URL
