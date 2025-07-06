@@ -8,7 +8,6 @@ import { redirect } from 'next/navigation';
 import { adminDb } from '@/lib/firebase-admin'; // Use Admin DB
 import { formatISO } from 'date-fns';
 import type Stripe from 'stripe';
-import { sendSubscriptionConfirmationEmail } from '@/services/email-service';
 
 const planToPriceMap: Record<PlanId, string | undefined> = {
   plano_cargo: process.env.STRIPE_PRICE_ID_PLANO_CARGO,
@@ -360,23 +359,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           console.log(`[handleStripeWebhook] FINAL DB UPDATE PAYLOAD for user ${userId}:`, JSON.stringify(updatePayload, null, 2));
           await userFirebaseRef.update(updatePayload); // Use admin ref update for a single atomic operation
           console.log(`[handleStripeWebhook] Successfully updated user data for ${userId} in Firebase.`);
-
-          // Send confirmation email after successful DB update
-          const userEmailForNotification = currentUserDataBeforeUpdate.email || session.customer_details?.email;
-          const userNameForNotification = currentUserDataBeforeUpdate.name || 'Usuário';
-
-          if (userEmailForNotification) {
-            console.log(`[handleStripeWebhook] >>>>> EMAIL TRIGGER: Preparing to send confirmation email to ${userEmailForNotification}. <<<<<`);
-            try {
-              await sendSubscriptionConfirmationEmail(userEmailForNotification, userNameForNotification, planIdFromMetadata);
-              console.log(`[handleStripeWebhook] >>>>> EMAIL TRIGGER: Successfully triggered subscription confirmation email via email service. <<<<<`);
-            } catch (emailError: any) {
-              console.error(`[handleStripeWebhook] >>>>> EMAIL TRIGGER WARNING: Failed to send subscription confirmation email for user ${userId}. Error: ${emailError.message} <<<<<`);
-              // Do not block the webhook response for email failure.
-            }
-          } else {
-            console.warn(`[handleStripeWebhook] >>>>> EMAIL TRIGGER WARNING: Could not determine user email for notification. UserID: ${userId}. Email not sent. <<<<<`);
-          }
 
         } catch (dbError: any) {
           console.error(`[handleStripeWebhook] Webhook Error: Failed to update user ${userId} in database:`, dbError);

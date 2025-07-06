@@ -12,11 +12,6 @@ env:
     availability:
       - RUNTIME
 
-  - variable: RESEND_API_KEY
-    secret: RESEND_API_KEY # Nome do secret no Secret Manager
-    availability:
-      - RUNTIME
-
   - variable: STRIPE_SECRET_KEY_PROD
     secret: STRIPE_SECRET_KEY_PROD # Nome do secret no Secret Manager
     availability:
