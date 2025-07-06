@@ -8,7 +8,6 @@ import { redirect } from 'next/navigation';
 import { adminDb } from '@/lib/firebase-admin'; // Use Admin DB
 import { formatISO } from 'date-fns';
 import type Stripe from 'stripe';
-import { sendSubscriptionConfirmationEmail } from '@/services/email-service';
 
 const planToPriceMap: Record<PlanId, string | undefined> = {
   plano_cargo: process.env.STRIPE_PRICE_ID_PLANO_CARGO,
@@ -362,15 +361,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           console.log(`[handleStripeWebhook] FINAL DB UPDATE PAYLOAD for user ${userId}:`, JSON.stringify(updatePayload, null, 2));
           await userFirebaseRef.update(updatePayload); // Use admin ref update for a single atomic operation
           console.log(`[handleStripeWebhook] Successfully updated user data for ${userId} in Firebase.`);
-
-          // Send confirmation email after successful DB update
-          const finalUserName = userName || currentUserDataBeforeUpdate.name || 'Usuário';
-          if (userEmail) {
-            console.log(`[handleStripeWebhook] >>>>> EMAIL TRIGGER: Preparing to send confirmation email to ${userEmail} for plan ${planIdFromMetadata}.`);
-            await sendSubscriptionConfirmationEmail(userEmail, finalUserName, planIdFromMetadata);
-          } else {
-            console.warn(`[handleStripeWebhook] Could not send confirmation email because user email was not available in the Stripe session.`);
-          }
 
         } catch (dbError: any) {
           console.error(`[handleStripeWebhook] Webhook Error: Failed to update user ${userId} in database:`, dbError);
