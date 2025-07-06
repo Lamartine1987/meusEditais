@@ -366,16 +366,16 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           const userNameForNotification = currentUserDataBeforeUpdate.name || 'Usuário';
 
           if (userEmailForNotification) {
+            console.log(`[handleStripeWebhook] >>>>> EMAIL TRIGGER: Preparing to send confirmation email to ${userEmailForNotification}. <<<<<`);
             try {
-              console.log(`[handleStripeWebhook] Attempting to send subscription confirmation email to ${userEmailForNotification}`);
               await sendSubscriptionConfirmationEmail(userEmailForNotification, userNameForNotification, planIdFromMetadata);
-              console.log(`[handleStripeWebhook] Successfully triggered subscription confirmation email via email service.`);
+              console.log(`[handleStripeWebhook] >>>>> EMAIL TRIGGER: Successfully triggered subscription confirmation email via email service. <<<<<`);
             } catch (emailError: any) {
-              console.error(`[handleStripeWebhook] WARNING: Failed to send subscription confirmation email for user ${userId}. Error: ${emailError.message}`);
+              console.error(`[handleStripeWebhook] >>>>> EMAIL TRIGGER WARNING: Failed to send subscription confirmation email for user ${userId}. Error: ${emailError.message} <<<<<`);
               // Do not block the webhook response for email failure.
             }
           } else {
-            console.warn(`[handleStripeWebhook] WARNING: Could not determine user email for notification. UserID: ${userId}.`);
+            console.warn(`[handleStripeWebhook] >>>>> EMAIL TRIGGER WARNING: Could not determine user email for notification. UserID: ${userId}. Email not sent. <<<<<`);
           }
 
         } catch (dbError: any) {

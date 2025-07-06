@@ -40,8 +40,9 @@ export async function sendSubscriptionConfirmationEmail(
         keyBenefits,
     };
 
-    console.log(`[EmailService] Attempting to send welcome email via API: ${emailApiUrl}`);
-    console.log(`[EmailService] Payload: ${JSON.stringify(payload)}`);
+    console.log(`[EmailService] >>>>> EMAIL SERVICE INITIATED <<<<<`);
+    console.log(`[EmailService] Preparing to call your custom email endpoint: ${emailApiUrl}`);
+    console.log(`[EmailService] Payload to be sent: ${JSON.stringify(payload, null, 2)}`);
 
     try {
         const response = await fetch(emailApiUrl, {
@@ -54,14 +55,15 @@ export async function sendSubscriptionConfirmationEmail(
 
         if (!response.ok) {
             const errorBody = await response.text();
-            throw new Error(`API call to email service failed with status ${response.status}: ${errorBody}`);
+            // This error will be thrown and caught by the webhook handler.
+            throw new Error(`API call to your email service failed with status ${response.status}. Response: ${errorBody}`);
         }
 
         const responseData = await response.json();
-        console.log("[EmailService] Successfully triggered email via external API:", responseData);
+        console.log("[EmailService] >>>>> SUCCESS: Your email API responded positively. Email should be sent. <<<<<", responseData);
 
     } catch (error: any) {
-        console.error("[EmailService] Failed to send email via external API:", error.message);
+        console.error("[EmailService] >>>>> ERROR: Failed to call your email service API. <<<<<", error.message);
         // Re-throw the error so the calling function (webhook) is aware of the failure.
         // The webhook handler has a try/catch block that will log this as a warning
         // without stopping the entire webhook process.
