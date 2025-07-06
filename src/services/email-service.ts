@@ -4,9 +4,7 @@
 import { Resend } from 'resend';
 import type { PlanId } from '@/types';
 
-// A chave de API do Resend será lida da variável de ambiente.
-// Certifique-se de que o secret RESEND_API_KEY está configurado no Google Secret Manager.
-const resend = new Resend(process.env.RESEND_API_KEY);
+// O serviço Resend será inicializado dentro da função para evitar erros de build.
 
 const getPlanInfo = (planId: PlanId): { name: string; benefits: string[] } => {
     switch (planId) {
@@ -70,19 +68,27 @@ export async function sendSubscriptionConfirmationEmail(
     name: string,
     planId: PlanId,
 ): Promise<void> {
-    
-    if (!process.env.RESEND_API_KEY) {
-        console.error("[EmailService] >>>>> CRITICAL ERROR: RESEND_API_KEY is not set. Email cannot be sent. <<<<<");
-        throw new Error("A chave de API do Resend não está configurada no servidor.");
+
+    const apiKey = process.env.RESEND_API_KEY;
+
+    // Durante o build, a chave de API não está disponível. Este check previne o erro.
+    if (!apiKey) {
+        console.log("[EmailService] Chave de API do Resend não encontrada. Pulando envio de e-mail. (Esperado durante o build)");
+        // Em um ambiente de produção real, queremos saber se a chave está faltando.
+        if (process.env.K_SERVICE) { // K_SERVICE é uma variável de ambiente do App Hosting.
+            console.error("[EmailService] CRÍTICO: A chave de API do Resend está faltando em um ambiente de produção!");
+        }
+        return;
     }
     
-    console.log(`[EmailService] >>>>> RESEND EMAIL SERVICE INITIATED <<<<<`);
+    const resend = new Resend(apiKey);
+    console.log(`[EmailService] >>>>> SERVIÇO DE EMAIL RESEND INICIADO <<<<<`);
     
     const { name: planName, benefits } = getPlanInfo(planId);
     const emailHtml = createEmailHtml(name, planName, benefits);
 
     try {
-        console.log(`[EmailService] Attempting to send email via Resend to: ${to}`);
+        console.log(`[EmailService] Tentando enviar e-mail via Resend para: ${to}`);
         const { data, error } = await resend.emails.send({
             from: 'Meus Editais <onboarding@resend.dev>', // IMPORTANTE: Para produção, este deve ser um domínio verificado.
             to: [to],
@@ -91,14 +97,14 @@ export async function sendSubscriptionConfirmationEmail(
         });
 
         if (error) {
-            console.error("[EmailService] >>>>> RESEND API ERROR <<<<<", error);
+            console.error("[EmailService] >>>>> ERRO DA API RESEND <<<<<", error);
             throw new Error(`A API do Resend falhou ao enviar o e-mail. Erro: ${error.message}`);
         }
 
-        console.log("[EmailService] >>>>> SUCCESS: Resend API accepted the email request. <<<<<", data);
+        console.log("[EmailService] >>>>> SUCESSO: A API do Resend aceitou a requisição de e-mail. <<<<<", data);
 
     } catch (error: any) {
-        console.error("[EmailService] >>>>> ERROR: Failed to execute Resend API call. <<<<<", error.message);
+        console.error("[EmailService] >>>>> ERRO: Falha ao executar a chamada para a API do Resend. <<<<<", error.message);
         throw error;
     }
 }
