@@ -35,8 +35,6 @@ export default function RegisterPage() {
       toast({ title: "Cadastro Realizado!", description: "Redirecionando para a página inicial...", variant: "default", className: "bg-accent text-accent-foreground" });
       router.push('/'); 
     } catch (error: any) {
-      // Toast messages for CPF errors are handled within the auth provider
-      // So we only need to handle the auth-specific errors here.
       let errorMessage = error.message || "Não foi possível realizar o cadastro.";
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = "Este e-mail já está em uso.";
@@ -44,10 +42,6 @@ export default function RegisterPage() {
         errorMessage = "O formato do e-mail é inválido.";
       } else if (error.code === 'auth/weak-password') {
         errorMessage = "A senha é muito fraca. Tente uma senha mais forte.";
-      } else if (error.message.includes("CPF")) {
-        // Don't show a generic toast if a specific CPF error was already shown
-        setIsSubmitting(false);
-        return;
       } else {
          console.error("Registration failed with code:", error.code, error.message);
       }

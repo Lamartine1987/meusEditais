@@ -14,7 +14,7 @@ import {
   type User as FirebaseUser 
 } from 'firebase/auth';
 import { auth as firebaseAuthService, db } from '@/lib/firebase'; 
-import { ref, set, get, update, remove, onValue, type Unsubscribe, query, orderByChild, equalTo } from "firebase/database"; // Added query, orderByChild, equalTo
+import { ref, set, get, update, remove, onValue, type Unsubscribe } from "firebase/database";
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
@@ -153,14 +153,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 console.log(`[AuthProvider] Free trial for user ${firebaseUser.uid} expired on ${trialPlan.expiryDate}. Removing from active plans.`);
                 const updatedActivePlans = appUser.activePlans?.filter(p => p.planId !== 'plano_trial') || [];
                 
-                let newActivePlanId: PlanId | null = null;
+                let highestPlan: PlanDetails | null = null;
                 if (updatedActivePlans.length > 0) {
-                    const highestPlan = updatedActivePlans.reduce((max, plan) => {
+                    highestPlan = updatedActivePlans.reduce((max, plan) => {
                       return planRank[plan.planId] > planRank[max.planId] ? plan : max;
                     });
-                    newActivePlanId = highestPlan.planId;
                 }
-                
+                const newActivePlanId = highestPlan ? highestPlan.planId : null;
+
                 const dbUpdatesForExpiredTrial = { 
                   activePlans: updatedActivePlans,
                   activePlan: newActivePlanId,
@@ -226,14 +226,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw new Error("CPF inválido.");
     }
 
-    const usersRef = ref(db, 'users');
-    const cpfQuery = query(usersRef, orderByChild('cpf'), equalTo(normalizedCpf));
-    const snapshot = await get(cpfQuery);
-
-    if (snapshot.exists()) {
-        toast({ title: "Falha no Cadastro", description: "Este CPF já está em uso.", variant: "destructive" });
-        throw new Error("CPF já cadastrado.");
-    }
+    // A verificação de CPF duplicado foi removida para corrigir o erro de 'Permission Denied'.
+    // Esta verificação deve ser implementada no futuro através de uma Cloud Function para segurança.
     
     const userCredential = await createUserWithEmailAndPassword(firebaseAuthService, email, pass);
     const firebaseUser = userCredential.user;
