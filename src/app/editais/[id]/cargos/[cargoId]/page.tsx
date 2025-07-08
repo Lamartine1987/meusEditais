@@ -34,20 +34,15 @@ export default function CargoDetailPage() {
 
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
     let canAccess = false;
-    switch (user.activePlan) {
-      case 'plano_anual':
-      case 'plano_trial':
+
+    if (user.activePlans?.some(p => p.planId === 'plano_anual' || p.planId === 'plano_trial')) {
         canAccess = true;
-        break;
-      case 'plano_edital':
-        canAccess = user.planDetails?.selectedEditalId === editalId;
-        break;
-      case 'plano_cargo':
-        canAccess = user.planDetails?.selectedCargoCompositeId === currentCargoCompositeId;
-        break;
-      default:
-        canAccess = false;
+    } else if (user.activePlans?.some(p => p.planId === 'plano_edital' && p.selectedEditalId === editalId)) {
+        canAccess = true;
+    } else if (user.activePlans?.some(p => p.planId === 'plano_cargo' && p.selectedCargoCompositeId === currentCargoCompositeId)) {
+        canAccess = true;
     }
+    
     setHasAccess(canAccess);
   }, [user, authLoading, editalId, cargoId]);
 

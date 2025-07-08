@@ -60,8 +60,8 @@ export interface User {
   questionLogs?: QuestionLogEntry[];
   revisionSchedules?: RevisionScheduleEntry[];
   notes?: NoteEntry[];
-  activePlan?: PlanId | null;
-  planDetails?: PlanDetails | null;
+  activePlan?: PlanId | null; // Highest active plan tier
+  activePlans?: PlanDetails[]; // List of all active plans
   stripeCustomerId?: string | null; 
   hasHadFreeTrial?: boolean; // Tracks if the user has used the free trial
   planHistory?: PlanDetails[];

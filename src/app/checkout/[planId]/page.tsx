@@ -50,19 +50,12 @@ const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
     description: "Acesso a todos os cargos de todos os editais da plataforma. Liberdade total para explorar e se preparar para múltiplos concursos. Todas as funcionalidades premium e atualizações futuras.",
     stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_ANUAL || 'price_plano_anual_fallback_placeholder',
   },
-  plano_trial: { // Adicionado para referência, embora não seja comprado aqui
+  plano_trial: {
     id: 'plano_trial',
     name: "Teste Gratuito",
     price: "Grátis",
     description: "Acesso completo por 5 dias para avaliação.",
   }
-};
-
-const planRank: Record<PlanId, number> = {
-  plano_trial: 0,
-  plano_cargo: 1,
-  plano_edital: 2,
-  plano_anual: 3,
 };
 
 function CheckoutPageContent() {
@@ -78,12 +71,9 @@ function CheckoutPageContent() {
   const [isValidPlan, setIsValidPlan] = useState(false);
 
   const isUpgrade = useMemo(() => {
-    if (!user?.activePlan || user.activePlan === 'plano_trial' || !selectedPlanDetails) {
-      return false;
-    }
-    const currentRank = planRank[user.activePlan] || 0;
-    const selectedRank = planRank[selectedPlanDetails.id] || 0;
-    return selectedRank > currentRank;
+    if (!user || !selectedPlanDetails) return false;
+    // An upgrade is now defined as purchasing the annual plan when you have other plans.
+    return selectedPlanDetails.id === 'plano_anual' && (user.activePlans?.length ?? 0) > 0;
   }, [user, selectedPlanDetails]);
 
 
@@ -149,35 +139,31 @@ function CheckoutPageContent() {
         specificCheckoutDetails.selectedEditalId = editalId;
     }
 
-    if (user.activePlan && user.activePlan !== 'plano_trial') {
-      const currentPlanRank = planRank[user.activePlan] || 0;
-      const selectedPlanRank = planRank[selectedPlanDetails.id] || 0;
-
-      if (selectedPlanRank < currentPlanRank) {
-          toast({
-              title: `Plano ${planDisplayMap[user.activePlan!].name} Ativo`,
-              description: `Você já possui um plano superior. Não é necessário assinar um plano inferior.`,
-              variant: "default",
-              duration: 7000
-          });
-          return;
-      }
-
-      if (selectedPlanRank === currentPlanRank) {
-          let alreadyHasThisSpecific = false;
-          if (user.activePlan === 'plano_cargo' && user.planDetails?.selectedCargoCompositeId === specificCheckoutDetails.selectedCargoCompositeId) alreadyHasThisSpecific = true;
-          if (user.activePlan === 'plano_edital' && user.planDetails?.selectedEditalId === specificCheckoutDetails.selectedEditalId) alreadyHasThisSpecific = true;
-          
-          if (alreadyHasThisSpecific) {
-              toast({ title: "Plano Já Ativo", description: `Você já possui o ${selectedPlanDetails.name} para este item específico.`, variant: "default" });
-              router.push('/perfil');
-              return;
-          }
-      }
+    // New validation logic for multiple plans
+    if (user.activePlans?.some(p => p.planId === 'plano_anual')) {
+        toast({ title: "Plano Máximo Ativo", description: "Você já possui o Plano Anual, que dá acesso a tudo.", variant: "default" });
+        router.push('/perfil');
+        return;
     }
-    // Se o usuário tem 'plano_trial' ou nenhum plano, o código prossegue.
-    // Se for um upgrade (selectedPlanRank > currentPlanRank), o código prossegue.
-    // O webhook irá tratar a substituição do plano antigo pelo novo.
+
+    if (selectedPlanDetails.id === 'plano_cargo' && user.activePlans?.some(p => p.selectedCargoCompositeId === specificCheckoutDetails.selectedCargoCompositeId)) {
+        toast({ title: "Cargo já Adquirido", description: "Você já possui um plano ativo para este cargo específico.", variant: "default" });
+        router.push('/perfil');
+        return;
+    }
+
+    if (selectedPlanDetails.id === 'plano_edital' && user.activePlans?.some(p => p.selectedEditalId === specificCheckoutDetails.selectedEditalId)) {
+        toast({ title: "Edital já Adquirido", description: "Você já possui um plano ativo para este edital específico.", variant: "default" });
+        router.push('/perfil');
+        return;
+    }
+
+    if (selectedPlanDetails.id === 'plano_anual' && user.activePlans?.some(p => p.planId === 'plano_anual')) {
+        toast({ title: "Plano já Adquirido", description: "Você já possui o Plano Anual.", variant: "default" });
+        router.push('/perfil');
+        return;
+    }
+
 
     setIsProcessingPayment(true);
     try {
@@ -282,11 +268,11 @@ function CheckoutPageContent() {
                         </div>
                         <div className="ml-3">
                             <h3 className="text-sm font-semibold text-primary">
-                                Upgrade de Plano!
+                                Upgrade para Acesso Total!
                             </h3>
                             <div className="mt-2 text-sm text-foreground">
                                 <p>
-                                    Você está fazendo um upgrade do seu <strong>{user?.activePlan && planDisplayMap[user.activePlan] ? planDisplayMap[user.activePlan].name : 'plano atual'}</strong>. O valor será ajustado proporcionalmente.
+                                    Ao adquirir o Plano Anual, seus outros planos serão substituídos por este, garantindo acesso completo.
                                 </p>
                             </div>
                         </div>

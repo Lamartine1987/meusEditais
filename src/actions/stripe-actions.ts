@@ -2,7 +2,7 @@
 'use server';
 
 import { getStripeClient } from '@/lib/stripe';
-import type { PlanId } from '@/types';
+import type { PlanId, PlanDetails } from '@/types';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { adminDb } from '@/lib/firebase-admin'; // Use Admin DB
@@ -14,6 +14,13 @@ const planToPriceMap: Record<PlanId, string | undefined> = {
   plano_edital: process.env.STRIPE_PRICE_ID_PLANO_EDITAL,
   plano_anual: process.env.STRIPE_PRICE_ID_PLANO_ANUAL,
   plano_trial: undefined, // Trial não tem preço Stripe
+};
+
+const planRank: Record<PlanId, number> = {
+  plano_trial: 0,
+  plano_cargo: 1,
+  plano_edital: 2,
+  plano_anual: 3,
 };
 
 const FALLBACK_PRICE_IDS = [
@@ -248,8 +255,8 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const selectedEditalId = session.metadata?.selectedEditalId; 
         const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null;
         const stripeCustomerIdFromSession = session.customer;
-        const userEmail = session.customer_details?.email; // Get email from session
-        const userName = session.customer_details?.name; // Get name from session
+        const userEmail = session.customer_details?.email;
+        const userName = session.customer_details?.name;
 
         console.log(`[handleStripeWebhook] Extracted Metadata - UserID: ${userId}, PlanID: ${planIdFromMetadata}, CargoID: ${selectedCargoCompositeId}, EditalID: ${selectedEditalId}, PaymentIntentID: ${paymentIntentId}, CustomerID: ${stripeCustomerIdFromSession}, Email: ${userEmail}, Name: ${userName}`);
 
@@ -270,156 +277,104 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         
         console.log(`[handleStripeWebhook] All critical IDs seem present. Proceeding to update user plan.`);
         
-        const userFirebaseRef = adminDb.ref(`users/${userId}`); // Use adminDb ref
-        let currentUserDataBeforeUpdate: any = {};
-        try {
-            const userSnapshotBeforeUpdate = await userFirebaseRef.get(); // Use admin ref get
-            if (userSnapshotBeforeUpdate.exists()) {
-                currentUserDataBeforeUpdate = userSnapshotBeforeUpdate.val();
-                console.log(`[handleStripeWebhook] User ${userId} data BEFORE plan update: activePlan: ${currentUserDataBeforeUpdate.activePlan}, planDetails: ${JSON.stringify(currentUserDataBeforeUpdate.planDetails)}, registeredCargoIds: ${JSON.stringify(currentUserDataBeforeUpdate.registeredCargoIds)}`);
-            } else {
-                console.warn(`[handleStripeWebhook] User ${userId} not found in DB before plan update. This is unexpected for an existing user completing checkout.`);
-            }
-        } catch (dbReadError: any) {
-            console.error(`[handleStripeWebhook] Webhook Error: Failed to read user ${userId} data from DB before update:`, dbReadError);
-            return new Response('Webhook Error: Database read error before update. Check server logs.', { status: 500 });
-        }
-        
-        // Since we are using 'payment' mode, we calculate the expiry date ourselves.
+        const userFirebaseRef = adminDb.ref(`users/${userId}`);
+        const userSnapshot = await userFirebaseRef.get();
+        const currentUserData = userSnapshot.val() || {};
+        console.log(`[handleStripeWebhook] User ${userId} data BEFORE plan update: activePlan: ${currentUserData.activePlan}, activePlans count: ${(currentUserData.activePlans || []).length}`);
+
         const now = new Date();
         const startDateISO = formatISO(now);
         const expiryDate = new Date(new Date().setFullYear(now.getFullYear() + 1));
         const expiryDateISO = formatISO(expiryDate);
         console.log(`[handleStripeWebhook] Payment mode: Plan expiry set for 1 year. Start: ${startDateISO}, Expiry: ${expiryDateISO}`);
-
-        const newHasHadFreeTrialValue = currentUserDataBeforeUpdate.hasHadFreeTrial || true;
-
-        const planDetailsPayload = {
-          planId: planIdFromMetadata, 
+        
+        const newPlan: PlanDetails = {
+          planId: planIdFromMetadata,
           startDate: startDateISO,
           expiryDate: expiryDateISO,
-          ...(selectedCargoCompositeId && { selectedCargoCompositeId }), 
-          ...(selectedEditalId && { selectedEditalId }), 
-          stripeSubscriptionId: null, // No subscription ID in 'payment' mode
+          ...(selectedCargoCompositeId && { selectedCargoCompositeId }),
+          ...(selectedEditalId && { selectedEditalId }),
+          stripeSubscriptionId: null,
           stripePaymentIntentId: paymentIntentId,
           stripeCustomerId: stripeCustomerIdFromSession,
         };
-        console.log(`[handleStripeWebhook] Plan details payload to be saved to Firebase:`, planDetailsPayload);
-        console.log(`[handleStripeWebhook] User ${userId} - Old activePlan: ${currentUserDataBeforeUpdate.activePlan}, New activePlan: ${planIdFromMetadata}, Old hasHadFreeTrial: ${currentUserDataBeforeUpdate.hasHadFreeTrial}, New hasHadFreeTrial: ${newHasHadFreeTrialValue}`);
+        
+        const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
+        let finalActivePlans: PlanDetails[] = [];
+        let newPlanHistory = currentUserData.planHistory || [];
 
-        const oldPlanDetails = currentUserDataBeforeUpdate.planDetails;
-        const oldPlanHistory = currentUserDataBeforeUpdate.planHistory || [];
-        const newPlanHistory = oldPlanDetails ? [...oldPlanHistory, oldPlanDetails] : oldPlanHistory;
+        if (newPlan.planId === 'plano_anual') {
+            finalActivePlans = [newPlan];
+            // Move all previous active plans to history
+            newPlanHistory = [...newPlanHistory, ...currentActivePlans];
+            console.log(`[handleStripeWebhook] PLANO_ANUAL purchase. Overwriting all other plans. Moved ${currentActivePlans.length} plans to history.`);
+        } else {
+            // Add the new plan to the existing ones
+            finalActivePlans = [...currentActivePlans, newPlan];
+            console.log(`[handleStripeWebhook] New plan added. Total active plans now: ${finalActivePlans.length}`);
+        }
+        
+        // Determine the highest tier active plan
+        const highestPlan = finalActivePlans.reduce((max, plan) => {
+          return planRank[plan.planId] > planRank[max.planId] ? plan : max;
+        }, { planId: 'plano_trial' } as PlanDetails);
+
+        const newHasHadFreeTrialValue = currentUserData.hasHadFreeTrial || true;
+
+        const updatePayload: any = {
+          activePlan: highestPlan.planId,
+          activePlans: finalActivePlans,
+          stripeCustomerId: stripeCustomerIdFromSession,
+          hasHadFreeTrial: newHasHadFreeTrialValue,
+          planHistory: newPlanHistory,
+        };
+        
+        // Handle auto-registration for plano_cargo purchase
+        if (planIdFromMetadata === 'plano_cargo' && selectedCargoCompositeId) {
+            const currentRegistered = currentUserData.registeredCargoIds || [];
+            if (!currentRegistered.includes(selectedCargoCompositeId)) {
+                updatePayload.registeredCargoIds = [...currentRegistered, selectedCargoCompositeId];
+                console.log(`[handleStripeWebhook] PLANO_CARGO: Auto-registering user ${userId} for cargo: ${selectedCargoCompositeId}.`);
+            }
+        }
+
+        console.log(`[handleStripeWebhook] FINAL DB UPDATE PAYLOAD for user ${userId}:`, JSON.stringify(updatePayload, null, 2));
         
         try {
-          const updatePayload: any = {
-            activePlan: planIdFromMetadata,
-            planDetails: planDetailsPayload,
-            stripeCustomerId: stripeCustomerIdFromSession,
-            hasHadFreeTrial: newHasHadFreeTrialValue,
-            planHistory: newPlanHistory,
-          };
-          
-          if (planIdFromMetadata === 'plano_cargo' && selectedCargoCompositeId) {
-            const updatedRegisteredCargoIds = [selectedCargoCompositeId];
-            updatePayload.registeredCargoIds = updatedRegisteredCargoIds;
-            console.log(`[handleStripeWebhook] PLANO_CARGO: Setting user ${userId}'s registered cargo to: ${JSON.stringify(updatedRegisteredCargoIds)}. Overwriting previous registrations.`);
-            
-            // Limpa o progresso de qualquer cargo registrado anteriormente (de um trial, por exemplo)
-            const previousRegisteredCargoIds: string[] = currentUserDataBeforeUpdate.registeredCargoIds || [];
-            const cargosToClean = previousRegisteredCargoIds.filter(id => id !== selectedCargoCompositeId);
-
-            if (cargosToClean.length > 0) {
-                console.log(`[handleStripeWebhook] PLANO_CARGO: Cleaning progress for old registrations: ${JSON.stringify(cargosToClean)}.`);
-                let progressToKeep = {
-                    studiedTopicIds: currentUserDataBeforeUpdate.studiedTopicIds || [],
-                    studyLogs: currentUserDataBeforeUpdate.studyLogs || [],
-                    questionLogs: currentUserDataBeforeUpdate.questionLogs || [],
-                    revisionSchedules: currentUserDataBeforeUpdate.revisionSchedules || [],
-                };
-
-                for (const cargoIdToClean of cargosToClean) {
-                    const prefix = `${cargoIdToClean}_`;
-                    progressToKeep.studiedTopicIds = progressToKeep.studiedTopicIds.filter((id: string) => !id.startsWith(prefix));
-                    progressToKeep.studyLogs = progressToKeep.studyLogs.filter((log: any) => !log.compositeTopicId.startsWith(prefix));
-                    progressToKeep.questionLogs = progressToKeep.questionLogs.filter((log: any) => !log.compositeTopicId.startsWith(prefix));
-                    progressToKeep.revisionSchedules = progressToKeep.revisionSchedules.filter((rs: any) => !rs.compositeTopicId.startsWith(prefix));
-                }
-
-                updatePayload.studiedTopicIds = progressToKeep.studiedTopicIds;
-                updatePayload.studyLogs = progressToKeep.studyLogs;
-                updatePayload.questionLogs = progressToKeep.questionLogs;
-                updatePayload.revisionSchedules = progressToKeep.revisionSchedules;
-                
-                console.log(`[handleStripeWebhook] PLANO_CARGO: Progress data for old cargos has been cleaned.`);
-            }
-
-          } else if (planIdFromMetadata === 'plano_cargo') {
-             console.warn(`[handleStripeWebhook] PLANO_CARGO: 'planIdFromMetadata' is 'plano_cargo' but 'selectedCargoCompositeId' is missing or empty: '${selectedCargoCompositeId}'. Auto-registration and progress cleaning SKIPPED.`);
-          }
-
-          console.log(`[handleStripeWebhook] FINAL DB UPDATE PAYLOAD for user ${userId}:`, JSON.stringify(updatePayload, null, 2));
-          await userFirebaseRef.update(updatePayload); // Use admin ref update for a single atomic operation
+          await userFirebaseRef.update(updatePayload);
           console.log(`[handleStripeWebhook] Successfully updated user data for ${userId} in Firebase.`);
-
         } catch (dbError: any) {
           console.error(`[handleStripeWebhook] Webhook Error: Failed to update user ${userId} in database:`, dbError);
           return new Response('Webhook Error: Database update failed. Check server logs.', { status: 500 });
         }
+        
         break;
       }
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
         console.log(`[handleStripeWebhook] Event: customer.subscription.deleted. Subscription ID ${subscription.id}`);
+        // This logic might need adjustment in a multi-plan scenario if using subscriptions.
+        // For now, with one-time payments, this event is less critical.
+        // The logic for finding user by stripeCustomerId remains valid.
         const stripeCustomerId = subscription.customer;
          if (typeof stripeCustomerId === 'string') {
            console.log(`[handleStripeWebhook] Finding user by Stripe Customer ID: ${stripeCustomerId}`);
-           const usersRef = adminDb.ref('users'); // Use adminDb ref
-           try {
-               const usersSnapshot = await usersRef.get(); // Use admin ref get
-               if (usersSnapshot.exists()) {
-                  const usersData = usersSnapshot.val();
-                  let userIdToUpdate: string | null = null;
-                  let userDataToUpdate: any | null = null;
-                  for (const uid in usersData) {
-                      if (usersData[uid].stripeCustomerId === stripeCustomerId ||
-                          (usersData[uid].planDetails && usersData[uid].planDetails.stripeCustomerId === stripeCustomerId)) {
-                          userIdToUpdate = uid;
-                          userDataToUpdate = usersData[uid];
-                          console.log(`[handleStripeWebhook] Found matching Firebase UID: ${userIdToUpdate} for Stripe Customer ID ${stripeCustomerId}`);
-                          break;
-                      }
+           const usersRef = adminDb.ref('users');
+           const usersSnapshot = await usersRef.get();
+           if (usersSnapshot.exists()) {
+              const usersData = usersSnapshot.val();
+              for (const uid in usersData) {
+                  const userData = usersData[uid];
+                  if (userData.stripeCustomerId === stripeCustomerId || userData.activePlans?.some((p: PlanDetails) => p.stripeCustomerId === stripeCustomerId)) {
+                      console.log(`[handleStripeWebhook] Found matching Firebase UID: ${uid} for Stripe Customer ID ${stripeCustomerId}`);
+                      // Here, you'd implement logic to remove the specific plan tied to the subscriptionId from the `activePlans` array.
+                      // This requires storing stripeSubscriptionId in the PlanDetails object for each plan.
+                      // For now, let's log a warning.
+                      console.warn(`[handleStripeWebhook] Subscription deletion received, but automatic plan removal for multi-plan setup is not fully implemented. Manual check may be needed for user ${uid}.`);
+                      break;
                   }
-
-                  if (userIdToUpdate && userDataToUpdate) {
-                      try {
-                          console.log(`[handleStripeWebhook] Attempting to update Firebase for subscription deletion for user: ${userIdToUpdate}`);
-                          const oldPlanDetails = userDataToUpdate.planDetails;
-                          const oldPlanHistory = userDataToUpdate.planHistory || [];
-                          const newPlanHistory = oldPlanDetails ? [...oldPlanHistory, oldPlanDetails] : oldPlanHistory;
-                          
-                          await adminDb.ref(`users/${userIdToUpdate}`).update({ // Use adminDb ref
-                              activePlan: null,
-                              planDetails: null,
-                              planHistory: newPlanHistory,
-                          });
-                          console.log(`[handleStripeWebhook] Successfully cancelled plan for user with Stripe Customer ID ${stripeCustomerId} (Firebase UID: ${userIdToUpdate})`);
-                      } catch (dbUpdateError: any) {
-                          console.error(`[handleStripeWebhook] Webhook Error: Failed to cancel subscription for user ${userIdToUpdate} in DB:`, dbUpdateError);
-                          return new Response(`Webhook Error: Database update failed during subscription cancellation for user ${userIdToUpdate}. ${dbUpdateError.message}`, { status: 500 });
-                      }
-                  } else {
-                       console.warn(`[handleStripeWebhook] Webhook Info: Received subscription.deleted for Stripe Customer ID ${stripeCustomerId}, but no matching user found in DB by stripeCustomerId field.`);
-                  }
-               } else {
-                  console.warn(`[handleStripeWebhook] Webhook Info: No users found in DB to check for Stripe Customer ID ${stripeCustomerId}.`);
-               }
-           } catch (dbGetError: any) {
-               console.error(`[handleStripeWebhook] Webhook Error: Failed to get users from DB for subscription.deleted event:`, dbGetError);
-               return new Response('Webhook Error: Database read failed during subscription deletion.', { status: 500 });
+              }
            }
-        } else {
-            console.error('[handleStripeWebhook] Webhook Error: customer.subscription.deleted event without a valid customer ID.', subscription);
         }
         break;
       }
