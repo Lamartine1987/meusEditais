@@ -220,7 +220,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const register = async (name: string, email: string, pass: string, cpf: string) => {
-    const normalizedCpf = cpf.replace(/[^\\d]/g, "");
+    const normalizedCpf = cpf.replace(/\D/g, "");
     if (normalizedCpf.length !== 11) {
         toast({ title: "CPF Inválido", description: "O CPF deve conter 11 dígitos.", variant: "destructive" });
         throw new Error("CPF inválido.");
