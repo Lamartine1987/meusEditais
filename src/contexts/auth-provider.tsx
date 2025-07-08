@@ -14,7 +14,7 @@ import {
   type User as FirebaseUser 
 } from 'firebase/auth';
 import { auth as firebaseAuthService, db } from '@/lib/firebase'; 
-import { ref, set, get, update, remove, onValue, type Unsubscribe } from "firebase/database"; // Added onValue and Unsubscribe
+import { ref, set, get, update, remove, onValue, type Unsubscribe, query, orderByChild, equalTo } from "firebase/database"; // Added query, orderByChild, equalTo
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
@@ -32,7 +32,7 @@ interface AuthContextType {
   user: AppUser | null;
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
-  register: (name: string, email: string, pass: string) => Promise<void>;
+  register: (name: string, email: string, pass: string, cpf: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (updatedInfo: { name?: string; email?: string; avatarUrl?: string }) => Promise<void>; 
@@ -97,6 +97,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               dbData = {
                 name: firebaseUser.displayName || 'Usuário',
                 email: firebaseUser.email || '',
+                cpf: null, // Add cpf to fallback
                 avatarUrl: firebaseUser.photoURL || null,
                 registeredCargoIds: [],
                 studiedTopicIds: [],
@@ -130,6 +131,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               id: firebaseUser.uid,
               name: dbData.name || firebaseUser.displayName || 'Usuário',
               email: dbData.email || firebaseUser.email || '',
+              cpf: dbData.cpf,
               avatarUrl: dbData.avatarUrl || firebaseUser.photoURL || undefined,
               registeredCargoIds: dbData.registeredCargoIds || [],
               studiedTopicIds: dbData.studiedTopicIds || [],
@@ -151,21 +153,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 console.log(`[AuthProvider] Free trial for user ${firebaseUser.uid} expired on ${trialPlan.expiryDate}. Removing from active plans.`);
                 const updatedActivePlans = appUser.activePlans?.filter(p => p.planId !== 'plano_trial') || [];
                 
-                let newActivePlanId: PlanId | null = null;
-                if (updatedActivePlans.length > 0) {
-                  const highestPlan = updatedActivePlans.reduce((max, plan) => {
-                    return planRank[plan.planId] > planRank[max.planId] ? plan : max;
-                  });
-                  newActivePlanId = highestPlan.planId;
-                }
+                const highestPlan = updatedActivePlans.length > 0
+                  ? updatedActivePlans.reduce((max, plan) => {
+                      return planRank[plan.planId] > planRank[max.planId] ? plan : max;
+                    }, updatedActivePlans[0])
+                  : { planId: null };
+
+                const newActivePlanId = highestPlan.planId;
                 
                 const dbUpdatesForExpiredTrial = { 
                   activePlans: updatedActivePlans,
                   activePlan: newActivePlanId,
                 };
+
                 await update(userRef, dbUpdatesForExpiredTrial);
                 
-                appUser = { ...appUser, ...dbUpdatesForExpiredTrial };
+                appUser = { ...appUser, ...dbUpdatesForExpiredTrial } as AppUser;
                 trialExpiredToastShown = true; 
             }
             setUser(appUser);
@@ -216,9 +219,49 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await signInWithEmailAndPassword(firebaseAuthService, email, pass);
   };
 
-  const register = async (name: string, email: string, pass: string) => {
+  const register = async (name: string, email: string, pass: string, cpf: string) => {
+    const normalizedCpf = cpf.replace(/[^\\d]/g, "");
+    if (normalizedCpf.length !== 11) {
+        toast({ title: "CPF Inválido", description: "O CPF deve conter 11 dígitos.", variant: "destructive" });
+        throw new Error("CPF inválido.");
+    }
+
+    const usersRef = ref(db, 'users');
+    const cpfQuery = query(usersRef, orderByChild('cpf'), equalTo(normalizedCpf));
+    const snapshot = await get(cpfQuery);
+
+    if (snapshot.exists()) {
+        toast({ title: "Falha no Cadastro", description: "Este CPF já está em uso.", variant: "destructive" });
+        throw new Error("CPF já cadastrado.");
+    }
+    
     const userCredential = await createUserWithEmailAndPassword(firebaseAuthService, email, pass);
-    await updateProfile(userCredential.user, { displayName: name });
+    const firebaseUser = userCredential.user;
+
+    await updateProfile(firebaseUser, { displayName: name });
+    
+    const userRefDb = ref(db, `users/${firebaseUser.uid}`);
+    const newUserDbData: Omit<AppUser, 'activePlan'> & {activePlan: PlanId | null} = {
+        id: firebaseUser.uid,
+        name: name,
+        email: email,
+        cpf: normalizedCpf,
+        avatarUrl: firebaseUser.photoURL || undefined,
+        registeredCargoIds: [],
+        studiedTopicIds: [],
+        studyLogs: [],
+        questionLogs: [],
+        revisionSchedules: [],
+        notes: [],
+        activePlan: null,
+        activePlans: [],
+        stripeCustomerId: null,
+        hasHadFreeTrial: false,
+        planHistory: [],
+        isRankingParticipant: null,
+    };
+    
+    await set(userRefDb, newUserDbData);
   };
   
   const sendPasswordReset = async (email: string) => {

@@ -19,6 +19,7 @@ export default function RegisterPage() {
   const { toast } = useToast();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [cpf, setCpf] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -30,17 +31,23 @@ export default function RegisterPage() {
     }
     setIsSubmitting(true);
     try {
-      await register(name, email, password);
+      await register(name, email, password, cpf);
       toast({ title: "Cadastro Realizado!", description: "Redirecionando para a página inicial...", variant: "default", className: "bg-accent text-accent-foreground" });
       router.push('/'); 
     } catch (error: any) {
-      let errorMessage = "Não foi possível realizar o cadastro.";
+      // Toast messages for CPF errors are handled within the auth provider
+      // So we only need to handle the auth-specific errors here.
+      let errorMessage = error.message || "Não foi possível realizar o cadastro.";
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = "Este e-mail já está em uso.";
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = "O formato do e-mail é inválido.";
       } else if (error.code === 'auth/weak-password') {
         errorMessage = "A senha é muito fraca. Tente uma senha mais forte.";
+      } else if (error.message.includes("CPF")) {
+        // Don't show a generic toast if a specific CPF error was already shown
+        setIsSubmitting(false);
+        return;
       } else {
          console.error("Registration failed with code:", error.code, error.message);
       }
@@ -86,6 +93,19 @@ export default function RegisterPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="text-base h-11 rounded-md shadow-sm"
                 autoComplete="email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cpf" className="font-semibold">CPF</Label>
+              <Input 
+                id="cpf" 
+                type="text" 
+                placeholder="000.000.000-00" 
+                required 
+                value={cpf}
+                onChange={(e) => setCpf(e.target.value)}
+                className="text-base h-11 rounded-md shadow-sm"
+                autoComplete="off"
               />
             </div>
             <div className="space-y-2">
