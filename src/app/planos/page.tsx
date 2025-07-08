@@ -267,7 +267,7 @@ export default function PlanosPage() {
                 Grátis
               </p>
               <p className="text-center text-sm font-medium text-muted-foreground -mt-2">
-                Durante 5 dias
+                Durante 8 dias
               </p>
               <ul className="space-y-2 text-sm">
                 <PlanFeature>Acesso a <strong>todas as funcionalidades</strong> da plataforma.</PlanFeature>

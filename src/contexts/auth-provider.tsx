@@ -19,7 +19,7 @@ import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fn
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
 
-const TRIAL_DURATION_DAYS = 5;
+const TRIAL_DURATION_DAYS = 8;
 
 const planRank: Record<PlanId, number> = {
   plano_trial: 0,
@@ -157,7 +157,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                   ? updatedActivePlans.reduce((max, plan) => {
                       return planRank[plan.planId] > planRank[max.planId] ? plan : max;
                     }, updatedActivePlans[0])
-                  : { planId: null };
+                  : ({ planId: null } as PlanDetails);
 
                 const newActivePlanId = highestPlan.planId;
                 
