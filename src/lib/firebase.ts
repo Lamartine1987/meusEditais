@@ -35,7 +35,7 @@ if (getApps().length === 0) {
 
 auth = getAuth(app);
 db = getDatabase(app); // Inicializar o Realtime Database
-functions = getFunctions(app, 'southamerica-east1'); // Inicializa o Cloud Functions
+functions = getFunctions(app); // Inicializa o Cloud Functions (sem região específica)
 
 // Para testes locais com o Firebase Emulator Suite, você pode descomentar as linhas abaixo
 // import { connectFunctionsEmulator } from "firebase/functions";
