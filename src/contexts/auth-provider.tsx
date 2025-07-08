@@ -21,6 +21,13 @@ import { useToast } from '@/hooks/use-toast';
 
 const TRIAL_DURATION_DAYS = 5;
 
+const planRank: Record<PlanId, number> = {
+  plano_trial: 0,
+  plano_cargo: 1,
+  plano_edital: 2,
+  plano_anual: 3,
+};
+
 interface AuthContextType {
   user: AppUser | null;
   loading: boolean;
@@ -144,9 +151,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 console.log(`[AuthProvider] Free trial for user ${firebaseUser.uid} expired on ${trialPlan.expiryDate}. Removing from active plans.`);
                 const updatedActivePlans = appUser.activePlans?.filter(p => p.planId !== 'plano_trial') || [];
                 
+                let newActivePlanId: PlanId | null = null;
+                if (updatedActivePlans.length > 0) {
+                  const highestPlan = updatedActivePlans.reduce((max, plan) => {
+                    return planRank[plan.planId] > planRank[max.planId] ? plan : max;
+                  });
+                  newActivePlanId = highestPlan.planId;
+                }
+                
                 const dbUpdatesForExpiredTrial = { 
                   activePlans: updatedActivePlans,
-                  activePlan: updatedActivePlans.length > 0 ? 'plano_cargo' : null, // Simplistic fallback
+                  activePlan: newActivePlanId,
                 };
                 await update(userRef, dbUpdatesForExpiredTrial);
                 
