@@ -220,15 +220,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const register = async (name: string, email: string, pass: string, cpf: string) => {
-    const normalizedCpf = cpf.replace(/\D/g, "");
-    if (normalizedCpf.length !== 11) {
-        toast({ title: "CPF Inválido", description: "O CPF deve conter 11 dígitos.", variant: "destructive" });
-        throw new Error("CPF inválido.");
-    }
-
-    // A verificação de CPF duplicado foi removida para corrigir o erro de 'Permission Denied'.
-    // Esta verificação deve ser implementada no futuro através de uma Cloud Function para segurança.
-    
+    // A validação de CPF agora é feita no lado do cliente via Cloud Function
+    // antes de esta função ser chamada. O CPF já chega aqui normalizado.
     const userCredential = await createUserWithEmailAndPassword(firebaseAuthService, email, pass);
     const firebaseUser = userCredential.user;
 
@@ -239,7 +232,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         id: firebaseUser.uid,
         name: name,
         email: email,
-        cpf: normalizedCpf,
+        cpf: cpf,
         avatarUrl: firebaseUser.photoURL || undefined,
         registeredCargoIds: [],
         studiedTopicIds: [],

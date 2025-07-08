@@ -12,6 +12,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { AppLogo } from '@/components/layout/app-logo';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { functions } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -29,22 +31,48 @@ export default function RegisterPage() {
       toast({ title: "Senha Inválida", description: "A senha deve ter pelo menos 6 caracteres.", variant: "destructive"});
       return;
     }
+
+    const normalizedCpf = cpf.replace(/\D/g, "");
+    if (normalizedCpf.length !== 11) {
+      toast({ title: "CPF Inválido", description: "O CPF deve conter 11 dígitos numéricos.", variant: "destructive" });
+      return;
+    }
+    
     setIsSubmitting(true);
+    
     try {
-      await register(name, email, password, cpf);
+      // 1. Chamar a Cloud Function para verificar a unicidade do CPF
+      const checkCpf = httpsCallable(functions, 'checkCpfUniqueness');
+      const result = await checkCpf({ cpf: normalizedCpf });
+      const data = result.data as { isUnique: boolean };
+
+      if (!data.isUnique) {
+        toast({ title: "Falha no Cadastro", description: "Este CPF já está em uso.", variant: "destructive"});
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 2. Se o CPF for único, prosseguir com o cadastro
+      await register(name, email, password, normalizedCpf);
       toast({ title: "Cadastro Realizado!", description: "Redirecionando para a página inicial...", variant: "default", className: "bg-accent text-accent-foreground" });
-      router.push('/'); 
+      router.push('/');
+
     } catch (error: any) {
       let errorMessage = error.message || "Não foi possível realizar o cadastro.";
+
       if (error.code === 'auth/email-already-in-use') {
         errorMessage = "Este e-mail já está em uso.";
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = "O formato do e-mail é inválido.";
       } else if (error.code === 'auth/weak-password') {
         errorMessage = "A senha é muito fraca. Tente uma senha mais forte.";
+      } else if (error.code?.startsWith('functions/')) {
+        errorMessage = "Ocorreu um erro ao validar o CPF. Verifique se o CPF está correto e tente novamente.";
+        console.error("Cloud Function error:", error);
       } else {
          console.error("Registration failed with code:", error.code, error.message);
       }
+
       toast({ title: "Falha no Cadastro", description: errorMessage, variant: "destructive"});
     } finally {
       setIsSubmitting(false);

@@ -2,6 +2,7 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getDatabase, type Database } from "firebase/database"; // Importar para usar Realtime Database
+import { getFunctions, type Functions } from "firebase/functions";
 // import { getAnalytics } from "firebase/analytics"; // Se você for usar o Analytics (opcional)
 
 // Configuração do Firebase fornecida pelo usuário
@@ -19,6 +20,7 @@ const firebaseConfig = {
 let app: FirebaseApp;
 let auth: Auth;
 let db: Database; // Variável para o Realtime Database
+let functions: Functions;
 // let analytics; // Para Firebase Analytics
 
 if (getApps().length === 0) {
@@ -33,5 +35,12 @@ if (getApps().length === 0) {
 
 auth = getAuth(app);
 db = getDatabase(app); // Inicializar o Realtime Database
+functions = getFunctions(app, 'southamerica-east1'); // Inicializa o Cloud Functions
 
-export { app, auth, db /*, analytics */ };
+// Para testes locais com o Firebase Emulator Suite, você pode descomentar as linhas abaixo
+// import { connectFunctionsEmulator } from "firebase/functions";
+// if (process.env.NODE_ENV === 'development') {
+//   connectFunctionsEmulator(functions, "localhost", 5001);
+// }
+
+export { app, auth, db, functions /*, analytics */ };
