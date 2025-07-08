@@ -153,13 +153,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 console.log(`[AuthProvider] Free trial for user ${firebaseUser.uid} expired on ${trialPlan.expiryDate}. Removing from active plans.`);
                 const updatedActivePlans = appUser.activePlans?.filter(p => p.planId !== 'plano_trial') || [];
                 
-                const highestPlan = updatedActivePlans.length > 0
-                  ? updatedActivePlans.reduce((max, plan) => {
+                let newActivePlanId: PlanId | null = null;
+                if (updatedActivePlans.length > 0) {
+                    const highestPlan = updatedActivePlans.reduce((max, plan) => {
                       return planRank[plan.planId] > planRank[max.planId] ? plan : max;
-                    }, updatedActivePlans[0])
-                  : ({ planId: null } as PlanDetails);
-
-                const newActivePlanId = highestPlan.planId;
+                    });
+                    newActivePlanId = highestPlan.planId;
+                }
                 
                 const dbUpdatesForExpiredTrial = { 
                   activePlans: updatedActivePlans,
@@ -168,7 +168,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
                 await update(userRef, dbUpdatesForExpiredTrial);
                 
-                appUser = { ...appUser, ...dbUpdatesForExpiredTrial } as AppUser;
+                appUser = { ...appUser, ...dbUpdatesForExpiredTrial };
                 trialExpiredToastShown = true; 
             }
             setUser(appUser);
