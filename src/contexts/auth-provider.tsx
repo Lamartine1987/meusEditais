@@ -89,42 +89,50 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         dbUnsubscribeRef.current = onValue(userRef, async (snapshot) => {
           try {
-            let dbData = snapshot.exists() ? snapshot.val() : {};
-            let isNewUserInDb = !snapshot.exists();
-
-            if (isNewUserInDb) {
-              console.log(`[AuthProvider] New user in DB or DB data missing for ${firebaseUser.uid}. Initializing.`);
-              dbData = {
-                name: firebaseUser.displayName || 'Usuário',
-                email: firebaseUser.email || '',
-                cpf: null, // Add cpf to fallback
-                avatarUrl: firebaseUser.photoURL || null,
-                registeredCargoIds: [],
-                studiedTopicIds: [],
-                studyLogs: [],
-                questionLogs: [],
-                revisionSchedules: [],
-                notes: [],
-                activePlan: null,
-                activePlans: [],
-                stripeCustomerId: null,
-                hasHadFreeTrial: false,
-                planHistory: [],
-                isRankingParticipant: null,
+            if (!snapshot.exists()) {
+              // This can happen for a fraction of a second during registration.
+              // We'll set a temporary state and wait for the register function to write to the DB,
+              // which will re-trigger this listener with the correct data.
+              // This also handles cases where a user might exist in Auth but not RTDB.
+              // We are NOT writing to the DB here to avoid race conditions.
+              console.warn(`[AuthProvider] User data not found in DB for ${firebaseUser.uid}. This is normal during registration.`);
+              const temporaryUser: AppUser = {
+                  id: firebaseUser.uid,
+                  name: firebaseUser.displayName || 'Usuário',
+                  email: firebaseUser.email || '',
+                  avatarUrl: firebaseUser.photoURL || undefined,
+                  cpf: undefined,
+                  registeredCargoIds: [],
+                  studiedTopicIds: [],
+                  studyLogs: [],
+                  questionLogs: [],
+                  revisionSchedules: [],
+                  notes: [],
+                  activePlan: null,
+                  activePlans: [],
+                  stripeCustomerId: null,
+                  hasHadFreeTrial: false,
+                  planHistory: [],
+                  isRankingParticipant: null,
               };
-              await set(userRef, dbData);
-            } else {
-              const updatesToSyncToDb: any = {};
-              if (firebaseUser.displayName && dbData.name !== firebaseUser.displayName) {
-                updatesToSyncToDb.name = firebaseUser.displayName;
-              }
-              if (firebaseUser.photoURL && dbData.avatarUrl !== firebaseUser.photoURL) {
-                updatesToSyncToDb.avatarUrl = firebaseUser.photoURL;
-              }
-              if (Object.keys(updatesToSyncToDb).length > 0) {
-                await update(userRef, updatesToSyncToDb);
-                dbData = { ...dbData, ...updatesToSyncToDb };
-              }
+              setUser(temporaryUser);
+              setLoading(false);
+              return; // Important: exit here and wait for the next snapshot.
+            }
+
+            // --- Normal Flow: Snapshot exists ---
+            let dbData = snapshot.val();
+            
+            const updatesToSyncToDb: any = {};
+            if (firebaseUser.displayName && dbData.name !== firebaseUser.displayName) {
+              updatesToSyncToDb.name = firebaseUser.displayName;
+            }
+            if (firebaseUser.photoURL && dbData.avatarUrl !== firebaseUser.photoURL) {
+              updatesToSyncToDb.avatarUrl = firebaseUser.photoURL;
+            }
+            if (Object.keys(updatesToSyncToDb).length > 0) {
+              await update(userRef, updatesToSyncToDb);
+              dbData = { ...dbData, ...updatesToSyncToDb };
             }
             
             let appUser: AppUser = {
