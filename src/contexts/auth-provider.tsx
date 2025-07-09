@@ -220,20 +220,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const register = async (name: string, email: string, pass: string, cpf: string) => {
-    // A validação de CPF agora é feita no lado do cliente via Cloud Function
-    // antes de esta função ser chamada. O CPF já chega aqui normalizado.
     const userCredential = await createUserWithEmailAndPassword(firebaseAuthService, email, pass);
     const firebaseUser = userCredential.user;
 
     await updateProfile(firebaseUser, { displayName: name });
     
     const userRefDb = ref(db, `users/${firebaseUser.uid}`);
-    const newUserDbData: Omit<AppUser, 'activePlan'> & {activePlan: PlanId | null} = {
+    
+    // Usamos 'any' aqui para construir dinamicamente o objeto e evitar problemas com 'undefined'
+    const newUserDbData: any = {
         id: firebaseUser.uid,
         name: name,
         email: email,
         cpf: cpf,
-        avatarUrl: firebaseUser.photoURL || undefined,
         registeredCargoIds: [],
         studiedTopicIds: [],
         studyLogs: [],
@@ -247,6 +246,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         planHistory: [],
         isRankingParticipant: null,
     };
+
+    // Adiciona o avatarUrl apenas se ele existir, para não salvar 'undefined' no DB
+    if (firebaseUser.photoURL) {
+      newUserDbData.avatarUrl = firebaseUser.photoURL;
+    }
     
     await set(userRefDb, newUserDbData);
   };
