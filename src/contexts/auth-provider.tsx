@@ -19,7 +19,7 @@ import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fn
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
 
-const TRIAL_DURATION_DAYS = 8;
+const TRIAL_DURATION_DAYS = 30;
 
 const planRank: Record<PlanId, number> = {
   plano_trial: 0,
@@ -184,7 +184,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (trialExpiredToastShown) {
                toast({
                   title: "Teste Gratuito Expirado",
-                  description: "Seu período de teste gratuito de 5 dias terminou. Para continuar acessando os recursos, por favor, escolha um plano pago.",
+                  description: `Seu período de teste gratuito de ${TRIAL_DURATION_DAYS} dias terminou. Para continuar acessando os recursos, por favor, escolha um plano pago.`,
                   variant: "default",
                   duration: 9000,
                 });
