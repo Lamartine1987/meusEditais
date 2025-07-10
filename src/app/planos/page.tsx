@@ -5,7 +5,7 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, ArrowRight, Search as SearchIcon, Info, Sparkles, Star } from 'lucide-react'; 
+import { CheckCircle, Gem, Briefcase, Library, Zap, Loader2, ArrowRight, Search as SearchIcon, Info, Sparkles, Star, UserPlus } from 'lucide-react'; 
 import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -77,7 +77,7 @@ export default function PlanosPage() {
   const [isProcessingModalSelection, setIsProcessingModalSelection] = useState(false);
   const [isStartingTrial, setIsStartingTrial] = useState(false);
 
-  const currentUserPlanRank = useMemo(() => user?.activePlan ? planRank[user.activePlan] : 0, [user]);
+  const currentUserPlanRank = useMemo(() => user?.activePlan ? planRank[user.activePlan] : -1, [user]);
 
   useEffect(() => {
     const fetchAllEditais = async () => {
@@ -208,18 +208,18 @@ export default function PlanosPage() {
   const pageIsLoading = authLoading || dataLoading;
 
   // --- Button Logic ---
-  const cargoButtonDisabled = pageIsLoading || currentUserPlanRank >= planRank.plano_cargo;
+  const cargoButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_cargo : false);
 
-  const isEditalUpgrade = currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_edital;
+  const isEditalUpgrade = user ? currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_edital : false;
   const editalButtonText = isEditalUpgrade ? "Fazer Upgrade" : "Selecionar Edital";
   const editalButtonVariant = isEditalUpgrade ? "default" : "outline";
   const editalButtonIcon = isEditalUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <ArrowRight className="mr-2 h-5 w-5" />;
-  const editalButtonDisabled = pageIsLoading || currentUserPlanRank >= planRank.plano_edital;
+  const editalButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_edital : false);
 
-  const isAnualUpgrade = currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_anual;
+  const isAnualUpgrade = user ? currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_anual : false;
   const anualButtonText = isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Anual";
   const anualButtonIcon = isAnualUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <Gem className="mr-2 h-5 w-5" />;
-  const anualButtonDisabled = pageIsLoading || currentUserPlanRank >= planRank.plano_anual;
+  const anualButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_anual : false);
 
 
   return (
@@ -277,15 +277,28 @@ export default function PlanosPage() {
               </ul>
             </CardContent>
             <CardFooter className="pt-6">
-              <Button 
-                size="lg" 
-                className="w-full text-base bg-green-500 hover:bg-green-600 text-white dark:bg-green-600 dark:hover:bg-green-700"
-                onClick={handleInitiateFreeTrial}
-                disabled={!!(authLoading || isStartingTrial || !canStartTrial || hasActivePaidPlan)}
-              >
-                {(authLoading || isStartingTrial) && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
-                {user?.activePlan === 'plano_trial' ? 'Teste Ativo' : user?.hasHadFreeTrial ? 'Teste Utilizado' : hasActivePaidPlan ? 'Plano Pago Ativo' : 'Iniciar Teste Gratuito'}
-              </Button>
+                {!user ? (
+                    <Button 
+                        size="lg" 
+                        className="w-full text-base bg-green-500 hover:bg-green-600 text-white dark:bg-green-600 dark:hover:bg-green-700"
+                        asChild
+                    >
+                        <Link href="/register?redirect=/planos">
+                            <UserPlus className="mr-2 h-5 w-5" />
+                            Cadastre-se para Iniciar
+                        </Link>
+                    </Button>
+                ) : (
+                    <Button 
+                        size="lg" 
+                        className="w-full text-base bg-green-500 hover:bg-green-600 text-white dark:bg-green-600 dark:hover:bg-green-700"
+                        onClick={handleInitiateFreeTrial}
+                        disabled={!!(authLoading || isStartingTrial || !canStartTrial || hasActivePaidPlan)}
+                    >
+                        {(authLoading || isStartingTrial) && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                        {user.activePlan === 'plano_trial' ? 'Teste Ativo' : user.hasHadFreeTrial ? 'Teste Utilizado' : hasActivePaidPlan ? 'Plano Pago Ativo' : 'Iniciar Teste Gratuito'}
+                    </Button>
+                )}
             </CardFooter>
           </Card>
           
@@ -322,6 +335,7 @@ export default function PlanosPage() {
                   Selecionar Cargo
                 </Button>
               </CardFooter>
+               {!user && !pageIsLoading && <p className="text-xs text-center text-muted-foreground px-6 pb-2 -mt-4">É preciso estar logado para assinar.</p>}
             </Card>
 
             {/* Plano Edital */}
@@ -360,6 +374,7 @@ export default function PlanosPage() {
                   {editalButtonText}
                 </Button>
               </CardFooter>
+               {!user && !pageIsLoading && <p className="text-xs text-center text-muted-foreground px-6 pb-2 -mt-4">É preciso estar logado para assinar.</p>}
             </Card>
 
             {/* Plano Anual */}
@@ -391,6 +406,7 @@ export default function PlanosPage() {
                   {anualButtonText}
                 </Button>
               </CardFooter>
+               {!user && !pageIsLoading && <p className="text-xs text-center text-muted-foreground px-6 pb-2 -mt-4">É preciso estar logado para assinar.</p>}
             </Card>
           </div>
         </div>
@@ -535,10 +551,9 @@ export default function PlanosPage() {
                 <CardTitle className="text-xl text-center">Como funciona a assinatura?</CardTitle>
             </CardHeader>
             <CardContent className="text-center text-muted-foreground space-y-3">
-                <p><strong>Plano Teste Gratuito:</strong> Clique em "Iniciar Teste Gratuito" para acesso imediato por 5 dias. Não requer pagamento.</p>
-                <p>Para os <strong>Planos Cargo e Edital</strong>, selecione o item desejado no modal para prosseguir ao checkout via Stripe.</p>
-                <p>Para o <strong>Plano Anual</strong>, você será direcionado ao checkout via Stripe.</p>
-                 <p className="font-semibold text-primary">Todos os planos pagos também incluem 5 dias de teste gratuito no primeiro pagamento!</p>
+                <p><strong>Plano Teste Gratuito:</strong> Crie uma conta para iniciar seu teste gratuito e ter acesso imediato por 30 dias.</p>
+                <p>Para os <strong>Planos Cargo, Edital e Anual</strong>, é necessário estar logado para prosseguir ao checkout via Stripe.</p>
+                 <p className="font-semibold text-primary">Todos os planos pagos também incluem 30 dias de teste gratuito no primeiro pagamento!</p>
             </CardContent>
              <CardFooter className="justify-center pt-4">
                 {user ? (
@@ -547,7 +562,7 @@ export default function PlanosPage() {
                     </Button>
                 ) : (
                     <Button variant="outline" asChild>
-                        <Link href="/login">Já tem uma conta? Faça Login</Link>
+                        <Link href="/login?redirect=/planos">Já tem uma conta? Faça Login</Link>
                     </Button>
                 )}
             </CardFooter>
@@ -557,3 +572,4 @@ export default function PlanosPage() {
     </PageWrapper>
   );
 }
+ 
