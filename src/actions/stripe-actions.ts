@@ -350,6 +350,71 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         
         break;
       }
+      
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge;
+        const paymentIntentId = charge.payment_intent;
+        console.log(`[handleStripeWebhook] Event: charge.refunded. PaymentIntent ID: ${paymentIntentId}`);
+
+        if (!paymentIntentId || typeof paymentIntentId !== 'string') {
+          console.error(`[handleStripeWebhook] Refund event for charge ${charge.id} is missing a valid PaymentIntent ID.`);
+          return new Response('Webhook Error: Refund event missing PaymentIntent ID.', { status: 400 });
+        }
+
+        const usersRef = adminDb.ref('users');
+        const usersSnapshot = await usersRef.orderByChild('stripeCustomerId').equalTo(charge.customer as string).get();
+
+        if (!usersSnapshot.exists()) {
+          console.error(`[handleStripeWebhook] No user found with Stripe Customer ID: ${charge.customer}. Cannot process refund.`);
+          return new Response('Webhook Error: User not found for refund.', { status: 404 });
+        }
+        
+        const usersData = usersSnapshot.val();
+        const userId = Object.keys(usersData)[0];
+        const userData = usersData[userId];
+        const userFirebaseRef = adminDb.ref(`users/${userId}`);
+
+        console.log(`[handleStripeWebhook] Found user ${userId} for refund processing.`);
+
+        const planToRemoveIndex = (userData.activePlans || []).findIndex((p: PlanDetails) => p.stripePaymentIntentId === paymentIntentId);
+
+        if (planToRemoveIndex === -1) {
+           console.warn(`[handleStripeWebhook] User ${userId} received a refund for PaymentIntent ${paymentIntentId}, but no matching active plan was found. No action taken.`);
+           return new Response('Plan for refund not found.', { status: 200 }); // Return 200 so Stripe doesn't retry
+        }
+        
+        const planToRemove = userData.activePlans[planToRemoveIndex];
+        const updatedActivePlans = userData.activePlans.filter((_: any, index: number) => index !== planToRemoveIndex);
+
+        // Move the refunded plan to history
+        const updatedPlanHistory = [...(userData.planHistory || []), { ...planToRemove, planId: `refunded_${planToRemove.planId}` as any }];
+
+        // Recalculate highest active plan
+        const highestPlan = updatedActivePlans.length > 0
+          ? updatedActivePlans.reduce((max: PlanDetails, plan: PlanDetails) => {
+              return planRank[plan.planId] > planRank[max.planId] ? plan : max;
+            })
+          : ({ planId: null } as PlanDetails);
+          
+        const updatePayload = {
+          activePlans: updatedActivePlans,
+          activePlan: highestPlan.planId,
+          planHistory: updatedPlanHistory,
+        };
+
+        console.log(`[handleStripeWebhook] Refunding plan ${planToRemove.planId} for user ${userId}. DB Update Payload:`, JSON.stringify(updatePayload, null, 2));
+
+        try {
+          await userFirebaseRef.update(updatePayload);
+          console.log(`[handleStripeWebhook] Successfully processed refund and updated DB for user ${userId}.`);
+        } catch (dbError: any) {
+          console.error(`[handleStripeWebhook] DB Error during refund processing for user ${userId}:`, dbError);
+          return new Response('Webhook Error: Database update failed during refund. Check server logs.', { status: 500 });
+        }
+
+        break;
+      }
+
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
         console.log(`[handleStripeWebhook] Event: customer.subscription.deleted. Subscription ID ${subscription.id}`);
