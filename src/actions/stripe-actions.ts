@@ -390,15 +390,16 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const updatedPlanHistory = [...(userData.planHistory || []), { ...planToRemove, planId: `refunded_${planToRemove.planId}` as any }];
 
         // Recalculate highest active plan
-        const highestPlan = updatedActivePlans.length > 0
-          ? updatedActivePlans.reduce((max: PlanDetails, plan: PlanDetails) => {
-              return planRank[plan.planId] > planRank[max.planId] ? plan : max;
-            })
-          : ({ planId: null } as PlanDetails);
+        let highestPlan: PlanDetails | null = null;
+        if (updatedActivePlans.length > 0) {
+            highestPlan = updatedActivePlans.reduce((max: PlanDetails, plan: PlanDetails) => {
+                return planRank[plan.planId] > planRank[max.planId] ? plan : max;
+            }, updatedActivePlans[0]);
+        }
           
         const updatePayload = {
           activePlans: updatedActivePlans,
-          activePlan: highestPlan.planId,
+          activePlan: highestPlan ? highestPlan.planId : null,
           planHistory: updatedPlanHistory,
         };
 
