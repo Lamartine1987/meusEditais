@@ -45,3 +45,6 @@ env:
 
   - variable: NEXT_PUBLIC_APP_URL
     secret: NEXT_PUBLIC_APP_URL
+  
+  - variable: NEXT_PUBLIC_FIREBASE_ADMIN_UIDS
+    secret: NEXT_PUBLIC_FIREBASE_ADMIN_UIDS
