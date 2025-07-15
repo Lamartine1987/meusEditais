@@ -46,7 +46,10 @@ export interface PlanDetails {
   // Stripe specific fields
   stripeSubscriptionId?: string | null;
   stripePaymentIntentId?: string | null;
-  stripeCustomerId?: string | null; 
+  stripeCustomerId?: string | null;
+  // Refund status
+  status?: 'active' | 'refundRequested';
+  requestDate?: string; // ISO date when refund was requested
 }
 
 export interface User {
@@ -67,6 +70,7 @@ export interface User {
   hasHadFreeTrial?: boolean; // Tracks if the user has used the free trial
   planHistory?: PlanDetails[];
   isRankingParticipant?: boolean | null; // null = undecided, true = yes, false = no
+  isAdmin?: boolean;
 }
 
 export interface Topic {

@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import type { PlanId, Edital as EditalType, Cargo as CargoType, PlanDetails } from '@/types';
@@ -44,10 +44,11 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export default function ProfilePage() {
-  const { user, updateUser, sendPasswordReset, cancelSubscription, loading: authLoading, isPlanoCargoWithinGracePeriod, setRankingParticipation } = useAuth();
+  const { user, updateUser, sendPasswordReset, cancelSubscription, loading: authLoading, isPlanoCargoWithinGracePeriod, setRankingParticipation, requestPlanRefund } = useAuth();
   const { toast } = useToast();
   const [isPasswordResetting, setIsPasswordResetting] = useState(false);
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
+  const [isRequestingRefund, setIsRequestingRefund] = useState<string | null>(null);
   
   const [allEditaisData, setAllEditaisData] = useState<EditalType[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -199,6 +200,16 @@ export default function ProfilePage() {
   
   const handleRankingToggle = async (checked: boolean) => {
     await setRankingParticipation(checked);
+  };
+
+  const handleRequestRefund = async (plan: PlanDetails) => {
+      if (!plan.stripePaymentIntentId) return;
+      setIsRequestingRefund(plan.stripePaymentIntentId);
+      try {
+          await requestPlanRefund(plan.stripePaymentIntentId);
+      } finally {
+          setIsRequestingRefund(null);
+      }
   };
 
 
@@ -360,20 +371,44 @@ export default function ProfilePage() {
            <CardContent className="pt-6 space-y-4">
               {(user.activePlans && user.activePlans.length > 0) ? (
                 <ul className="space-y-4">
-                  {user.activePlans.map((plan, index) => (
-                    <li key={index} className="p-4 border rounded-lg bg-muted/50">
-                      <div className="flex justify-between items-start">
-                        <h3 className="text-lg font-semibold text-foreground flex items-center">
-                          <Package className="mr-2 h-5 w-5" />
-                          {getPlanDisplayName(plan.planId)}
-                        </h3>
-                         {plan.expiryDate && <Badge variant="outline">Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>}
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-1 pl-7">
-                        {getPlanDetailsDescription(plan)}
-                      </p>
-                    </li>
-                  ))}
+                  {user.activePlans.map((plan, index) => {
+                    const isPlanRefunding = plan.stripePaymentIntentId ? isRequestingRefund === plan.stripePaymentIntentId : false;
+                    return (
+                        <li key={plan.stripePaymentIntentId || index} className="p-4 border rounded-lg bg-muted/50">
+                          <div className="flex justify-between items-start gap-2">
+                            <div>
+                                <h3 className="text-lg font-semibold text-foreground flex items-center">
+                                  <Package className="mr-2 h-5 w-5" />
+                                  {getPlanDisplayName(plan.planId)}
+                                </h3>
+                                <p className="text-sm text-muted-foreground mt-1 pl-7">
+                                  {getPlanDetailsDescription(plan)}
+                                </p>
+                            </div>
+                             {plan.expiryDate && <Badge variant="outline">Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>}
+                          </div>
+                          {plan.planId !== 'plano_trial' && (
+                              <div className="mt-4 pt-4 border-t border-muted-foreground/10 flex justify-end">
+                                  {plan.status === 'refundRequested' ? (
+                                    <Button variant="outline" disabled>
+                                        Reembolso Solicitado
+                                    </Button>
+                                  ) : (
+                                    <Button 
+                                      variant="destructive" 
+                                      size="sm"
+                                      onClick={() => handleRequestRefund(plan)}
+                                      disabled={isPlanRefunding || !plan.stripePaymentIntentId}
+                                    >
+                                      {isPlanRefunding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                      Solicitar Reembolso
+                                    </Button>
+                                  )}
+                              </div>
+                          )}
+                        </li>
+                    )
+                  })}
                 </ul>
               ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">

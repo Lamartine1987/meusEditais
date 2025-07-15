@@ -12,13 +12,13 @@ import {
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
 import { AppLogo } from './app-logo';
-import { Home, Briefcase, BarChart3, Gem, Trophy, Star } from 'lucide-react';
+import { Home, Briefcase, BarChart3, Gem, Trophy, Star, Shield } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar'; 
 import { useAuth } from '@/hooks/use-auth';
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { setOpenMobile, isMobile } = useSidebar(); 
 
   const closeMobileSidebar = () => {
@@ -110,6 +110,21 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </>
+          )}
+          {isAdmin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === '/admin'}
+                tooltip={{content: "Admin", side:"right", align:"center"}}
+                onClick={closeMobileSidebar}
+              >
+                <Link href="/admin">
+                  <Shield />
+                  <span>Admin</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           )}
           <SidebarMenuItem>
             <SidebarMenuButton

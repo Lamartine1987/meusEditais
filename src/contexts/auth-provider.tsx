@@ -30,6 +30,7 @@ const planRank: Record<PlanId, number> = {
 
 interface AuthContextType {
   user: AppUser | null;
+  isAdmin: boolean;
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
   register: (name: string, email: string, pass: string, cpf: string) => Promise<void>;
@@ -51,6 +52,7 @@ interface AuthContextType {
   changeCargoForPlanoCargo: (newCargoCompositeId: string) => Promise<void>;
   isPlanoCargoWithinGracePeriod: () => boolean;
   setRankingParticipation: (participate: boolean) => Promise<void>;
+  requestPlanRefund: (paymentIntentId: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -70,10 +72,20 @@ const cleanProgressForCargo = (user: AppUser, cargoCompositeIdPrefix: string): P
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AppUser | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
   const dbUnsubscribeRef = useRef<Unsubscribe | null>(null);
+
+  useEffect(() => {
+    const adminUids = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
+    if (user) {
+        setIsAdmin(adminUids.includes(user.id));
+    } else {
+        setIsAdmin(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(firebaseAuthService, (firebaseUser: FirebaseUser | null) => {
@@ -90,11 +102,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         dbUnsubscribeRef.current = onValue(userRef, async (snapshot) => {
           try {
             if (!snapshot.exists()) {
-              // This can happen for a fraction of a second during registration.
-              // We'll set a temporary state and wait for the register function to write to the DB,
-              // which will re-trigger this listener with the correct data.
-              // This also handles cases where a user might exist in Auth but not RTDB.
-              // We are NOT writing to the DB here to avoid race conditions.
               console.warn(`[AuthProvider] User data not found in DB for ${firebaseUser.uid}. This is normal during registration.`);
               const temporaryUser: AppUser = {
                   id: firebaseUser.uid,
@@ -114,13 +121,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                   hasHadFreeTrial: false,
                   planHistory: [],
                   isRankingParticipant: null,
+                  isAdmin: false,
               };
               setUser(temporaryUser);
               setLoading(false);
-              return; // Important: exit here and wait for the next snapshot.
+              return;
             }
 
-            // --- Normal Flow: Snapshot exists ---
             let dbData = snapshot.val();
             
             const updatesToSyncToDb: any = {};
@@ -134,6 +141,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               await update(userRef, updatesToSyncToDb);
               dbData = { ...dbData, ...updatesToSyncToDb };
             }
+
+            const adminUids = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
             
             let appUser: AppUser = {
               id: firebaseUser.uid,
@@ -153,6 +162,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               hasHadFreeTrial: dbData.hasHadFreeTrial || false,
               planHistory: dbData.planHistory || [],
               isRankingParticipant: dbData.isRankingParticipant ?? null,
+              isAdmin: adminUids.includes(firebaseUser.uid),
             };
 
             let trialExpiredToastShown = false;
@@ -197,7 +207,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               id: firebaseUser.uid, name: firebaseUser.displayName || 'Usuário', email: firebaseUser.email || '',
               registeredCargoIds: [], studiedTopicIds: [], studyLogs: [], questionLogs: [], revisionSchedules: [],
               notes: [], activePlan: null, activePlans: [], stripeCustomerId: null, hasHadFreeTrial: false, planHistory: [],
-              isRankingParticipant: null,
+              isRankingParticipant: null, isAdmin: false,
             });
           } finally {
             setLoading(false);
@@ -235,7 +245,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     const userRefDb = ref(db, `users/${firebaseUser.uid}`);
     
-    // Usamos 'any' aqui para construir dinamicamente o objeto e evitar problemas com 'undefined'
     const newUserDbData: any = {
         id: firebaseUser.uid,
         name: name,
@@ -255,7 +264,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         isRankingParticipant: null,
     };
 
-    // Adiciona o avatarUrl apenas se ele existir, para não salvar 'undefined' no DB
     if (firebaseUser.photoURL) {
       newUserDbData.avatarUrl = firebaseUser.photoURL;
     }
@@ -523,9 +531,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
   const isPlanoCargoWithinGracePeriod = (): boolean => {
-    // This logic is now complex with multiple plans.
-    // Disabling for now to prevent incorrect behavior.
-    // A more robust implementation would require identifying which plan to act upon.
     return false;
   };
 
@@ -623,16 +628,49 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     }
   };
+  
+  const requestPlanRefund = async (paymentIntentId: string) => {
+    if (!user || !user.activePlans) {
+      toast({ title: "Erro", description: "Usuário ou planos não encontrados.", variant: "destructive" });
+      return;
+    }
+    
+    const planIndex = user.activePlans.findIndex(p => p.stripePaymentIntentId === paymentIntentId);
+    if (planIndex === -1) {
+        toast({ title: "Erro", description: "Plano não encontrado para solicitar reembolso.", variant: "destructive" });
+        return;
+    }
+
+    const updatedPlans = [...user.activePlans];
+    updatedPlans[planIndex] = {
+      ...updatedPlans[planIndex],
+      status: 'refundRequested',
+      requestDate: new Date().toISOString(),
+    };
+    
+    try {
+      await update(ref(db, `users/${user.id}`), { activePlans: updatedPlans });
+      toast({
+        title: "Solicitação Enviada",
+        description: "Sua solicitação de reembolso foi enviada ao administrador. O processo pode levar alguns dias.",
+        variant: "default",
+        className: "bg-accent text-accent-foreground",
+      });
+    } catch (error) {
+      console.error("Error requesting plan refund:", error);
+      toast({ title: "Erro ao Solicitar", description: "Não foi possível enviar sua solicitação.", variant: "destructive" });
+    }
+  };
 
   return (
     <AuthContext.Provider value={{ 
-      user, loading, login, register, sendPasswordReset, logout, updateUser, 
+      user, isAdmin, loading, login, register, sendPasswordReset, logout, updateUser, 
       registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, 
       deleteStudyLog,
       addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
       addNote, deleteNote,
       cancelSubscription, startFreeTrial, changeCargoForPlanoCargo, isPlanoCargoWithinGracePeriod,
-      setRankingParticipation
+      setRankingParticipation, requestPlanRefund
     }}>
       {children}
     </AuthContext.Provider>
