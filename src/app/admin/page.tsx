@@ -9,6 +9,7 @@ import type { User as AppUser, PlanDetails, Edital, Cargo } from '@/types';
 import { AdminClientPage, type RefundRequest } from '@/components/admin/admin-client-page';
 import { getStripeClient } from '@/lib/stripe';
 
+export const dynamic = 'force-dynamic';
 
 async function getAdminPageData(): Promise<{ refundRequests: RefundRequest[]; isAdmin: boolean }> {
   try {
