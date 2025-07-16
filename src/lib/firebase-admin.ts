@@ -10,27 +10,29 @@ try {
   const adminApps = getAdminApps();
   const existingAdminApp = adminApps.find(app => app?.name === ADMIN_APP_NAME);
   
-  // In Firebase App Hosting and other Google Cloud environments,
-  // initializeApp() with no arguments automatically uses the service account
-  // credentials and the FIREBASE_CONFIG environment variable.
-  // However, during build time, this might not be available. We explicitly provide
-  // the databaseURL to prevent initialization errors during `next build`.
   const adminApp = existingAdminApp || initializeAdminApp({
     databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/"
   }, ADMIN_APP_NAME);
 
   adminDb = getAdminDatabase(adminApp);
+  
+  const adminUids = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
+  adminUids.forEach(uid => {
+    if (uid) {
+      const userRef = adminDb.ref(`users/${uid}`);
+      userRef.child('isAdmin').set(true).catch(err => {
+        console.error(`Failed to set admin status for UID ${uid}:`, err);
+      });
+    }
+  });
 
 } catch (error: any) {
   console.error("CRITICAL: Failed to initialize Firebase Admin SDK. This will cause database operations to fail.", error);
-  // Create a dummy object so the app doesn't crash on startup.
-  // Any call to this object's methods will throw a clear error at runtime.
   adminDb = {
     ref: (path: string) => {
       console.error(`Firebase Admin DB not initialized. Attempted to access path: ${path}`);
       throw new Error("Firebase Admin DB not initialized. Check server startup logs for the original error.");
     },
-    // Add other methods that might be called if necessary, but ref is the main one.
   } as unknown as Database;
 }
 

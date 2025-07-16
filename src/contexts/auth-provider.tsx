@@ -18,6 +18,7 @@ import { ref, set, get, update, remove, onValue, type Unsubscribe } from "fireba
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
+import { adminDb } from '@/lib/firebase-admin';
 
 const TRIAL_DURATION_DAYS = 30;
 
@@ -79,9 +80,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const dbUnsubscribeRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
-    const adminUids = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
     if (user) {
-        setIsAdmin(adminUids.includes(user.id));
+        setIsAdmin(!!user.isAdmin);
     } else {
         setIsAdmin(false);
     }
@@ -141,8 +141,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               await update(userRef, updatesToSyncToDb);
               dbData = { ...dbData, ...updatesToSyncToDb };
             }
-
-            const adminUids = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
             
             let appUser: AppUser = {
               id: firebaseUser.uid,
@@ -162,7 +160,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               hasHadFreeTrial: dbData.hasHadFreeTrial || false,
               planHistory: dbData.planHistory || [],
               isRankingParticipant: dbData.isRankingParticipant ?? null,
-              isAdmin: adminUids.includes(firebaseUser.uid),
+              isAdmin: dbData.isAdmin || false,
             };
 
             let trialExpiredToastShown = false;
