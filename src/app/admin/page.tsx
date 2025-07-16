@@ -18,7 +18,8 @@ async function getAdminPageData(): Promise<{ refundRequests: RefundRequest[]; is
     }
     
     const decodedToken = await getAuth().verifySessionCookie(sessionCookie, true);
-    const adminUids = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
+    // Correctly read the server-side environment variable
+    const adminUids = (process.env.FIREBASE_ADMIN_UIDS || '').split(',');
     
     if (!adminUids.includes(decodedToken.uid)) {
       return { refundRequests: [], isAdmin: false };
