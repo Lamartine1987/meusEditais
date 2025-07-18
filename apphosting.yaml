@@ -9,8 +9,6 @@ env:
   # para evitar erros de permissão durante o build.
   - variable: GOOGLE_API_KEY
     secret: GOOGLE_API_KEY
-    availability:
-      - RUNTIME
 
   - variable: STRIPE_SECRET_KEY_PROD
     secret: STRIPE_SECRET_KEY_PROD
