@@ -18,7 +18,6 @@ import { ref, set, get, update, remove, onValue, type Unsubscribe } from "fireba
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
-import { adminDb } from '@/lib/firebase-admin';
 
 const TRIAL_DURATION_DAYS = 30;
 
@@ -101,6 +100,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         dbUnsubscribeRef.current = onValue(userRef, async (snapshot) => {
           try {
+            // Nova verificação de admin
+            const adminRef = ref(db, `admins/${firebaseUser.uid}`);
+            const adminSnapshot = await get(adminRef);
+            const userIsAdmin = adminSnapshot.exists();
+
             if (!snapshot.exists()) {
               console.warn(`[AuthProvider] User data not found in DB for ${firebaseUser.uid}. This is normal during registration.`);
               const temporaryUser: AppUser = {
@@ -121,7 +125,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                   hasHadFreeTrial: false,
                   planHistory: [],
                   isRankingParticipant: null,
-                  isAdmin: false,
+                  isAdmin: userIsAdmin,
               };
               setUser(temporaryUser);
               setLoading(false);
@@ -160,7 +164,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               hasHadFreeTrial: dbData.hasHadFreeTrial || false,
               planHistory: dbData.planHistory || [],
               isRankingParticipant: dbData.isRankingParticipant ?? null,
-              isAdmin: dbData.isAdmin || false,
+              isAdmin: userIsAdmin,
             };
 
             let trialExpiredToastShown = false;
