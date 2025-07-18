@@ -12,31 +12,35 @@ import { getStripeClient } from '@/lib/stripe';
 export const dynamic = 'force-dynamic';
 
 async function getAdminPageData(): Promise<{ refundRequests: RefundRequest[]; isAdmin: boolean }> {
-  console.log('[Admin Page] Iniciando verificação de acesso de administrador.');
+  console.log('--- INICIANDO VERIFICAÇÃO DE ACESSO DE ADMINISTRADOR ---');
   try {
     const sessionCookie = cookies().get('__session')?.value;
     if (!sessionCookie) {
-      console.log('[Admin Page] Verificação falhou: Nenhum cookie de sessão encontrado.');
+      console.log('[LOG-VERIFICAÇÃO] FALHA: Nenhum cookie de sessão foi encontrado. O usuário provavelmente não está logado.');
       return { refundRequests: [], isAdmin: false };
     }
-    console.log('[Admin Page] Cookie de sessão encontrado.');
+    console.log('[LOG-VERIFICAÇÃO] SUCESSO: Cookie de sessão encontrado.');
     
     const decodedToken = await getAuth().verifySessionCookie(sessionCookie, true);
-    console.log(`[Admin Page] Token decodificado com sucesso para o UID: ${decodedToken.uid}`);
+    console.log(`[LOG-VERIFICAÇÃO] SUCESSO: Token decodificado. UID do usuário logado: ${decodedToken.uid}`);
 
     const adminUidsFromEnv = process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '';
-    console.log(`[Admin Page] Variável de ambiente NEXT_PUBLIC_FIREBASE_ADMIN_UIDS lida do servidor: "${adminUidsFromEnv}"`);
+    console.log(`[LOG-VERIFICAÇÃO] VALOR LIDO DA VARIÁVEL DE AMBIENTE (NEXT_PUBLIC_FIREBASE_ADMIN_UIDS): "${adminUidsFromEnv}"`);
     
+    if (!adminUidsFromEnv) {
+        console.log('[LOG-VERIFICAÇÃO] ALERTA: A variável de ambiente com os UIDs de administrador está vazia ou não foi encontrada.');
+    }
+
     const adminUids = adminUidsFromEnv.split(',').filter(uid => uid.trim() !== '');
-     console.log(`[Admin Page] Lista de UIDs de administrador processada: [${adminUids.join(', ')}]`);
+    console.log(`[LOG-VERIFICAÇÃO] Lista de UIDs de administrador processada: [${adminUids.join(', ')}] (Total: ${adminUids.length})`);
 
     const isUserAdmin = adminUids.includes(decodedToken.uid);
     if (!isUserAdmin) {
-      console.log(`[Admin Page] Acesso negado: UID "${decodedToken.uid}" não está na lista de administradores.`);
+      console.log(`[LOG-VERIFICAÇÃO] FALHA: Acesso negado. O UID "${decodedToken.uid}" NÃO ESTÁ na lista de administradores.`);
       return { refundRequests: [], isAdmin: false };
     }
 
-    console.log(`[Admin Page] Acesso concedido para o UID de administrador: ${decodedToken.uid}. Buscando dados...`);
+    console.log(`[LOG-VERIFICAÇÃO] SUCESSO: Acesso de administrador concedido para o UID: ${decodedToken.uid}. Buscando dados da página...`);
 
     const [usersSnapshot, editaisSnapshot] = await Promise.all([
         adminDb.ref('users').once('value'),
@@ -78,7 +82,7 @@ async function getAdminPageData(): Promise<{ refundRequests: RefundRequest[]; is
                 amount = paymentIntent.amount;
                 currency = paymentIntent.currency;
             } catch (stripeError) {
-                console.warn(`[Admin Page] Não foi possível buscar o Payment Intent ${plan.stripePaymentIntentId}:`, stripeError);
+                console.warn(`[LOG-ADMIN-DADOS] Não foi possível buscar o Payment Intent ${plan.stripePaymentIntentId}:`, stripeError);
             }
         }
         
@@ -97,17 +101,17 @@ async function getAdminPageData(): Promise<{ refundRequests: RefundRequest[]; is
       }
     }
     
-    console.log(`[Admin Page] Busca de dados concluída. ${requests.length} solicitações de reembolso encontradas.`);
+    console.log(`[LOG-ADMIN-DADOS] Busca de dados concluída. ${requests.length} solicitações de reembolso encontradas.`);
     return { 
       refundRequests: requests.sort((a,b) => new Date(b.requestDate || 0).getTime() - new Date(a.requestDate || 0).getTime()),
       isAdmin: true,
     };
   } catch (error: any) {
     if (error.code === 'auth/session-cookie-expired' || error.code === 'auth/session-cookie-revoked') {
-      console.log('[Admin Page] Verificação falhou: Cookie de sessão expirado ou revogado.', error.code);
+      console.log('[LOG-VERIFICAÇÃO] ERRO: Cookie de sessão expirado ou revogado.', error.code);
       return { refundRequests: [], isAdmin: false };
     }
-    console.error("[Admin Page] Erro inesperado ao buscar dados de administrador:", error);
+    console.error("[LOG-VERIFICAÇÃO] ERRO INESPERADO:", error);
     return { refundRequests: [], isAdmin: false };
   }
 }
