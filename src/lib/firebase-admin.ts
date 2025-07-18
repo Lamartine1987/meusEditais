@@ -16,16 +16,6 @@ try {
 
   adminDb = getAdminDatabase(adminApp);
   
-  const adminUids = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
-  adminUids.forEach(uid => {
-    if (uid) {
-      const userRef = adminDb.ref(`users/${uid}`);
-      userRef.child('isAdmin').set(true).catch(err => {
-        console.error(`Failed to set admin status for UID ${uid}:`, err);
-      });
-    }
-  });
-
 } catch (error: any) {
   console.error("CRITICAL: Failed to initialize Firebase Admin SDK. This will cause database operations to fail.", error);
   adminDb = {
