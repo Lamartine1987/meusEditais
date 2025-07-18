@@ -80,9 +80,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     if (user) {
-        setIsAdmin(!!user.isAdmin);
+      const adminUIDs = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
+      setIsAdmin(adminUIDs.includes(user.id));
     } else {
-        setIsAdmin(false);
+      setIsAdmin(false);
     }
   }, [user]);
 
@@ -100,13 +101,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         dbUnsubscribeRef.current = onValue(userRef, async (snapshot) => {
           try {
-            // Nova verificação de admin
-            const adminRef = ref(db, `admins/${firebaseUser.uid}`);
-            const adminSnapshot = await get(adminRef);
-            const userIsAdmin = adminSnapshot.exists();
-
             if (!snapshot.exists()) {
               console.warn(`[AuthProvider] User data not found in DB for ${firebaseUser.uid}. This is normal during registration.`);
+              const adminUIDs = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
               const temporaryUser: AppUser = {
                   id: firebaseUser.uid,
                   name: firebaseUser.displayName || 'Usuário',
@@ -125,7 +122,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                   hasHadFreeTrial: false,
                   planHistory: [],
                   isRankingParticipant: null,
-                  isAdmin: userIsAdmin,
+                  isAdmin: adminUIDs.includes(firebaseUser.uid),
               };
               setUser(temporaryUser);
               setLoading(false);
@@ -146,6 +143,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               dbData = { ...dbData, ...updatesToSyncToDb };
             }
             
+            const adminUIDs = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
+            
             let appUser: AppUser = {
               id: firebaseUser.uid,
               name: dbData.name || firebaseUser.displayName || 'Usuário',
@@ -164,7 +163,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               hasHadFreeTrial: dbData.hasHadFreeTrial || false,
               planHistory: dbData.planHistory || [],
               isRankingParticipant: dbData.isRankingParticipant ?? null,
-              isAdmin: userIsAdmin,
+              isAdmin: adminUIDs.includes(firebaseUser.uid),
             };
 
             let trialExpiredToastShown = false;

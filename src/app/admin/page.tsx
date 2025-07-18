@@ -20,10 +20,8 @@ async function getAdminPageData(): Promise<{ refundRequests: RefundRequest[]; is
     
     const decodedToken = await getAuth().verifySessionCookie(sessionCookie, true);
     
-    // Nova verificação de administrador baseada no banco de dados
-    const adminRef = adminDb.ref(`admins/${decodedToken.uid}`);
-    const adminSnapshot = await adminRef.once('value');
-    const isUserAdmin = adminSnapshot.exists();
+    const adminUIDs = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
+    const isUserAdmin = adminUIDs.includes(decodedToken.uid);
 
     if (!isUserAdmin) {
       return { refundRequests: [], isAdmin: false };
