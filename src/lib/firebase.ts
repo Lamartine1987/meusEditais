@@ -8,10 +8,10 @@ import { getFunctions, type Functions } from "firebase/functions";
 const firebaseConfig = {
   apiKey: "AIzaSyBNsEsDbmtxDGi-V3W--D3CF5mXbhOj5ZM",
   authDomain: "meuseditais.firebaseapp.com",
+  databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
   storageBucket: "meuseditais.appspot.com",
   messagingSenderId: "801348002832",
-  databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   appId: "1:801348002832:web:c1c2f89db9c807a09d9695",
   measurementId: "G-CK2H4TKG6C"
 };
