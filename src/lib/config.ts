@@ -13,6 +13,7 @@ interface AppConfig {
   // Chaves Públicas e URLs (do env direto)
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
   NEXT_PUBLIC_APP_URL: string;
+  NEXT_PUBLIC_GOOGLE_API_KEY: string;
 }
 
 let config: AppConfig;
@@ -37,13 +38,14 @@ try {
     ...secretConfig,
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL!,
+    NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY!,
   };
 
   // Validação para garantir que todas as chaves foram carregadas
   const requiredKeys: (keyof AppConfig)[] = [
     'STRIPE_SECRET_KEY_PROD', 'STRIPE_WEBHOOK_SECRET_PROD',
     'STRIPE_PRICE_ID_PLANO_CARGO', 'STRIPE_PRICE_ID_PLANO_EDITAL', 'STRIPE_PRICE_ID_PLANO_ANUAL',
-    'FIREBASE_ADMIN_UIDS', 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_APP_URL'
+    'FIREBASE_ADMIN_UIDS', 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_APP_URL', 'NEXT_PUBLIC_GOOGLE_API_KEY'
   ];
 
   for (const key of requiredKeys) {
@@ -66,6 +68,7 @@ try {
     FIREBASE_ADMIN_UIDS: '',
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: '',
     NEXT_PUBLIC_APP_URL: '',
+    NEXT_PUBLIC_GOOGLE_API_KEY: '',
   };
 }
 

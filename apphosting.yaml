@@ -6,7 +6,7 @@ runConfig:
 
 env:
   # Chaves públicas necessárias durante o build e no cliente.
-  # Elas não são segredos e são definidas diretamente.
+  # Elas são definidas diretamente.
   - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
     value: 'pk_test_51Pbm5qRxPl1dC9Z4B53p2L1Qf11FwSRAL5dGf1Pmc23s5kIq1vXfG1LqXkK92w1iG4U8kC9wLd2cWbI5a79Yy7fT00l8TZyfEk'
   - variable: NEXT_PUBLIC_APP_URL

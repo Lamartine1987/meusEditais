@@ -23,6 +23,9 @@ let auth: Auth;
 let db: Database;
 let functions: Functions;
 
+// A validação da chave de API é feita pela própria biblioteca do Firebase.
+// A verificação manual foi removida para evitar falhas de build.
+
 // Inicializa o Firebase apenas uma vez
 if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);
