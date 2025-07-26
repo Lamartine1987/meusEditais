@@ -25,8 +25,8 @@ let functions: Functions;
 
 // Validação para garantir que a chave de API está presente.
 // Em produção, esta chave será substituída pelo valor real do App Hosting.
-if (!firebaseConfig.apiKey) {
-  console.error("ERRO CRÍTICO DE CONFIGURAÇÃO: A variável de ambiente NEXT_PUBLIC_GOOGLE_API_KEY não foi encontrada. A aplicação não funcionará corretamente. Verifique o processo de build e deploy.");
+if (!firebaseConfig.apiKey || firebaseConfig.apiKey === '__FIREBASE_API_KEY__') {
+  console.error("ERRO CRÍTICO DE CONFIGURAÇÃO: A variável de ambiente NEXT_PUBLIC_GOOGLE_API_KEY não foi encontrada ou não foi substituída. A aplicação não funcionará corretamente. Verifique o processo de build e deploy.");
 }
 
 // Inicializa o Firebase apenas uma vez
