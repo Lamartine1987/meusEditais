@@ -12,11 +12,9 @@ const nextConfig = {
       },
     ],
   },
-  // As variáveis de ambiente públicas agora são injetadas diretamente pelo config.ts
-  // e não precisam ser expostas aqui.
-  // env: {
-  //   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
-  // },
+  // Adiciona a transpilação para o recharts, que é necessário para
+  // que ele funcione corretamente com o Next.js.
+  transpilePackages: ['recharts'],
   experimental: {
     // Packages like firebase-admin, stripe, and recharts are not fully 
     // compatible with webpack bundling. This option tells Next.js to treat 
@@ -27,7 +25,6 @@ const nextConfig = {
       'firebase-admin',
       'stripe',
       'firebase',
-      'recharts',
     ],
   },
 };
