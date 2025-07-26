@@ -14,7 +14,6 @@ interface AppConfig {
   // Chaves Públicas e URLs (do env direto)
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
   NEXT_PUBLIC_APP_URL: string;
-  NEXT_PUBLIC_GOOGLE_API_KEY: string;
 }
 
 let config: AppConfig;
@@ -59,12 +58,11 @@ try {
     ...secretConfig,
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL!,
-    NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY!,
   };
 
   // Validação para garantir que as chaves públicas foram carregadas
   const requiredPublicKeys: (keyof AppConfig)[] = [
-    'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_APP_URL', 'NEXT_PUBLIC_GOOGLE_API_KEY'
+    'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_APP_URL'
   ];
 
   for (const key of requiredPublicKeys) {
@@ -85,7 +83,6 @@ try {
     FIREBASE_ADMIN_UIDS: '',
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: '',
     NEXT_PUBLIC_APP_URL: '',
-    NEXT_PUBLIC_GOOGLE_API_KEY: '',
   };
 }
 
