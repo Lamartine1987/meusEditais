@@ -8,6 +8,7 @@ import { cookies } from 'next/headers';
 import type { User as AppUser, PlanDetails, Edital, Cargo } from '@/types';
 import { AdminClientPage, type RefundRequest } from '@/components/admin/admin-client-page';
 import { getStripeClient } from '@/lib/stripe';
+import { appConfig } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,19 +16,25 @@ async function getAdminPageData(): Promise<{ refundRequests: RefundRequest[]; is
   try {
     const sessionCookie = cookies().get('__session')?.value;
     if (!sessionCookie) {
+      console.log('[AdminPage] No session cookie found. User is not logged in.');
       return { refundRequests: [], isAdmin: false };
     }
     
     const decodedToken = await getAuth().verifySessionCookie(sessionCookie, true);
+    console.log(`[AdminPage] Session cookie decoded for UID: ${decodedToken.uid}`);
     
-    const adminUIDs = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
+    const adminUIDs = (appConfig.FIREBASE_ADMIN_UIDS || '').split(',');
+    console.log(`[AdminPage] Admin UIDs from config: [${adminUIDs.join(', ')}]`);
+
     const isUserAdmin = adminUIDs.includes(decodedToken.uid);
+    console.log(`[AdminPage] Is user admin? ${isUserAdmin}`);
 
     if (!isUserAdmin) {
+      console.log(`[AdminPage] User ${decodedToken.uid} is not an admin. Denying access.`);
       return { refundRequests: [], isAdmin: false };
     }
-
-    // Se for administrador, busca os dados da página
+    
+    console.log(`[AdminPage] User ${decodedToken.uid} is an admin. Fetching data...`);
     const [usersSnapshot, editaisSnapshot] = await Promise.all([
         adminDb.ref('users').once('value'),
         adminDb.ref('editais').once('value')
@@ -87,16 +94,17 @@ async function getAdminPageData(): Promise<{ refundRequests: RefundRequest[]; is
       }
     }
     
+    console.log(`[AdminPage] Successfully fetched ${requests.length} refund requests.`);
     return { 
       refundRequests: requests.sort((a,b) => new Date(b.requestDate || 0).getTime() - new Date(a.requestDate || 0).getTime()),
       isAdmin: true,
     };
   } catch (error: any) {
     if (error.code === 'auth/session-cookie-expired' || error.code === 'auth/session-cookie-revoked') {
-      console.log('ERRO: Cookie de sessão expirado ou revogado.', error.code);
+      console.log('[AdminPage] Session cookie expired or revoked.', error.code);
       return { refundRequests: [], isAdmin: false };
     }
-    console.error("ERRO INESPERADO AO BUSCAR DADOS DE ADMIN:", error);
+    console.error("[AdminPage] Unexpected error while fetching admin data:", error);
     return { refundRequests: [], isAdmin: false };
   }
 }

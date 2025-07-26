@@ -8,11 +8,12 @@ import { redirect } from 'next/navigation';
 import { adminDb } from '@/lib/firebase-admin'; // Use Admin DB
 import { formatISO } from 'date-fns';
 import type Stripe from 'stripe';
+import { appConfig } from '@/lib/config';
 
 const planToPriceMap: Record<PlanId, string | undefined> = {
-  plano_cargo: process.env.STRIPE_PRICE_ID_PLANO_CARGO,
-  plano_edital: process.env.STRIPE_PRICE_ID_PLANO_EDITAL,
-  plano_anual: process.env.STRIPE_PRICE_ID_PLANO_ANUAL,
+  plano_cargo: appConfig.STRIPE_PRICE_ID_PLANO_CARGO,
+  plano_edital: appConfig.STRIPE_PRICE_ID_PLANO_EDITAL,
+  plano_anual: appConfig.STRIPE_PRICE_ID_PLANO_ANUAL,
   plano_trial: undefined, // Trial não tem preço Stripe
 };
 
@@ -36,13 +37,7 @@ export async function createCheckoutSession(
   specificDetails?: { selectedCargoCompositeId?: string; selectedEditalId?: string }
 ) {
   console.log(`[createCheckoutSession] Called for PRODUCTION. PlanID: ${planId}, UserID: ${userId}, UserEmail: ${userEmail}, SpecificDetails: ${JSON.stringify(specificDetails)}`);
-  console.log(`[createCheckoutSession] ENV_STRIPE_SECRET_KEY_PROD: ${process.env.STRIPE_SECRET_KEY_PROD === undefined ? "undefined" : (process.env.STRIPE_SECRET_KEY_PROD ? "****** (present)" : "EMPTY_STRING_OR_NULL")}`);
-  console.log(`[createCheckoutSession] ENV_STRIPE_PRICE_ID_PLANO_CARGO: ${process.env.STRIPE_PRICE_ID_PLANO_CARGO === undefined ? "undefined" : (process.env.STRIPE_PRICE_ID_PLANO_CARGO || "EMPTY_STRING")}`);
-  console.log(`[createCheckoutSession] ENV_STRIPE_PRICE_ID_PLANO_EDITAL: ${process.env.STRIPE_PRICE_ID_PLANO_EDITAL === undefined ? "undefined" : (process.env.STRIPE_PRICE_ID_PLANO_EDITAL || "EMPTY_STRING")}`);
-  console.log(`[createCheckoutSession] ENV_STRIPE_PRICE_ID_PLANO_ANUAL: ${process.env.STRIPE_PRICE_ID_PLANO_ANUAL === undefined ? "undefined" : (process.env.STRIPE_PRICE_ID_PLANO_ANUAL || "EMPTY_STRING")}`);
-  console.log(`[createCheckoutSession] ENV_NEXT_PUBLIC_APP_URL: ${process.env.NEXT_PUBLIC_APP_URL === undefined ? "undefined" : (process.env.NEXT_PUBLIC_APP_URL || "EMPTY_STRING")}`);
-
-
+  
   if (!userId) {
     const errorMsg = '[createCheckoutSession] Error: User ID is required.';
     console.error(errorMsg);
@@ -51,27 +46,18 @@ export async function createCheckoutSession(
   const stripe = getStripeClient();
 
   const priceId = planToPriceMap[planId];
-  const envVarNameForPriceId = `STRIPE_PRICE_ID_${planId.toUpperCase()}`;
-  console.log(`[createCheckoutSession] PlanID: '${planId}' maps to PriceID Var: '${envVarNameForPriceId}', resolved PriceID: '${priceId || 'undefined'}'`);
-
+  console.log(`[createCheckoutSession] PlanID: '${planId}' maps to PriceID: '${priceId || 'undefined'}'`);
 
   if (!priceId || priceId.trim() === '' || FALLBACK_PRICE_IDS.includes(priceId)) {
-    const valueFromEnvForPriceId = process.env[envVarNameForPriceId];
-    const currentPriceIdValue = priceId === undefined ? 'undefined' : (priceId === null ? 'null' : `'${priceId}'`);
-    const envValueDisplay = valueFromEnvForPriceId === undefined ? 'undefined' : (valueFromEnvForPriceId === null ? 'null' : `'${valueFromEnvForPriceId}'`);
-
-    const errorMessage = `Configuration error: Stripe Price ID for plan '${planId}' (environment variable '${envVarNameForPriceId}') is missing, empty, or a fallback.
-    - Value from process.env.${envVarNameForPriceId}: ${envValueDisplay}
-    - Resolved priceId: ${currentPriceIdValue}
-    Please ensure the secret in Google Secret Manager has a valid, non-empty Stripe Price ID (e.g., price_xxxxxxxx) and is correctly linked to your App Hosting backend via apphosting.yaml.`;
+    const errorMessage = `Configuration error: Stripe Price ID for plan '${planId}' is missing, empty, or a fallback. Please ensure the secret in Google Secret Manager has a valid, non-empty Stripe Price ID and is correctly linked to your App Hosting backend.`;
     console.error(`[createCheckoutSession] ${errorMessage}`);
-    throw new Error(`Configuration error: Stripe Price ID for plan '${planId}' ('${envVarNameForPriceId}') is invalid or not configured. Check server logs.`);
+    throw new Error(`Configuration error: Stripe Price ID for plan '${planId}' is invalid or not configured. Check server logs.`);
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'; 
+  const appUrl = appConfig.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'; 
   console.log(`[createCheckoutSession] App URL for redirect: ${appUrl}`);
   if (appUrl === 'http://localhost:9002' && process.env.NODE_ENV === 'production') {
-    console.warn(`[createCheckoutSession] Warning: NEXT_PUBLIC_APP_URL is not set for production. Using default ${appUrl}. This might cause issues with Stripe redirects. Ensure it's set in apphosting.yaml.`);
+    console.warn(`[createCheckoutSession] Warning: NEXT_PUBLIC_APP_URL is not set in config. Using default ${appUrl}. This might cause issues with Stripe redirects.`);
   }
 
   const successUrl = `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
@@ -79,7 +65,7 @@ export async function createCheckoutSession(
   console.log(`[createCheckoutSession] SuccessURL: ${successUrl}, CancelURL: ${cancelUrl}`);
 
   let stripeCustomerId: string | undefined;
-  const userRefDb = adminDb.ref(`users/${userId}`); // Use adminDb ref
+  const userRefDb = adminDb.ref(`users/${userId}`);
   console.log(`[createCheckoutSession] User Firebase DB Ref: users/${userId}`);
 
   try {
@@ -115,7 +101,7 @@ export async function createCheckoutSession(
     }
 
     try {
-      await userRefDb.update({ stripeCustomerId }); // Use admin ref update
+      await userRefDb.update({ stripeCustomerId });
       console.log(`[createCheckoutSession] Updated Firebase RTDB for user ${userId} with stripeCustomerId: ${stripeCustomerId}`);
     } catch (dbError: any) {
        console.warn(`[createCheckoutSession] Warning: Could not update Stripe customer ID in Firebase RTDB for user ${userId}. Error: ${dbError.message}. Proceeding with checkout.`);
@@ -128,7 +114,6 @@ export async function createCheckoutSession(
     } else if (!stripeCustomerId) {
          throw new Error(`Could not retrieve or create Stripe customer: ${error.message}`);
     }
-    // If stripeCustomerId was set but DB update failed, we still proceed.
   }
 
   if (!stripeCustomerId) {
@@ -208,8 +193,8 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   const signature = headersList.get('stripe-signature');
   console.log(`[handleStripeWebhook] Stripe Signature from header: ${signature ? 'present' : 'missing (THIS IS A PROBLEM!)'}`);
 
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_PROD;
-  console.log(`[handleStripeWebhook] ENV_STRIPE_WEBHOOK_SECRET_PROD: ${webhookSecret === undefined ? "undefined" : (webhookSecret ? "****** (present)" : "EMPTY_STRING_OR_NULL (THIS IS A CRITICAL PROBLEM!)")}`);
+  const webhookSecret = appConfig.STRIPE_WEBHOOK_SECRET_PROD;
+  console.log(`[handleStripeWebhook] STRIPE_WEBHOOK_SECRET_PROD: ${webhookSecret ? "****** (present)" : "EMPTY_STRING_OR_NULL (THIS IS A CRITICAL PROBLEM!)"}`);
 
   if (!signature) {
     const msg = "Webhook Error: Missing stripe-signature header";
@@ -217,8 +202,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
     return new Response(msg, { status: 400 });
   }
   if (!webhookSecret || webhookSecret.trim() === '') {
-    const currentWebhookKeyValue = webhookSecret === undefined ? 'undefined' : (webhookSecret === null ? 'null' : `'${webhookSecret}'`);
-    const msg = `CRITICAL: STRIPE_WEBHOOK_SECRET_PROD is not set or is empty in environment variables. This is a server-side configuration issue. Current value: ${currentWebhookKeyValue}. Ensure secret is linked in apphosting.yaml and has a non-empty value.`;
+    const msg = `CRITICAL: STRIPE_WEBHOOK_SECRET_PROD is not set or is empty in config. This is a server-side configuration issue.`;
     console.error(`[handleStripeWebhook] ${msg}`);
     return new Response('Webhook Error: Webhook secret not configured or is empty. Server configuration issue.', { status: 500 });
   }
@@ -419,9 +403,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
         console.log(`[handleStripeWebhook] Event: customer.subscription.deleted. Subscription ID ${subscription.id}`);
-        // This logic might need adjustment in a multi-plan scenario if using subscriptions.
-        // For now, with one-time payments, this event is less critical.
-        // The logic for finding user by stripeCustomerId remains valid.
         const stripeCustomerId = subscription.customer;
          if (typeof stripeCustomerId === 'string') {
            console.log(`[handleStripeWebhook] Finding user by Stripe Customer ID: ${stripeCustomerId}`);
@@ -433,9 +414,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
                   const userData = usersData[uid];
                   if (userData.stripeCustomerId === stripeCustomerId || userData.activePlans?.some((p: PlanDetails) => p.stripeCustomerId === stripeCustomerId)) {
                       console.log(`[handleStripeWebhook] Found matching Firebase UID: ${uid} for Stripe Customer ID ${stripeCustomerId}`);
-                      // Here, you'd implement logic to remove the specific plan tied to the subscriptionId from the `activePlans` array.
-                      // This requires storing stripeSubscriptionId in the PlanDetails object for each plan.
-                      // For now, let's log a warning.
                       console.warn(`[handleStripeWebhook] Subscription deletion received, but automatic plan removal for multi-plan setup is not fully implemented. Manual check may be needed for user ${uid}.`);
                       break;
                   }

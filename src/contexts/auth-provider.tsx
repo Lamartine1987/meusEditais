@@ -2,7 +2,7 @@
 "use client";
 
 import type { User as AppUser, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, PlanId, PlanDetails, NoteEntry } from '@/types';
-import React, { createContext, useState, useEffect, ReactNode, useRef } from 'react'; // Added useRef
+import React, { createContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { 
   getAuth, 
   onAuthStateChanged, 
@@ -18,6 +18,7 @@ import { ref, set, get, update, remove, onValue, type Unsubscribe } from "fireba
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
+import { appConfig } from '@/lib/config';
 
 const TRIAL_DURATION_DAYS = 30;
 
@@ -79,8 +80,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const dbUnsubscribeRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
-    if (user) {
-      const adminUIDs = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
+    if (user && appConfig.FIREBASE_ADMIN_UIDS) {
+      const adminUIDs = appConfig.FIREBASE_ADMIN_UIDS.split(',');
       setIsAdmin(adminUIDs.includes(user.id));
     } else {
       setIsAdmin(false);
@@ -103,7 +104,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           try {
             if (!snapshot.exists()) {
               console.warn(`[AuthProvider] User data not found in DB for ${firebaseUser.uid}. This is normal during registration.`);
-              const adminUIDs = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
+              const adminUIDs = (appConfig.FIREBASE_ADMIN_UIDS || '').split(',');
               const temporaryUser: AppUser = {
                   id: firebaseUser.uid,
                   name: firebaseUser.displayName || 'Usuário',
@@ -143,7 +144,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               dbData = { ...dbData, ...updatesToSyncToDb };
             }
             
-            const adminUIDs = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
+            const adminUIDs = (appConfig.FIREBASE_ADMIN_UIDS || '').split(',');
             
             let appUser: AppUser = {
               id: firebaseUser.uid,
@@ -417,10 +418,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const deleteStudyLog = async (logId: string) => {
-    console.log('[AuthProvider/deleteStudyLog] Received request to delete log ID:', logId);
     if (user) {
         const initialLogCount = (user.studyLogs || []).length;
-        console.log(`[AuthProvider/deleteStudyLog] User found. Initial log count: ${initialLogCount}.`);
         const updatedStudyLogs = (user.studyLogs || []).filter(log => log.id !== logId);
         const finalLogCount = updatedStudyLogs.length;
 
@@ -430,17 +429,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
              return;
         }
 
-        console.log(`[AuthProvider/deleteStudyLog] Filtered logs. New count: ${finalLogCount}. Preparing to update DB.`);
         try {
             await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
-            console.log(`[AuthProvider/deleteStudyLog] DB update successful for user ${user.id}.`);
             toast({ title: "Registro Excluído", description: "O registro de estudo foi removido.", variant: "default" });
         } catch (error) {
             console.error("[AuthProvider/deleteStudyLog] Error deleting study log from DB:", error);
             toast({ title: "Erro ao Excluir", description: "Não foi possível remover o registro do banco de dados.", variant: "destructive" });
         }
-    } else {
-        console.error('[AuthProvider/deleteStudyLog] Aborted: No user is available in the context.');
     }
   };
 

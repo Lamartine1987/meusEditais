@@ -5,46 +5,7 @@ runConfig:
   maxInstances: 1
 
 env:
-  # ✅ Chaves de API e Segredos - Disponíveis apenas quando a aplicação está rodando (RUNTIME)
-  # para evitar erros de permissão durante o build.
-  - variable: GOOGLE_API_KEY
-    secret: GOOGLE_API_KEY
-
-  - variable: STRIPE_SECRET_KEY_PROD
-    secret: STRIPE_SECRET_KEY_PROD
-    availability:
-      - RUNTIME
-
-  - variable: STRIPE_WEBHOOK_SECRET_PROD
-    secret: STRIPE_WEBHOOK_SECRET_PROD
-    availability:
-      - RUNTIME
-
-  - variable: STRIPE_PRICE_ID_PLANO_CARGO
-    secret: STRIPE_PRICE_ID_PLANO_CARGO
-    availability:
-      - RUNTIME
-
-  - variable: STRIPE_PRICE_ID_PLANO_EDITAL
-    secret: STRIPE_PRICE_ID_PLANO_EDITAL
-    availability:
-      - RUNTIME
-
-  - variable: STRIPE_PRICE_ID_PLANO_ANUAL
-    secret: STRIPE_PRICE_ID_PLANO_ANUAL
-    availability:
-      - RUNTIME
-  
-  - variable: NEXT_PUBLIC_FIREBASE_ADMIN_UIDS
-    secret: NEXT_PUBLIC_FIREBASE_ADMIN_UIDS
-    availability:
-      - RUNTIME
-
-  # ✅ Chaves Públicas e URLs - Precisam estar disponíveis durante o BUILD
-  # para serem embutidas no código do cliente. A disponibilidade padrão
-  # (BUILD e RUNTIME) é mantida ao não especificar a chave 'availability'.
-  - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-
-  - variable: NEXT_PUBLIC_APP_URL
-    secret: NEXT_PUBLIC_APP_URL
+  # ✅ Unificamos todos os segredos em um único objeto JSON para reduzir custos.
+  # Este segredo contém todas as chaves de API e configurações.
+  - variable: APP_CONFIG_JSON
+    secret: APP_CONFIG

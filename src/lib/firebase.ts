@@ -3,10 +3,11 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
+import { appConfig } from "./config"; // Importe a configuração unificada
 
 // Configuração do Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyBNsEsDbmtxDGi-V3W--D3CF5mXbhOj5ZM",
+  apiKey: appConfig.GOOGLE_API_KEY,
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
@@ -29,7 +30,7 @@ if (getApps().length === 0) {
 }
 
 auth = getAuth(app);
-db = getDatabase(app); // Inicializa o Realtime Database
-functions = getFunctions(app); // Inicializa o Cloud Functions
+db = getDatabase(app);
+functions = getFunctions(app);
 
 export { app, auth, db, functions };

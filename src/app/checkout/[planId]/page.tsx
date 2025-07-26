@@ -14,11 +14,11 @@ import { Loader2, ArrowLeft, AlertTriangle, CreditCard, Gem, Zap } from 'lucide-
 import type { PlanId } from '@/types';
 import { createCheckoutSession } from '@/actions/stripe-actions';
 import { loadStripe } from '@stripe/stripe-js';
+import { appConfig } from '@/lib/config';
 
-const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+const stripePromise = appConfig.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(appConfig.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
-
 
 interface PlanDisplayDetails {
   id: PlanId;
@@ -34,21 +34,21 @@ const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
     name: "Plano Cargo",
     price: "R$ 4,99/ano",
     description: "Acesso a 1 cargo específico de 1 edital à sua escolha. Todas as funcionalidades de estudo para o cargo selecionado. Acompanhamento de progresso detalhado.",
-    stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_CARGO || 'price_plano_cargo_fallback_placeholder',
+    stripePriceId: appConfig.STRIPE_PRICE_ID_PLANO_CARGO,
   },
   plano_edital: {
     id: 'plano_edital',
     name: "Plano Edital",
     price: "R$ 14,99/ano",
     description: "Acesso a todos os cargos de 1 edital específico. Flexibilidade para estudar para múltiplas vagas do mesmo concurso. Todas as funcionalidades de estudo e acompanhamento.",
-    stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_EDITAL || 'price_plano_edital_fallback_placeholder',
+    stripePriceId: appConfig.STRIPE_PRICE_ID_PLANO_EDITAL,
   },
   plano_anual: {
     id: 'plano_anual',
     name: "Plano Anual",
     price: "R$ 39,99/ano",
     description: "Acesso a todos os cargos de todos os editais da plataforma. Liberdade total para explorar e se preparar para múltiplos concursos. Todas as funcionalidades premium e atualizações futuras.",
-    stripePriceId: process.env.STRIPE_PRICE_ID_PLANO_ANUAL || 'price_plano_anual_fallback_placeholder',
+    stripePriceId: appConfig.STRIPE_PRICE_ID_PLANO_ANUAL,
   },
   plano_trial: {
     id: 'plano_trial',
@@ -72,13 +72,12 @@ function CheckoutPageContent() {
 
   const isUpgrade = useMemo(() => {
     if (!user || !selectedPlanDetails) return false;
-    // An upgrade is now defined as purchasing the annual plan when you have other plans.
     return selectedPlanDetails.id === 'plano_anual' && (user.activePlans?.length ?? 0) > 0;
   }, [user, selectedPlanDetails]);
 
 
   useEffect(() => {
-    console.log('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (from client-side process.env):', process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+    console.log('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (from client-side config):', appConfig.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
     
     if (!stripePromise) {
       console.error("Stripe Publishable Key is not set. Payments will not work.");
@@ -139,7 +138,6 @@ function CheckoutPageContent() {
         specificCheckoutDetails.selectedEditalId = editalId;
     }
 
-    // New validation logic for multiple plans
     if (user.activePlans?.some(p => p.planId === 'plano_anual')) {
         toast({ title: "Plano Máximo Ativo", description: "Você já possui o Plano Anual, que dá acesso a tudo.", variant: "default" });
         router.push('/perfil');
@@ -163,7 +161,6 @@ function CheckoutPageContent() {
         router.push('/perfil');
         return;
     }
-
 
     setIsProcessingPayment(true);
     try {
@@ -228,7 +225,6 @@ function CheckoutPageContent() {
     router.push('/planos');
     return <PageWrapper><div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div></PageWrapper>;
   }
-
 
   return (
     <PageWrapper>
