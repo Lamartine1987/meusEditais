@@ -25,10 +25,6 @@ let functions: Functions;
 
 // Inicializa o Firebase apenas uma vez
 if (getApps().length === 0) {
-  // Validação para garantir que a chave de API está presente
-  if (!firebaseConfig.apiKey) {
-    throw new Error("A chave de API do Firebase (NEXT_PUBLIC_GOOGLE_API_KEY) não foi encontrada. Verifique suas variáveis de ambiente.");
-  }
   app = initializeApp(firebaseConfig);
 } else {
   app = getApp();
