@@ -12,8 +12,9 @@ const nextConfig = {
       },
     ],
   },
+  transpilePackages: ['recharts'],
   experimental: {
-    // Packages like firebase-admin, stripe, and recharts are not fully 
+    // Packages like firebase-admin and stripe are not fully 
     // compatible with webpack bundling. This option tells Next.js to treat 
     // these packages as "external" on the server, loading them with a 
     // native Node.js require() instead of bundling them. This resolves 
@@ -22,7 +23,6 @@ const nextConfig = {
       'firebase-admin',
       'stripe',
       'firebase',
-      'recharts',
     ],
   },
 };
