@@ -7,7 +7,7 @@ import { appConfig } from "./config"; // Importe a configuração unificada
 
 // Configuração do Firebase
 const firebaseConfig = {
-  apiKey: appConfig.GOOGLE_API_KEY,
+  apiKey: appConfig.NEXT_PUBLIC_GOOGLE_API_KEY,
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
