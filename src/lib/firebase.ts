@@ -5,10 +5,10 @@ import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
 
 // Configuração do Firebase
-// As chaves públicas são injetadas diretamente pelo Next.js a partir das variáveis de ambiente
-// que começam com NEXT_PUBLIC_.
+// A chave de API é injetada diretamente no placeholder __FIREBASE_API_KEY__
+// durante o processo de deploy, garantindo que o valor correto esteja sempre disponível.
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
+  apiKey: "__FIREBASE_API_KEY__",
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
@@ -23,8 +23,10 @@ let auth: Auth;
 let db: Database;
 let functions: Functions;
 
-// A validação da chave de API é feita pela própria biblioteca do Firebase.
-// A verificação manual foi removida para evitar falhas de build.
+// Validação para garantir que o placeholder foi substituído.
+if (firebaseConfig.apiKey.startsWith("__") || firebaseConfig.apiKey === "") {
+  console.error("ERRO CRÍTICO DE CONFIGURAÇÃO: A chave de API do Firebase não foi substituída. A aplicação não funcionará corretamente. Verifique o processo de build e deploy.");
+}
 
 // Inicializa o Firebase apenas uma vez
 if (getApps().length === 0) {
