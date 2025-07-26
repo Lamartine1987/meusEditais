@@ -1,4 +1,3 @@
-
 // src/lib/config.ts
 import 'dotenv/config';
 
@@ -55,7 +54,7 @@ try {
   }
 
 } catch (error) {
-  console.error("ERRO CRÍTICO AO CARREGAR A CONFIGURAÇÃO DA APLICAÇÃO:", error);
+  console.error("ERRO CRÍTICO AO CARREGAR A CONFIGURAÇÃO DA APLicação:", error);
   // Em caso de falha, definimos um objeto com placeholders para evitar que a aplicação quebre
   // mas os erros serão evidentes nos logs e no comportamento da aplicação.
   config = {
