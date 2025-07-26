@@ -18,6 +18,7 @@ import { ref, set, get, update, remove, onValue, type Unsubscribe } from "fireba
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
+import { appConfig } from '@/lib/config';
 
 const TRIAL_DURATION_DAYS = 30;
 
@@ -97,7 +98,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         dbUnsubscribeRef.current = onValue(userRef, async (snapshot) => {
           try {
-            const adminUIDs = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
+            const adminUIDs = (appConfig.FIREBASE_ADMIN_UIDS || '').split(',');
             setIsAdmin(adminUIDs.includes(firebaseUser.uid));
 
             if (!snapshot.exists()) {

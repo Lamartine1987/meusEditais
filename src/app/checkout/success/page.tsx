@@ -1,25 +1,24 @@
 
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, ArrowRight } from 'lucide-react';
+import { CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'next/navigation';
-// import { stripe } from '@/lib/stripe'; // Not needed client-side for this page typically
 
-export default function CheckoutSuccessPage() {
+function SuccessPageContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
 
   useEffect(() => {
     const sessionId = searchParams.get('session_id');
-    // You could potentially verify the session server-side here if needed,
-    // but typically the webhook handles the subscription update.
-    // For now, just show a success message.
+    // Você pode verificar a sessão no lado do servidor aqui, se necessário,
+    // mas normalmente o webhook lida com a atualização da assinatura.
+    // Por enquanto, apenas exiba uma mensagem de sucesso.
     if (sessionId) {
         toast({
             title: "Pagamento Bem-sucedido!",
@@ -29,8 +28,8 @@ export default function CheckoutSuccessPage() {
             duration: 7000,
         });
     } else {
-        // This case might happen if user navigates here directly without a session_id
-        // or if there's an issue with redirect.
+        // Este caso pode acontecer se o usuário navegar aqui diretamente sem um session_id
+        // ou se houver um problema com o redirecionamento.
          toast({
             title: "Status do Pagamento",
             description: "Seu pagamento está sendo processado ou foi concluído.",
@@ -74,4 +73,16 @@ export default function CheckoutSuccessPage() {
       </div>
     </PageWrapper>
   );
+}
+
+export default function CheckoutSuccessPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex h-screen w-full items-center justify-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+        }>
+            <SuccessPageContent />
+        </Suspense>
+    )
 }
