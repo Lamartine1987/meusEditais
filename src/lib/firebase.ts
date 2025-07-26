@@ -3,11 +3,12 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
-import { appConfig } from "./config"; // Importe a configuração unificada
 
 // Configuração do Firebase
+// As chaves públicas são injetadas diretamente pelo Next.js a partir das variáveis de ambiente
+// que começam com NEXT_PUBLIC_.
 const firebaseConfig = {
-  apiKey: appConfig.NEXT_PUBLIC_GOOGLE_API_KEY,
+  apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
@@ -24,6 +25,10 @@ let functions: Functions;
 
 // Inicializa o Firebase apenas uma vez
 if (getApps().length === 0) {
+  // Validação para garantir que a chave de API está presente
+  if (!firebaseConfig.apiKey) {
+    throw new Error("A chave de API do Firebase (NEXT_PUBLIC_GOOGLE_API_KEY) não foi encontrada. Verifique suas variáveis de ambiente.");
+  }
   app = initializeApp(firebaseConfig);
 } else {
   app = getApp();

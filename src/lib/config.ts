@@ -9,12 +9,10 @@ interface AppConfig {
   STRIPE_PRICE_ID_PLANO_EDITAL: string;
   STRIPE_PRICE_ID_PLANO_ANUAL: string;
   FIREBASE_ADMIN_UIDS: string;
-  GOOGLE_API_KEY: string; // Chave do Firebase para o lado do cliente
 
   // Chaves Públicas e URLs (do env direto)
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
   NEXT_PUBLIC_APP_URL: string;
-  NEXT_PUBLIC_GOOGLE_API_KEY: string;
 }
 
 let config: AppConfig;
@@ -31,7 +29,6 @@ try {
         STRIPE_PRICE_ID_PLANO_EDITAL: process.env.STRIPE_PRICE_ID_PLANO_EDITAL,
         STRIPE_PRICE_ID_PLANO_ANUAL: process.env.STRIPE_PRICE_ID_PLANO_ANUAL,
         FIREBASE_ADMIN_UIDS: process.env.FIREBASE_ADMIN_UIDS,
-        GOOGLE_API_KEY: process.env.GOOGLE_API_KEY, // Carrega do .env para dev
       };
 
   // Carrega variáveis públicas diretamente do process.env
@@ -40,16 +37,13 @@ try {
     ...secretConfig,
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL!,
-    // A chave pública do Google API agora é gerenciada pelo segredo no App Hosting
-    // e diretamente pelo .env em desenvolvimento, unificando a lógica.
-    NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY || secretConfig.GOOGLE_API_KEY,
   };
 
   // Validação para garantir que todas as chaves foram carregadas
   const requiredKeys: (keyof AppConfig)[] = [
     'STRIPE_SECRET_KEY_PROD', 'STRIPE_WEBHOOK_SECRET_PROD',
     'STRIPE_PRICE_ID_PLANO_CARGO', 'STRIPE_PRICE_ID_PLANO_EDITAL', 'STRIPE_PRICE_ID_PLANO_ANUAL',
-    'FIREBASE_ADMIN_UIDS', 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_APP_URL', 'NEXT_PUBLIC_GOOGLE_API_KEY'
+    'FIREBASE_ADMIN_UIDS', 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', 'NEXT_PUBLIC_APP_URL'
   ];
 
   for (const key of requiredKeys) {
@@ -70,10 +64,8 @@ try {
     STRIPE_PRICE_ID_PLANO_EDITAL: '',
     STRIPE_PRICE_ID_PLANO_ANUAL: '',
     FIREBASE_ADMIN_UIDS: '',
-    GOOGLE_API_KEY: '',
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: '',
     NEXT_PUBLIC_APP_URL: '',
-    NEXT_PUBLIC_GOOGLE_API_KEY: '',
   };
 }
 
