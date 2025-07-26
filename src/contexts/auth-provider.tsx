@@ -18,7 +18,6 @@ import { ref, set, get, update, remove, onValue, type Unsubscribe } from "fireba
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
-import { appConfig } from '@/lib/config';
 
 const TRIAL_DURATION_DAYS = 30;
 
@@ -80,13 +79,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const dbUnsubscribeRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
-    if (user && appConfig.FIREBASE_ADMIN_UIDS) {
-      const adminUIDs = appConfig.FIREBASE_ADMIN_UIDS.split(',');
-      setIsAdmin(adminUIDs.includes(user.id));
-    } else {
-      setIsAdmin(false);
-    }
-  }, [user]);
+    // A lógica para isAdmin foi movida para dentro do listener onAuthStateChanged
+    // para garantir que seja definida com base nos dados do usuário mais recentes.
+  }, []);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(firebaseAuthService, (firebaseUser: FirebaseUser | null) => {
@@ -102,9 +97,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         dbUnsubscribeRef.current = onValue(userRef, async (snapshot) => {
           try {
+            const adminUIDs = (process.env.NEXT_PUBLIC_FIREBASE_ADMIN_UIDS || '').split(',');
+            setIsAdmin(adminUIDs.includes(firebaseUser.uid));
+
             if (!snapshot.exists()) {
               console.warn(`[AuthProvider] User data not found in DB for ${firebaseUser.uid}. This is normal during registration.`);
-              const adminUIDs = (appConfig.FIREBASE_ADMIN_UIDS || '').split(',');
               const temporaryUser: AppUser = {
                   id: firebaseUser.uid,
                   name: firebaseUser.displayName || 'Usuário',
@@ -143,8 +140,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               await update(userRef, updatesToSyncToDb);
               dbData = { ...dbData, ...updatesToSyncToDb };
             }
-            
-            const adminUIDs = (appConfig.FIREBASE_ADMIN_UIDS || '').split(',');
             
             let appUser: AppUser = {
               id: firebaseUser.uid,
@@ -218,11 +213,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.error("Firebase RTDB onValue listener error:", error);
           toast({ title: "Erro de Conexão com Dados", description: "Não foi possível sincronizar seus dados.", variant: "destructive" });
           setUser(null);
+          setIsAdmin(false);
           setLoading(false);
         });
 
       } else {
         setUser(null);
+        setIsAdmin(false);
         setLoading(false);
       }
     });

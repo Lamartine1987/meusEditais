@@ -12,7 +12,7 @@ env:
   - variable: NEXT_PUBLIC_APP_URL
     value: 'https://meuseditaisbackend-t9925a5p.web.app'
   - variable: NEXT_PUBLIC_GOOGLE_API_KEY
-    value: 'YOUR_PUBLIC_FIREBASE_API_KEY'
+    value: 'YOUR_PUBLIC_FIREBASE_API_KEY' # This will be replaced by the tool
 
   # ✅ Unificamos todos os segredos em um único objeto JSON para reduzir custos.
   # Este segredo contém todas as chaves de API e configurações secretas.
