@@ -1,4 +1,3 @@
-
 # Configurações do backend do Firebase App Hosting
 # https://firebase.google.com/docs/app-hosting/configure
 
@@ -7,16 +6,26 @@ runConfig:
 
 env:
   # Chaves públicas necessárias durante o build e no cliente.
-  # Elas são definidas diretamente.
+  # Elas são definidas diretamente e não precisam estar no Secret Manager.
   - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
     value: 'pk_test_51Pbm5qRxPl1dC9Z4B53p2L1Qf11FwSRAL5dGf1Pmc23s5kIq1vXfG1LqXkK92w1iG4U8kC9wLd2cWbI5a79Yy7fT00l8TZyfEk'
   - variable: NEXT_PUBLIC_APP_URL
     value: 'https://meuseditaisbackend-t9925a5p.web.app'
-  # Esta é a chave pública do Firebase, necessária para o cliente se conectar.
+  # Esta é a chave pública do Firebase, injetada automaticamente pelo App Hosting.
   - variable: NEXT_PUBLIC_GOOGLE_API_KEY
     value: __FIREBASE_API_KEY__
 
-  # ✅ Unificamos todos os segredos em um único objeto JSON para reduzir custos.
-  # Este segredo contém todas as chaves de API e configurações secretas.
-  - variable: APP_CONFIG_JSON
-    secret: APP_CONFIG
+  # Segredos que devem ser criados individualmente no Google Secret Manager.
+  # O nome do segredo no Secret Manager deve corresponder ao valor em 'secret'.
+  - variable: STRIPE_SECRET_KEY_PROD
+    secret: STRIPE_SECRET_KEY_PROD
+  - variable: STRIPE_WEBHOOK_SECRET_PROD
+    secret: STRIPE_WEBHOOK_SECRET_PROD
+  - variable: STRIPE_PRICE_ID_PLANO_CARGO
+    secret: STRIPE_PRICE_ID_PLANO_CARGO
+  - variable: STRIPE_PRICE_ID_PLANO_EDITAL
+    secret: STRIPE_PRICE_ID_PLANO_EDITAL
+  - variable: STRIPE_PRICE_ID_PLANO_ANUAL
+    secret: STRIPE_PRICE_ID_PLANO_ANUAL
+  - variable: FIREBASE_ADMIN_UIDS
+    secret: FIREBASE_ADMIN_UIDS
