@@ -4,8 +4,7 @@ import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
 
 // Configuração do Firebase
-// A chave de API agora é lida diretamente do ambiente de execução,
-// que é populado pelo apphosting.yaml.
+// Lendo a chave de API pública diretamente da variável de ambiente injetada pelo App Hosting.
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
   authDomain: "meuseditais.firebaseapp.com",
@@ -22,9 +21,10 @@ let auth: Auth;
 let db: Database;
 let functions: Functions;
 
-// Validação para garantir que a chave de API está presente.
+// Validação crucial para garantir que a chave de API está presente.
+// O valor '__FIREBASE_API_KEY__' indica que a substituição pelo App Hosting não ocorreu.
 if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith('__')) {
-  console.error("ERRO CRÍTICO DE CONFIGURAÇÃO: NEXT_PUBLIC_GOOGLE_API_KEY não foi encontrada. Verifique o .env ou o apphosting.yaml e o Secret Manager.");
+  console.error("ERRO CRÍTICO DE CONFIGURAÇÃO: NEXT_PUBLIC_GOOGLE_API_KEY não foi encontrada ou não foi substituída. A aplicação não funcionará. Verifique o apphosting.yaml.");
 }
 
 // Inicializa o Firebase apenas uma vez

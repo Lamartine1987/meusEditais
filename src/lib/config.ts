@@ -13,6 +13,7 @@ interface AppConfig {
   // Chaves Públicas (do env direto)
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
   NEXT_PUBLIC_APP_URL: string;
+  NEXT_PUBLIC_GOOGLE_API_KEY: string;
 }
 
 let config: AppConfig;
@@ -20,7 +21,7 @@ let config: AppConfig;
 try {
   // Lê cada variável diretamente do ambiente de execução.
   // Em produção, esses valores são injetados pelo apphosting.yaml.
-  // Em desenvolvimento, são lidos do arquivo .env.
+  // Em desenvolvimento, são lidos do arquivo .env (se houver).
   config = {
     STRIPE_SECRET_KEY_PROD: process.env.STRIPE_SECRET_KEY_PROD || '',
     STRIPE_WEBHOOK_SECRET_PROD: process.env.STRIPE_WEBHOOK_SECRET_PROD || '',
@@ -30,6 +31,7 @@ try {
     FIREBASE_ADMIN_UIDS: process.env.FIREBASE_ADMIN_UIDS || '',
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || '',
+    NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY || '',
   };
 
   // Validação para garantir que as chaves mais críticas não estão vazias em produção.
@@ -39,6 +41,7 @@ try {
       'STRIPE_WEBHOOK_SECRET_PROD',
       'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
       'NEXT_PUBLIC_APP_URL',
+      'NEXT_PUBLIC_GOOGLE_API_KEY',
     ];
 
     for (const key of requiredKeys) {
@@ -59,6 +62,7 @@ try {
     FIREBASE_ADMIN_UIDS: '',
     NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: '',
     NEXT_PUBLIC_APP_URL: '',
+    NEXT_PUBLIC_GOOGLE_API_KEY: '',
   };
 }
 
