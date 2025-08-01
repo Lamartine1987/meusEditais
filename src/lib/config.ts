@@ -2,7 +2,7 @@
 import 'dotenv/config';
 
 interface AppConfig {
-  // Segredos do Secret Manager
+  // Segredos do Secret Manager (apenas para backend)
   STRIPE_SECRET_KEY_PROD: string;
   STRIPE_WEBHOOK_SECRET_PROD: string;
   STRIPE_PRICE_ID_PLANO_CARGO: string;
@@ -10,7 +10,7 @@ interface AppConfig {
   STRIPE_PRICE_ID_PLANO_ANUAL: string;
   FIREBASE_ADMIN_UIDS: string;
 
-  // Chaves Públicas (do env direto)
+  // Chaves Públicas (disponíveis no cliente via Next.js)
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
   NEXT_PUBLIC_APP_URL: string;
   NEXT_PUBLIC_GOOGLE_API_KEY: string;
