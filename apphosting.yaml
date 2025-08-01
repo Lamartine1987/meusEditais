@@ -12,10 +12,14 @@ env:
   - variable: NEXT_PUBLIC_APP_URL
     value: 'https://meuseditaisbackend-t9925a5p.web.app'
 
-  # Segredos que devem ser criados individualmente no Google Secret Manager.
-  # O nome do segredo no Secret Manager deve corresponder ao valor em 'secret'.
+  # A variável de ambiente GOOGLE_API_KEY do Secret Manager é atribuída a
+  # NEXT_PUBLIC_GOOGLE_API_KEY. O Next.js exige o prefixo 'NEXT_PUBLIC_'
+  # para expor a variável ao código do lado do cliente (navegador).
   - variable: NEXT_PUBLIC_GOOGLE_API_KEY
     secret: GOOGLE_API_KEY
+
+  # Segredos que devem ser criados individualmente no Google Secret Manager.
+  # O nome do segredo no Secret Manager deve corresponder ao valor em 'secret'.
   - variable: STRIPE_SECRET_KEY_PROD
     secret: STRIPE_SECRET_KEY_PROD
   - variable: STRIPE_WEBHOOK_SECRET_PROD

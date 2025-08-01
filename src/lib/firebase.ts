@@ -3,7 +3,8 @@ import { getAuth, type Auth } from "firebase/auth";
 import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
 
-// Lendo a chave de API pública diretamente da variável de ambiente exposta pelo Next.js
+// Lendo a chave de API pública diretamente da variável de ambiente exposta pelo Next.js.
+// O App Hosting define NEXT_PUBLIC_GOOGLE_API_KEY no apphosting.yaml a partir do segredo GOOGLE_API_KEY.
 const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY;
 
 // Configuração do Firebase
