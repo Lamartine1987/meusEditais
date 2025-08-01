@@ -25,14 +25,14 @@ let functions: Functions;
 
 // Validação crucial para garantir que a chave de API está presente durante o build e no runtime.
 // O valor '__FIREBASE_API_KEY__' indica que a substituição pelo App Hosting não ocorreu.
-if (!firebaseConfig.apiKey || firebaseConfig.apiKey.startsWith('__')) {
+if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes('__FIREBASE_API_KEY__')) {
   console.error("ERRO CRÍTICO DE CONFIGURAÇÃO: NEXT_PUBLIC_GOOGLE_API_KEY não foi encontrada ou não foi substituída. A aplicação não funcionará. Verifique o apphosting.yaml e as configurações do backend.");
 }
 
 // Inicializa o Firebase apenas uma vez
 if (getApps().length === 0) {
   // Apenas inicialize se a chave de API for válida
-  if (firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('__')) {
+  if (firebaseConfig.apiKey && !firebaseConfig.apiKey.includes('__FIREBASE_API_KEY__')) {
     app = initializeApp(firebaseConfig);
   } else {
     // Se a chave não for válida, lançar um erro mais claro impede que a app tente rodar em um estado quebrado.
