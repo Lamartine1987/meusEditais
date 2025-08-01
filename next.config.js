@@ -13,10 +13,6 @@ const nextConfig = {
     ],
   },
   transpilePackages: ['recharts'],
-  // Expor a variável de ambiente para o cliente
-  env: {
-    NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
-  },
 };
 
 module.exports = nextConfig;
