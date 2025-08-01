@@ -2,13 +2,11 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
-import { appConfig } from "./config";
 
 // Configuração do Firebase
-// Lendo a chave de API pública diretamente do objeto de configuração, que por sua vez
-// lê da variável de ambiente injetada pelo App Hosting.
+// Lendo a chave de API pública diretamente da variável de ambiente exposta pelo Next.js
 const firebaseConfig = {
-  apiKey: appConfig.NEXT_PUBLIC_GOOGLE_API_KEY,
+  apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
