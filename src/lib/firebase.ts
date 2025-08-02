@@ -5,7 +5,7 @@ import { getFunctions, type Functions } from "firebase/functions";
 
 // Configuração do Firebase
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY, // Usa a chave diretamente do ambiente
+  apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY, // Ler diretamente do ambiente
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
