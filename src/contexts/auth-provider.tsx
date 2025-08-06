@@ -84,6 +84,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    // Se o serviço de autenticação não foi inicializado (ex: dev sem API key),
+    // não tente se inscrever a mudanças, pois isso causará um erro.
+    if (!firebaseAuthService) {
+      setLoading(false); // Finaliza o carregamento, não haverá usuário.
+      console.warn("[AuthProvider] O serviço de autenticação do Firebase não está disponível. A autenticação está desativada.");
+      return;
+    }
+
     const unsubscribeAuth = onAuthStateChanged(firebaseAuthService, (firebaseUser: FirebaseUser | null) => {
       setLoading(true);
 
@@ -233,10 +241,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [toast]);
 
   const login = async (email: string, pass: string) => {
+    if (!firebaseAuthService) throw new Error("Firebase Auth service is not available.");
     await signInWithEmailAndPassword(firebaseAuthService, email, pass);
   };
 
   const register = async (name: string, email: string, pass: string, cpf: string) => {
+    if (!firebaseAuthService) throw new Error("Firebase Auth service is not available.");
     const userCredential = await createUserWithEmailAndPassword(firebaseAuthService, email, pass);
     const firebaseUser = userCredential.user;
 
@@ -271,15 +281,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
   
   const sendPasswordReset = async (email: string) => {
+    if (!firebaseAuthService) throw new Error("Firebase Auth service is not available.");
     await sendPasswordResetEmail(firebaseAuthService, email);
   };
 
   const logout = async () => {
+    if (!firebaseAuthService) throw new Error("Firebase Auth service is not available.");
     await signOut(firebaseAuthService);
     router.push('/login'); 
   };
   
   const updateUser = async (updatedInfo: { name?: string; email?: string; avatarUrl?: string }) => {
+    if (!firebaseAuthService) throw new Error("Firebase Auth service is not available.");
     const firebaseCurrentUser = firebaseAuthService.currentUser;
     if (firebaseCurrentUser && user) {
       setLoading(true);
