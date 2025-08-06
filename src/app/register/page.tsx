@@ -40,6 +40,21 @@ export default function RegisterPage() {
     setIsSubmitting(true);
     
     try {
+      // 1. Chamar a Cloud Function para verificar a unicidade do CPF
+      if (!functions) {
+        throw new Error("O serviço de Cloud Functions não está disponível.");
+      }
+      const checkCpfUniqueness = httpsCallable(functions, 'checkCpfUniqueness');
+      const result = await checkCpfUniqueness({ cpf: normalizedCpf });
+      const data = result.data as { isUnique: boolean };
+
+      if (!data.isUnique) {
+        toast({ title: "Falha no Cadastro", description: "O CPF informado já está em uso.", variant: "destructive" });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 2. Se o CPF for único, prossiga com o registro do usuário
       await register(name, email, password, normalizedCpf);
       toast({ title: "Cadastro Realizado!", description: "Redirecionando para a página inicial...", variant: "default", className: "bg-accent text-accent-foreground" });
       router.push('/');
@@ -53,8 +68,12 @@ export default function RegisterPage() {
         errorMessage = "O formato do e-mail é inválido.";
       } else if (error.code === 'auth/weak-password') {
         errorMessage = "A senha é muito fraca. Tente uma senha mais forte.";
+      } else if (error.code === 'functions/internal' || error.details?.code === 'internal') {
+        errorMessage = "Ocorreu um erro interno no servidor ao validar o CPF. Tente novamente.";
+      } else if (error.code === 'functions/invalid-argument' || error.details?.code === 'invalid-argument') {
+        errorMessage = "Os dados fornecidos para validação são inválidos.";
       } else {
-         console.error("Registration failed with code:", error.code, error.message);
+         console.error("Registration failed:", error);
       }
 
       toast({ title: "Falha no Cadastro", description: errorMessage, variant: "destructive"});

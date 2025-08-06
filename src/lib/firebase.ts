@@ -45,7 +45,7 @@ if (firebaseConfig.apiKey) {
 if (app) {
   auth = getAuth(app);
   db = getDatabase(app);
-  functions = getFunctions(app);
+  functions = getFunctions(app); // Habilita o serviço de Functions
 }
 
 export { app, auth, db, functions };
