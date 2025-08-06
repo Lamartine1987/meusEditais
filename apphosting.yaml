@@ -13,18 +13,12 @@ env:
 
   # Segredos que devem ser criados individualmente no Google Secret Manager
   # e acessados apenas no lado do servidor.
-  - variable: STRIPE_SECRET_KEY_PROD
-    secret: STRIPE_SECRET_KEY_PROD
-  - variable: STRIPE_WEBHOOK_SECRET_PROD
-    secret: STRIPE_WEBHOOK_SECRET_PROD
-  - variable: STRIPE_PRICE_ID_PLANO_CARGO
-    secret: STRIPE_PRICE_ID_PLANO_CARGO
-  - variable: STRIPE_PRICE_ID_PLANO_EDITAL
-    secret: STRIPE_PRICE_ID_PLANO_EDITAL
-  - variable: STRIPE_PRICE_ID_PLANO_ANUAL
-    secret: STRIPE_PRICE_ID_PLANO_ANUAL
   - variable: FIREBASE_ADMIN_UIDS
     secret: FIREBASE_ADMIN_UIDS
+    
+  # Segredo consolidado do Stripe (um único segredo contendo um objeto JSON)
+  - variable: STRIPE_SECRETS
+    secret: STRIPE_SECRETS
 
   # Chaves públicas que não precisam ser segredos.
   - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
