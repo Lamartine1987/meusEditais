@@ -2,10 +2,11 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
+import { appConfig } from './config';
 
 // Configuração do Firebase
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY, // Ler diretamente do ambiente
+  apiKey: appConfig.NEXT_PUBLIC_GOOGLE_API_KEY,
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
@@ -22,7 +23,12 @@ let functions: Functions;
 
 // Validação crucial para garantir que a chave de API está presente.
 if (!firebaseConfig.apiKey) {
-  console.error("ERRO CRÍTICO DE CONFIGURAÇÃO: NEXT_PUBLIC_GOOGLE_API_KEY não foi encontrada. A aplicação não funcionará. Verifique o apphosting.yaml e as configurações do backend.");
+  const errorMessage = "ERRO CRÍTICO DE CONFIGURAÇÃO: NEXT_PUBLIC_GOOGLE_API_KEY não foi encontrada. A aplicação não funcionará. Verifique o apphosting.yaml e as configurações do backend.";
+  console.error(errorMessage);
+  // Apenas lança o erro em produção, permitindo que o build local/de desenvolvimento continue com um aviso.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error("A inicialização do Firebase foi bloqueada devido a uma chave de API inválida.");
+  }
 }
 
 // Inicializa o Firebase apenas uma vez
@@ -31,15 +37,20 @@ if (getApps().length === 0) {
   if (firebaseConfig.apiKey) {
     app = initializeApp(firebaseConfig);
   } else {
-    // Se a chave não for válida, lançar um erro mais claro impede que a app tente rodar em um estado quebrado.
-    throw new Error("A inicialização do Firebase foi bloqueada devido a uma chave de API inválida.");
+    // Em ambientes de não produção, a app pode continuar sem inicializar o Firebase,
+    // embora as funcionalidades dependentes dele não funcionem.
+    console.warn("Firebase não inicializado no ambiente de desenvolvimento devido à chave de API ausente.");
   }
 } else {
   app = getApp();
 }
 
-auth = getAuth(app);
-db = getDatabase(app);
-functions = getFunctions(app);
+// Inicializa os serviços apenas se a app foi inicializada
+if (app!) {
+  auth = getAuth(app);
+  db = getDatabase(app);
+  functions = getFunctions(app);
+}
+
 
 export { app, auth, db, functions };
