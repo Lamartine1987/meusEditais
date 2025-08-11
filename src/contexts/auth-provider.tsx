@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { User as AppUser, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, PlanId, PlanDetails, NoteEntry } from '@/types';
@@ -101,6 +102,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       if (firebaseUser) {
+        // Correção: Garante que `db` não é undefined antes de usá-lo
+        if (!db) {
+            console.error("AuthProvider: a conexão com o banco de dados do Firebase (db) não está disponível.");
+            setUser(null);
+            setIsAdmin(false);
+            setLoading(false);
+            return;
+        }
+
         const userRef = ref(db, `users/${firebaseUser.uid}`);
         
         dbUnsubscribeRef.current = onValue(userRef, async (snapshot) => {
@@ -247,6 +257,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const register = async (name: string, email: string, pass: string, cpf: string) => {
     if (!firebaseAuthService) throw new Error("Firebase Auth service is not available.");
+    if (!db) throw new Error("Firebase DB service is not available.");
     const userCredential = await createUserWithEmailAndPassword(firebaseAuthService, email, pass);
     const firebaseUser = userCredential.user;
 
@@ -293,6 +304,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   
   const updateUser = async (updatedInfo: { name?: string; email?: string; avatarUrl?: string }) => {
     if (!firebaseAuthService) throw new Error("Firebase Auth service is not available.");
+    if (!db) throw new Error("Firebase DB service is not available.");
     const firebaseCurrentUser = firebaseAuthService.currentUser;
     if (firebaseCurrentUser && user) {
       setLoading(true);
@@ -328,6 +340,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       toast({ title: "Usuário não encontrado", description: "Não foi possível registrar no cargo.", variant: "destructive" });
       throw new Error("User not found for cargo registration");
     }
+    if (!db) throw new Error("Firebase DB service is not available.");
 
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
     let canRegister = false;
@@ -362,6 +375,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       toast({ title: "Usuário não logado.", variant: "destructive" });
       return;
     }
+    if (!db) throw new Error("Firebase DB service is not available.");
     const cargoCompositeId = `${editalId}_${cargoId}`;
 
     const isCargoTiedToPlan = user.activePlans?.some(p => p.planId === 'plano_cargo' && p.selectedCargoCompositeId === cargoCompositeId);
@@ -392,7 +406,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const toggleTopicStudyStatus = async (compositeTopicId: string) => {
-    if (user) {
+    if (user && db) {
       let updatedStudiedTopicIds = [...(user.studiedTopicIds || [])];
       const topicIndex = updatedStudiedTopicIds.indexOf(compositeTopicId);
       if (topicIndex > -1) updatedStudiedTopicIds.splice(topicIndex, 1); 
@@ -407,7 +421,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const addStudyLog = async (compositeTopicId: string, logData: { duration?: number, pdfName?: string, startPage?: number, endPage?: number }) => {
-    if (user) {
+    if (user && db) {
         const newLog: StudyLogEntry = {
             id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             compositeTopicId,
@@ -428,7 +442,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const deleteStudyLog = async (logId: string) => {
-    if (user) {
+    if (user && db) {
         const initialLogCount = (user.studyLogs || []).length;
         const updatedStudyLogs = (user.studyLogs || []).filter(log => log.id !== logId);
         const finalLogCount = updatedStudyLogs.length;
@@ -450,7 +464,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const addQuestionLog = async (logEntryData: Omit<QuestionLogEntry, 'date'>) => {
-    if (user) {
+    if (user && db) {
       const newQuestionLog: QuestionLogEntry = { ...logEntryData, date: new Date().toISOString() };
       const updatedQuestionLogs = [...(user.questionLogs || []), newQuestionLog];
       try {
@@ -463,7 +477,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const addRevisionSchedule = async (compositeTopicId: string, daysToReview: number) => {
-    if (user) {
+    if (user && db) {
       const scheduledDate = formatISO(addDays(new Date(), daysToReview));
       const newScheduleEntry: RevisionScheduleEntry = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -483,7 +497,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const toggleRevisionReviewedStatus = async (revisionId: string) => {
-     if (user) {
+     if (user && db) {
       let updatedRevisionSchedules = [...(user.revisionSchedules || [])];
       const scheduleIndex = updatedRevisionSchedules.findIndex(rs => rs.id === revisionId);
       
@@ -505,7 +519,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
   
     const addNote = async (compositeTopicId: string, text: string) => {
-        if (user) {
+        if (user && db) {
             const newNote: NoteEntry = {
                 id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 compositeTopicId,
@@ -524,7 +538,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     const deleteNote = async (noteId: string) => {
-        if (user) {
+        if (user && db) {
             const updatedNotes = (user.notes || []).filter(note => note.id !== noteId);
             try {
                 await update(ref(db, `users/${user.id}`), { notes: updatedNotes });
@@ -546,7 +560,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const cancelSubscription = async () => {
-    if (!user || !user.activePlans || user.activePlans.length === 0) {
+    if (!user || !user.activePlans || user.activePlans.length === 0 || !db) {
       toast({ title: "Nenhuma Assinatura Ativa", description: "Você não possui um plano ativo para cancelar.", variant: "default" });
       return;
     }
@@ -576,6 +590,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       toast({ title: "Usuário não logado", description: "Faça login para iniciar seu teste.", variant: "destructive" });
       router.push("/login?redirect=/planos");
       return;
+    }
+    if (!db) {
+        toast({ title: "Erro de Conexão", description: "Não foi possível se conectar ao banco de dados.", variant: "destructive" });
+        return;
     }
     if (user.hasHadFreeTrial) {
       toast({ title: "Teste Já Utilizado", description: "Você já utilizou seu período de teste gratuito.", variant: "default" });
@@ -616,7 +634,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const setRankingParticipation = async (participate: boolean) => {
-    if (user) {
+    if (user && db) {
       try {
         await update(ref(db, `users/${user.id}`), { isRankingParticipant: participate });
         toast({
@@ -636,8 +654,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
   
   const requestPlanRefund = async (paymentIntentId: string) => {
-    if (!user || !user.activePlans) {
-      toast({ title: "Erro", description: "Usuário ou planos não encontrados.", variant: "destructive" });
+    if (!user || !user.activePlans || !db) {
+      toast({ title: "Erro", description: "Usuário, planos ou conexão com DB não encontrados.", variant: "destructive" });
       return;
     }
     
