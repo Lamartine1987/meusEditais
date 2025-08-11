@@ -31,7 +31,6 @@ const planRank: Record<PlanId, number> = {
 
 interface AuthContextType {
   user: AppUser | null;
-  isAdmin: boolean;
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
   register: (name: string, email: string, pass: string, cpf: string) => Promise<void>;
@@ -73,23 +72,16 @@ const cleanProgressForCargo = (user: AppUser, cargoCompositeIdPrefix: string): P
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AppUser | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
   const dbUnsubscribeRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
-    // A lógica para isAdmin foi movida para dentro do listener onAuthStateChanged
-    // para garantir que seja definida com base nos dados do usuário mais recentes.
-  }, []);
-
-  useEffect(() => {
-    // Se o serviço de autenticação não foi inicializado (ex: dev sem API key),
-    // não tente se inscrever a mudanças, pois isso causará um erro.
+    // If the auth service is not available (e.g., in a build environment without API keys),
+    // stop loading and do nothing.
     if (!firebaseAuthService) {
-      setLoading(false); // Finaliza o carregamento, não haverá usuário.
-      console.warn("[AuthProvider] O serviço de autenticação do Firebase não está disponível. A autenticação está desativada.");
+      setLoading(false);
       return;
     }
 
@@ -102,11 +94,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       if (firebaseUser) {
-        // Correção: Garante que `db` não é undefined antes de usá-lo
         if (!db) {
             console.error("AuthProvider: a conexão com o banco de dados do Firebase (db) não está disponível.");
             setUser(null);
-            setIsAdmin(false);
             setLoading(false);
             return;
         }
@@ -115,9 +105,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         dbUnsubscribeRef.current = onValue(userRef, async (snapshot) => {
           try {
-            const adminUIDs = (process.env.FIREBASE_ADMIN_UIDS || '').split(',');
-            setIsAdmin(adminUIDs.includes(firebaseUser.uid));
-
             if (!snapshot.exists()) {
               console.warn(`[AuthProvider] User data not found in DB for ${firebaseUser.uid}. This is normal during registration.`);
               const temporaryUser: AppUser = {
@@ -138,7 +125,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                   hasHadFreeTrial: false,
                   planHistory: [],
                   isRankingParticipant: null,
-                  isAdmin: adminUIDs.includes(firebaseUser.uid),
               };
               setUser(temporaryUser);
               setLoading(false);
@@ -177,7 +163,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               hasHadFreeTrial: dbData.hasHadFreeTrial || false,
               planHistory: dbData.planHistory || [],
               isRankingParticipant: dbData.isRankingParticipant ?? null,
-              isAdmin: adminUIDs.includes(firebaseUser.uid),
             };
 
             let trialExpiredToastShown = false;
@@ -222,7 +207,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               id: firebaseUser.uid, name: firebaseUser.displayName || 'Usuário', email: firebaseUser.email || '',
               registeredCargoIds: [], studiedTopicIds: [], studyLogs: [], questionLogs: [], revisionSchedules: [],
               notes: [], activePlan: null, activePlans: [], stripeCustomerId: null, hasHadFreeTrial: false, planHistory: [],
-              isRankingParticipant: null, isAdmin: false,
+              isRankingParticipant: null
             });
           } finally {
             setLoading(false);
@@ -231,13 +216,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.error("Firebase RTDB onValue listener error:", error);
           toast({ title: "Erro de Conexão com Dados", description: "Não foi possível sincronizar seus dados.", variant: "destructive" });
           setUser(null);
-          setIsAdmin(false);
           setLoading(false);
         });
 
       } else {
         setUser(null);
-        setIsAdmin(false);
         setLoading(false);
       }
     });
@@ -688,7 +671,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{ 
-      user, isAdmin, loading, login, register, sendPasswordReset, logout, updateUser, 
+      user, loading, login, register, sendPasswordReset, logout, updateUser, 
       registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, 
       deleteStudyLog,
       addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,

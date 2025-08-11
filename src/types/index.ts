@@ -70,7 +70,6 @@ export interface User {
   hasHadFreeTrial?: boolean; // Tracks if the user has used the free trial
   planHistory?: PlanDetails[];
   isRankingParticipant?: boolean | null; // null = undecided, true = yes, false = no
-  isAdmin?: boolean;
 }
 
 export interface Topic {

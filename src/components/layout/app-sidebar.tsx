@@ -18,7 +18,7 @@ import { useAuth } from '@/hooks/use-auth';
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const { setOpenMobile, isMobile } = useSidebar(); 
 
   const closeMobileSidebar = () => {
@@ -110,21 +110,6 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </>
-          )}
-          {isAdmin && (
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname === '/admin'}
-                tooltip={{content: "Admin", side:"right", align:"center"}}
-                onClick={closeMobileSidebar}
-              >
-                <Link href="/admin">
-                  <Shield />
-                  <span>Admin</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
           )}
           <SidebarMenuItem>
             <SidebarMenuButton
