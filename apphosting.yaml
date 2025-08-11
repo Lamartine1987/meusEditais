@@ -7,18 +7,18 @@ runConfig:
 env:
   # O segredo GOOGLE_API_KEY do Secret Manager é atribuído a
   # NEXT_PUBLIC_GOOGLE_API_KEY. O Next.js exige o prefixo 'NEXT_PUBLIC_'
-  # para expor a variável ao código do lado do cliente (navegador).
+  # para expor a variável ao lado do cliente (navegador).
   - variable: NEXT_PUBLIC_GOOGLE_API_KEY
     secret: GOOGLE_API_KEY
-
-  # Segredos que devem ser criados individualmente no Google Secret Manager
-  # e acessados apenas no lado do servidor.
-  - variable: FIREBASE_ADMIN_UIDS
-    secret: FIREBASE_ADMIN_UIDS
     
   # Segredo consolidado do Stripe (um único segredo contendo um objeto JSON)
   - variable: STRIPE_SECRETS
     secret: STRIPE_SECRETS
+
+  # UID do administrador definido diretamente para evitar problemas de permissão de segredo.
+  # IMPORTANTE: Substitua o valor abaixo pelo seu UID de administrador real do Firebase.
+  - variable: FIREBASE_ADMIN_UIDS
+    value: 'COLOQUE_SEU_UID_DE_ADMIN_AQUI'
 
   # Chaves públicas que não precisam ser segredos.
   - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY

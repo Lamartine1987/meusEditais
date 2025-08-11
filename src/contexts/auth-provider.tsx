@@ -115,7 +115,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         dbUnsubscribeRef.current = onValue(userRef, async (snapshot) => {
           try {
-            const adminUIDs = (appConfig.FIREBASE_ADMIN_UIDS || '').split(',');
+            const adminUIDs = (process.env.FIREBASE_ADMIN_UIDS || '').split(',');
             setIsAdmin(adminUIDs.includes(firebaseUser.uid));
 
             if (!snapshot.exists()) {

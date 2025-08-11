@@ -44,7 +44,7 @@ interface AppConfig {
   STRIPE_PRICE_ID_PLANO_EDITAL: string;
   STRIPE_PRICE_ID_PLANO_ANUAL: string;
   
-  // Outros segredos e chaves
+  // Outras chaves
   FIREBASE_ADMIN_UIDS: string;
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
   NEXT_PUBLIC_APP_URL: string;

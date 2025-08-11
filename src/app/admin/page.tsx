@@ -23,8 +23,9 @@ async function getAdminPageData(): Promise<{ refundRequests: RefundRequest[]; is
     const decodedToken = await getAuth().verifySessionCookie(sessionCookie, true);
     console.log(`[AdminPage] Session cookie decoded for UID: ${decodedToken.uid}`);
     
-    const adminUIDs = (appConfig.FIREBASE_ADMIN_UIDS || '').split(',');
-    console.log(`[AdminPage] Admin UIDs from config: [${adminUIDs.join(', ')}]`);
+    // Ler a variável de ambiente diretamente.
+    const adminUIDs = (process.env.FIREBASE_ADMIN_UIDS || '').split(',');
+    console.log(`[AdminPage] Admin UIDs from environment: [${adminUIDs.join(', ')}]`);
 
     const isUserAdmin = adminUIDs.includes(decodedToken.uid);
     console.log(`[AdminPage] Is user admin? ${isUserAdmin}`);
