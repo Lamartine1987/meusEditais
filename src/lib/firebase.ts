@@ -21,14 +21,17 @@ let auth: Auth | undefined;
 let db: Database | undefined;
 let functions: Functions | undefined;
 
-// Validação crucial para garantir que a chave de API está presente.
+// Validação crucial para garantir que a chave de API esteja presente.
 if (!firebaseConfig.apiKey) {
-  if (process.env.NODE_ENV === "production") {
-    // Em produção, a chave de API é obrigatória.
-    throw new Error("A inicialização do Firebase foi bloqueada devido a uma chave de API inválida.");
+  // A variável K_SERVICE é definida pelo Google Cloud Run (usado pelo App Hosting).
+  // Ela só existe no ambiente de execução de produção, não durante o build.
+  // Isso garante que o build não falhe, mas a app em produção pare se a chave estiver faltando.
+  if (process.env.K_SERVICE) {
+    console.error("ERRO CRÍTICO EM PRODUÇÃO: NEXT_PUBLIC_GOOGLE_API_KEY não foi injetada no ambiente de execução. Verifique a configuração de segredos do App Hosting.");
+    throw new Error("A inicialização do Firebase em produção foi bloqueada devido a uma chave de API inválida.");
   } else {
-    // Em desenvolvimento, avise o desenvolvedor, mas não quebre o build.
-    console.warn("🚨 AVISO DE DESENVOLVIMENTO: A variável NEXT_PUBLIC_GOOGLE_API_KEY não está definida. As funcionalidades do Firebase não estarão disponíveis, mas a aplicação continuará a rodar.");
+    // Em ambientes de build ou desenvolvimento local, apenas avise.
+    console.warn("🚨 AVISO DE BUILD/DEV: A variável NEXT_PUBLIC_GOOGLE_API_KEY não está definida. Isso é esperado durante o build, mas as funcionalidades do Firebase não estarão disponíveis até a implantação.");
   }
 }
 
