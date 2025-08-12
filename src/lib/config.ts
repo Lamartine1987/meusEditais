@@ -54,7 +54,10 @@ interface AppConfig {
 }
 
 const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '';
-console.log(`[config.ts] Read NEXT_PUBLIC_FIREBASE_API_KEY. Length: ${apiKey.length}. Value starts with: '${apiKey.substring(0, 5)}...'`);
+// DEBUG LOG: Adicionado para verificar a chave de API recebida do ambiente
+if (typeof window !== 'undefined') { // Log apenas no lado do cliente
+    console.log(`[config.ts] DEBUG: Read NEXT_PUBLIC_FIREBASE_API_KEY. Length: ${apiKey.length}. Value starts with: '${apiKey.substring(0, 5)}...' and ends with: '...${apiKey.slice(-5)}'`);
+}
 
 
 export const appConfig: AppConfig = {

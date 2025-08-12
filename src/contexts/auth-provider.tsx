@@ -13,7 +13,7 @@ import {
   updateProfile,
   type User as FirebaseUser 
 } from 'firebase/auth';
-import { auth as firebaseAuthService, db } from '@/lib/firebase'; 
+import { auth, db } from '@/lib/firebase'; 
 import { ref, set, get, update, remove, onValue, type Unsubscribe } from "firebase/database";
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
@@ -78,13 +78,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const dbUnsubscribeRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
-    if (!firebaseAuthService) {
-      console.error("AuthProvider: Firebase Auth service is not available on mount.");
+    // DEBUG LOG: Adicionado para verificar o status do serviço de autenticação
+    if (typeof window !== 'undefined') {
+        console.log(`[AuthProvider] DEBUG: useEffect started. Is Firebase Auth service available? ${!!auth}`);
+    }
+    
+    if (!auth) {
+      console.error("[AuthProvider] CRITICAL DEBUG: Firebase Auth service is NOT available on mount. Auth features will fail.");
       setLoading(false);
       return;
     }
 
-    const unsubscribeAuth = onAuthStateChanged(firebaseAuthService, (firebaseUser: FirebaseUser | null) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
       setLoading(true);
 
       if (dbUnsubscribeRef.current) {
@@ -94,7 +99,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (firebaseUser) {
         if (!db) {
-            console.error("AuthProvider: a conexão com o banco de dados do Firebase (db) não está disponível.");
+            console.error("[AuthProvider] CRITICAL DEBUG: Firebase DB service is not available for a logged-in user.");
             setUser(null);
             setLoading(false);
             return;
@@ -231,76 +236,92 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [toast]);
 
   const login = async (email: string, pass: string) => {
-    if (!firebaseAuthService) {
-      console.error("[AuthProvider/login] Firebase Auth service is not available.");
+    // DEBUG LOG
+    console.log(`[AuthProvider/login] DEBUG: Attempting login. Is auth service available? ${!!auth}`);
+    if (!auth) {
+      console.error("[AuthProvider/login] CRITICAL DEBUG: Firebase Auth service is not available.");
       throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
     }
-    await signInWithEmailAndPassword(firebaseAuthService, email, pass);
+    try {
+        await signInWithEmailAndPassword(auth, email, pass);
+    } catch (error: any) {
+        // DEBUG LOG
+        console.error(`[AuthProvider/login] CRITICAL DEBUG: Login failed. Firebase error code: '${error.code}', Message: '${error.message}'`);
+        throw error; // Re-lança o erro para a UI tratar
+    }
   };
 
   const register = async (name: string, email: string, pass: string) => {
-    if (!firebaseAuthService) {
-      console.error("[AuthProvider/register] Firebase Auth service is not available.");
+    // DEBUG LOG
+    console.log(`[AuthProvider/register] DEBUG: Attempting registration. Is auth service available? ${!!auth}. Is DB service available? ${!!db}`);
+    if (!auth) {
+      console.error("[AuthProvider/register] CRITICAL DEBUG: Firebase Auth service is not available.");
       throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
     }
     if (!db) {
-      console.error("[AuthProvider/register] Firebase DB service is not available.");
+      console.error("[AuthProvider/register] CRITICAL DEBUG: Firebase DB service is not available.");
       throw new Error("O serviço de banco de dados não está disponível.");
     }
 
-    const userCredential = await createUserWithEmailAndPassword(firebaseAuthService, email, pass);
-    const firebaseUser = userCredential.user;
+    try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+        const firebaseUser = userCredential.user;
 
-    await updateProfile(firebaseUser, { displayName: name });
-    
-    const userRefDb = ref(db, `users/${firebaseUser.uid}`);
-    
-    const newUserDbData: any = {
-        id: firebaseUser.uid,
-        name: name,
-        email: email,
-        registeredCargoIds: [],
-        studiedTopicIds: [],
-        studyLogs: [],
-        questionLogs: [],
-        revisionSchedules: [],
-        notes: [],
-        activePlan: null,
-        activePlans: [],
-        stripeCustomerId: null,
-        hasHadFreeTrial: false,
-        planHistory: [],
-        isRankingParticipant: null,
-    };
+        await updateProfile(firebaseUser, { displayName: name });
+        
+        const userRefDb = ref(db, `users/${firebaseUser.uid}`);
+        
+        const newUserDbData: any = {
+            id: firebaseUser.uid,
+            name: name,
+            email: email,
+            registeredCargoIds: [],
+            studiedTopicIds: [],
+            studyLogs: [],
+            questionLogs: [],
+            revisionSchedules: [],
+            notes: [],
+            activePlan: null,
+            activePlans: [],
+            stripeCustomerId: null,
+            hasHadFreeTrial: false,
+            planHistory: [],
+            isRankingParticipant: null,
+        };
 
-    if (firebaseUser.photoURL) {
-      newUserDbData.avatarUrl = firebaseUser.photoURL;
+        if (firebaseUser.photoURL) {
+          newUserDbData.avatarUrl = firebaseUser.photoURL;
+        }
+        
+        await set(userRefDb, newUserDbData);
+    } catch (error: any) {
+        // DEBUG LOG
+        console.error(`[AuthProvider/register] CRITICAL DEBUG: Registration failed. Firebase error code: '${error.code}', Message: '${error.message}'`);
+        throw error; // Re-lança o erro para a UI tratar
     }
-    
-    await set(userRefDb, newUserDbData);
   };
   
   const sendPasswordReset = async (email: string) => {
-    if (!firebaseAuthService) {
-      console.error("[AuthProvider/sendPasswordReset] Firebase Auth service is not available.");
+    if (!auth) {
+      console.error("[AuthProvider/sendPasswordReset] CRITICAL DEBUG: Firebase Auth service is not available.");
       throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
     }
-    await sendPasswordResetEmail(firebaseAuthService, email);
+    await sendPasswordResetEmail(auth, email);
   };
 
   const logout = async () => {
-    if (!firebaseAuthService) {
-      console.error("[AuthProvider/logout] Firebase Auth service is not available.");
+    if (!auth) {
+      console.error("[AuthProvider/logout] CRITICAL DEBUG: Firebase Auth service is not available.");
       throw new Error("O serviço de autenticação não está disponível.");
     }
-    await signOut(firebaseAuthService);
+    await signOut(auth);
     router.push('/login'); 
   };
   
   const updateUser = async (updatedInfo: { name?: string; email?: string; avatarUrl?: string }) => {
-    if (!firebaseAuthService) throw new Error("Firebase Auth service is not available.");
+    if (!auth) throw new Error("Firebase Auth service is not available.");
     if (!db) throw new Error("Firebase DB service is not available.");
-    const firebaseCurrentUser = firebaseAuthService.currentUser;
+    const firebaseCurrentUser = auth.currentUser;
     if (firebaseCurrentUser && user) {
       setLoading(true);
       try {

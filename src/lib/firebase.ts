@@ -16,37 +16,48 @@ const firebaseConfig = {
   measurementId: "G-CK2H4TKG6C"
 };
 
-let app: FirebaseApp;
-let auth: Auth;
-let db: Database;
-let functions: Functions;
+let app: FirebaseApp | undefined;
+let auth: Auth | undefined;
+let db: Database | undefined;
+let functions: Functions | undefined;
 
-// Inicialização robusta do Firebase
+// DEBUG LOG: Adicionado para verificar a chave de API antes da inicialização
+if (typeof window !== 'undefined') { // Log apenas no lado do cliente
+    console.log(`[firebase.ts] DEBUG: Attempting to initialize Firebase. Is apiKey valid? ${!!(firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10)}`);
+}
+
 try {
-    if (!getApps().length) {
-        // Só inicializa se nenhuma app existir E a chave de API for válida
-        if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10) {
+    if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10) {
+        if (!getApps().length) {
             app = initializeApp(firebaseConfig);
+            if (typeof window !== 'undefined') {
+                console.log("[firebase.ts] DEBUG: Firebase initialized for the first time.");
+            }
         } else {
-            // Se a chave não for válida, lança um erro para o bloco catch
-            throw new Error("A chave de API do Firebase é inválida ou não foi encontrada.");
+            app = getApp();
+            if (typeof window !== 'undefined') {
+                console.log("[firebase.ts] DEBUG: Firebase app already exists. Getting instance.");
+            }
+        }
+        
+        // Se a inicialização foi bem-sucedida, obtenha os serviços
+        auth = getAuth(app);
+        db = getDatabase(app);
+        functions = getFunctions(app);
+        if (typeof window !== 'undefined') {
+             console.log("[firebase.ts] DEBUG: Firebase services (auth, db, functions) were obtained.");
         }
     } else {
-        // Se já existe uma app, apenas a obtém
-        app = getApp();
+        // Se a chave não for válida, lança um erro para o bloco catch
+        throw new Error("A chave de API do Firebase é inválida ou não foi encontrada.");
     }
-
-    // Obtém os serviços a partir da app inicializada
-    auth = getAuth(app);
-    db = getDatabase(app);
-    functions = getFunctions(app);
 
 } catch (error: any) {
     // Se a inicialização falhar por qualquer motivo (ex: chave inválida),
     // o erro é registrado, mas a aplicação não quebra.
     // As funcionalidades que dependem do Firebase (login, etc.) falharão graciosamente.
-    console.warn(`[firebase.ts] AVISO: A inicialização do Firebase falhou. Motivo: ${error.message}`);
+    console.error(`[firebase.ts] CRITICAL DEBUG: A inicialização do Firebase falhou. Motivo: ${error.message}`);
 }
 
-// @ts-ignore
+// Exporta as variáveis que podem ser undefined se a inicialização falhar
 export { app, auth, db, functions };
