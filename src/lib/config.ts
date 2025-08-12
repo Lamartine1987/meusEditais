@@ -26,10 +26,11 @@ function parseStripeSecrets(): StripeSecrets {
       // Mescla os segredos analisados com os padrões para garantir que todas as chaves existam
       return { ...defaultSecrets, ...parsed };
     }
-    console.warn("Variável de ambiente STRIPE_SECRETS não encontrada ou está vazia. Usando valores padrão/fallback.");
+    // This log is expected during local development if .env.local is not set up
+    console.log("[config.ts] STRIPE_SECRETS env var not found. Using fallback values.");
     return defaultSecrets;
   } catch (error) {
-    console.error("Falha ao analisar STRIPE_SECRETS JSON. Verifique se o segredo está formatado corretamente.", error);
+    console.error("[config.ts] Failed to parse STRIPE_SECRETS JSON. Check if the secret is correctly formatted.", error);
     return defaultSecrets;
   }
 }
@@ -52,6 +53,10 @@ interface AppConfig {
   NEXT_PUBLIC_APP_URL: string;
 }
 
+const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '';
+console.log(`[config.ts] Read NEXT_PUBLIC_FIREBASE_API_KEY. Length: ${apiKey.length}. Value starts with: '${apiKey.substring(0, 5)}...'`);
+
+
 export const appConfig: AppConfig = {
   // Atribui os valores analisados do JSON
   STRIPE_SECRET_KEY_PROD: stripeSecrets.SECRET_KEY_PROD,
@@ -61,7 +66,7 @@ export const appConfig: AppConfig = {
   STRIPE_PRICE_ID_PLANO_ANUAL: stripeSecrets.PRICE_ID_PLANO_ANUAL,
   
   // Lê as outras variáveis de ambiente diretamente
-  NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
+  NEXT_PUBLIC_FIREBASE_API_KEY: apiKey,
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || '',
 };

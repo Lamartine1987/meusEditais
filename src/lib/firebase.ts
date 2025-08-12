@@ -21,32 +21,44 @@ let auth: Auth | undefined;
 let db: Database | undefined;
 let functions: Functions | undefined;
 
+console.log(`[firebase.ts] Starting initialization. apiKey available: ${!!firebaseConfig.apiKey}`);
+
 // Só inicializa o Firebase se a chave de API estiver presente
 if (firebaseConfig.apiKey) {
   if (getApps().length === 0) {
     try {
+      console.log("[firebase.ts] No Firebase app found. Initializing a new one.");
       app = initializeApp(firebaseConfig);
-    } catch (e) {
-      console.error("Falha ao inicializar o app Firebase:", e);
+      console.log("[firebase.ts] New Firebase app initialized successfully.");
+    } catch (e: any) {
+      console.error("[firebase.ts] CRITICAL: Failed to initialize new Firebase app. Error:", e.message);
     }
   } else {
+    console.log("[firebase.ts] Existing Firebase app found. Getting app instance.");
     app = getApp();
+    console.log("[firebase.ts] Got existing Firebase app instance.");
   }
 
   if (app) {
     try {
+      console.log("[firebase.ts] App instance exists. Getting Auth, DB, and Functions services.");
       auth = getAuth(app);
       db = getDatabase(app);
       functions = getFunctions(app);
-    } catch (e) {
-        console.error("Falha ao inicializar os serviços do Firebase (Auth, DB, Functions):", e);
+      console.log("[firebase.ts] Successfully got Auth, DB, and Functions services.");
+    } catch (e: any) {
+        console.error("[firebase.ts] CRITICAL: Failed to initialize Firebase services (Auth, DB, Functions). Error:", e.message);
     }
+  } else {
+      console.error("[firebase.ts] CRITICAL: Firebase app instance is not available after initialization attempt.");
   }
-} else if (process.env.NODE_ENV !== 'production') {
-    console.warn("🚨 AVISO DE BUILD/DEV: A variável NEXT_PUBLIC_FIREBASE_API_KEY não está definida. Isso é esperado durante o build, mas para rodar localmente, você precisa de um arquivo .env.local.");
 } else {
-    // Em produção, a chave DEVE existir.
-    console.error("CRÍTICO: A variável NEXT_PUBLIC_FIREBASE_API_KEY não está definida no ambiente de produção. A aplicação não funcionará.");
+    // No ambiente de build, K_SERVICE não existe. Em produção, ele DEVE existir.
+    if (process.env.K_SERVICE) {
+        console.error("CRITICAL [Production ENV]: NEXT_PUBLIC_FIREBASE_API_KEY is not defined. Firebase features will fail.");
+    } else {
+        console.warn("WARNING [Build/Dev ENV]: NEXT_PUBLIC_FIREBASE_API_KEY is not defined. This is expected during build, but Firebase features will be unavailable until deployed with the secret.");
+    }
 }
 
 export { app, auth, db, functions };
