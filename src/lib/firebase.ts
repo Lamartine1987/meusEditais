@@ -15,13 +15,37 @@ const fallbackFirebaseConfig = {
   measurementId: "G-CK2H4TKG6C"
 };
 
-let app: FirebaseApp | undefined;
-let auth: Auth | undefined;
-let db: Database | undefined;
-let functions: Functions | undefined;
+let app: FirebaseApp;
+let auth: Auth;
+let db: Database;
+let functions: Functions;
+
+function initializeFirebaseServices() {
+    const firebaseConfig = getFirebaseConfig();
+
+    if (!firebaseConfig.apiKey) {
+        if (process.env.K_SERVICE) {
+            console.error("ERRO CRÍTICO EM PRODUÇÃO: A chave de API do Firebase não foi encontrada. Verifique a configuração de segredos do App Hosting.");
+            throw new Error("A inicialização do Firebase em produção foi bloqueada devido a uma chave de API inválida.");
+        } else {
+            console.warn("🚨 AVISO DE BUILD/DEV: A variável NEXT_PUBLIC_GOOGLE_API_KEY não está definida. Isso é esperado durante o build, mas as funcionalidades do Firebase não estarão disponíveis até a implantação.");
+            return; // Interrompe a inicialização se a chave não estiver disponível
+        }
+    }
+
+    if (getApps().length === 0) {
+        app = initializeApp(firebaseConfig);
+    } else {
+        app = getApp();
+    }
+
+    // Inicializa todos os serviços se a app foi inicializada com sucesso
+    auth = getAuth(app);
+    db = getDatabase(app);
+    functions = getFunctions(app); // Garante que as Functions sejam inicializadas
+}
 
 function getFirebaseConfig() {
-  // O App Hosting injeta a configuração via NEXT_PUBLIC_FIREBASE_CONFIG
   const firebaseConfigJson = process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
   if (firebaseConfigJson) {
     try {
@@ -32,41 +56,16 @@ function getFirebaseConfig() {
     }
   }
   
-  // Se não estiver no App Hosting ou a variável falhar, use o fallback
   console.log("Usando configuração de fallback do Firebase.");
   return fallbackFirebaseConfig;
 }
 
-const firebaseConfig = getFirebaseConfig();
-
-// Validação crucial para garantir que a chave de API esteja presente.
-if (!firebaseConfig.apiKey) {
-  // A variável K_SERVICE é definida pelo Google Cloud Run (usado pelo App Hosting).
-  // Ela só existe no ambiente de execução de produção, não durante o build.
-  // Isso garante que o build não falhe, mas a app em produção pare se a chave estiver faltando.
-  if (process.env.K_SERVICE) {
-    console.error("ERRO CRÍTICO EM PRODUÇÃO: A chave de API do Firebase não foi encontrada. Verifique a configuração de segredos do App Hosting.");
-    throw new Error("A inicialização do Firebase em produção foi bloqueada devido a uma chave de API inválida.");
-  } else {
-    // Em ambientes de build ou desenvolvimento local, apenas avise.
-    console.warn("🚨 AVISO DE BUILD/DEV: A chave de API do Firebase não está definida. Isso é esperado, mas as funcionalidades do Firebase não estarão disponíveis até a implantação.");
-  }
+// Chama a função para inicializar os serviços
+try {
+    initializeFirebaseServices();
+} catch (error) {
+    console.error("Falha crítica durante a inicialização do Firebase:", error);
 }
 
-// Inicializa o Firebase apenas uma vez e se a chave de API existir
-if (firebaseConfig.apiKey) {
-    if (getApps().length === 0) {
-        app = initializeApp(firebaseConfig);
-    } else {
-        app = getApp();
-    }
-}
-
-// Inicializa os serviços apenas se a app foi inicializada com sucesso
-if (app) {
-  auth = getAuth(app);
-  db = getDatabase(app);
-  functions = getFunctions(app); // Habilita o serviço de Functions
-}
-
+// Exporta as variáveis que podem estar indefinidas se a inicialização falhar
 export { app, auth, db, functions };
