@@ -6,9 +6,9 @@ runConfig:
 
 env:
   # O segredo GOOGLE_API_KEY do Secret Manager é atribuído a
-  # NEXT_PUBLIC_GOOGLE_API_KEY. O Next.js exige o prefixo 'NEXT_PUBLIC_'
+  # NEXT_PUBLIC_FIREBASE_API_KEY. O Next.js exige o prefixo 'NEXT_PUBLIC_'
   # para expor a variável ao lado do cliente (navegador).
-  - variable: NEXT_PUBLIC_GOOGLE_API_KEY
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     secret: GOOGLE_API_KEY
     
   # Segredo consolidado do Stripe (um único segredo contendo um objeto JSON)

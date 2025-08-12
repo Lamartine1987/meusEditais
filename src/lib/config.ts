@@ -45,7 +45,7 @@ interface AppConfig {
   STRIPE_PRICE_ID_PLANO_ANUAL: string;
   
   // Chave de API do Google/Firebase
-  NEXT_PUBLIC_GOOGLE_API_KEY: string;
+  NEXT_PUBLIC_FIREBASE_API_KEY: string;
 
   // Outras chaves
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
@@ -61,7 +61,7 @@ export const appConfig: AppConfig = {
   STRIPE_PRICE_ID_PLANO_ANUAL: stripeSecrets.PRICE_ID_PLANO_ANUAL,
   
   // Lê as outras variáveis de ambiente diretamente
-  NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY || '',
+  NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || '',
 };

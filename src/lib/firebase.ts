@@ -6,7 +6,7 @@ import { appConfig } from "./config";
 
 // Configuração do Firebase usando a chave de API do appConfig
 const firebaseConfig = {
-  apiKey: appConfig.NEXT_PUBLIC_GOOGLE_API_KEY,
+  apiKey: appConfig.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
@@ -42,8 +42,11 @@ if (firebaseConfig.apiKey) {
         console.error("Falha ao inicializar os serviços do Firebase (Auth, DB, Functions):", e);
     }
   }
+} else if (process.env.NODE_ENV !== 'production') {
+    console.warn("🚨 AVISO DE BUILD/DEV: A variável NEXT_PUBLIC_FIREBASE_API_KEY não está definida. Isso é esperado durante o build, mas para rodar localmente, você precisa de um arquivo .env.local.");
 } else {
-    console.warn("🚨 AVISO: A chave de API do Firebase (NEXT_PUBLIC_GOOGLE_API_KEY) não está definida. As funcionalidades do Firebase ficarão indisponíveis. Isso é esperado durante o build, mas para rodar localmente, você precisa de um arquivo .env.local.");
+    // Em produção, a chave DEVE existir.
+    console.error("CRÍTICO: A variável NEXT_PUBLIC_FIREBASE_API_KEY não está definida no ambiente de produção. A aplicação não funcionará.");
 }
 
 export { app, auth, db, functions };
