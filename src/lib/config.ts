@@ -48,7 +48,6 @@ interface AppConfig {
   // Outras chaves
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
   NEXT_PUBLIC_APP_URL: string;
-  NEXT_PUBLIC_GOOGLE_API_KEY: string;
 }
 
 export const appConfig: AppConfig = {
@@ -62,5 +61,4 @@ export const appConfig: AppConfig = {
   // Lê as outras variáveis de ambiente diretamente
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || '',
-  NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY || '',
 };
