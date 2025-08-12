@@ -21,31 +21,23 @@ let auth: Auth | undefined;
 let db: Database | undefined;
 let functions: Functions | undefined;
 
-console.log(`[firebase.ts] Starting initialization. apiKey available: ${!!firebaseConfig.apiKey}`);
-
 // Só inicializa o Firebase se a chave de API estiver presente
 if (firebaseConfig.apiKey) {
   if (getApps().length === 0) {
     try {
-      console.log("[firebase.ts] No Firebase app found. Initializing a new one.");
       app = initializeApp(firebaseConfig);
-      console.log("[firebase.ts] New Firebase app initialized successfully.");
     } catch (e: any) {
       console.error("[firebase.ts] CRITICAL: Failed to initialize new Firebase app. Error:", e.message);
     }
   } else {
-    console.log("[firebase.ts] Existing Firebase app found. Getting app instance.");
     app = getApp();
-    console.log("[firebase.ts] Got existing Firebase app instance.");
   }
 
   if (app) {
     try {
-      console.log("[firebase.ts] App instance exists. Getting Auth, DB, and Functions services.");
       auth = getAuth(app);
       db = getDatabase(app);
       functions = getFunctions(app);
-      console.log("[firebase.ts] Successfully got Auth, DB, and Functions services.");
     } catch (e: any) {
         console.error("[firebase.ts] CRITICAL: Failed to initialize Firebase services (Auth, DB, Functions). Error:", e.message);
     }

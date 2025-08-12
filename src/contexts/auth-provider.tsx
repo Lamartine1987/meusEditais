@@ -79,6 +79,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     if (!firebaseAuthService) {
+      console.error("AuthProvider: Firebase Auth service is not available on mount.");
       setLoading(false);
       return;
     }
@@ -230,13 +231,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [toast]);
 
   const login = async (email: string, pass: string) => {
-    if (!firebaseAuthService) throw new Error("Firebase Auth service is not available.");
+    if (!firebaseAuthService) {
+      console.error("[AuthProvider/login] Firebase Auth service is not available.");
+      throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
+    }
     await signInWithEmailAndPassword(firebaseAuthService, email, pass);
   };
 
   const register = async (name: string, email: string, pass: string) => {
-    if (!firebaseAuthService) throw new Error("Firebase Auth service is not available.");
-    if (!db) throw new Error("Firebase DB service is not available.");
+    if (!firebaseAuthService) {
+      console.error("[AuthProvider/register] Firebase Auth service is not available.");
+      throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
+    }
+    if (!db) {
+      console.error("[AuthProvider/register] Firebase DB service is not available.");
+      throw new Error("O serviço de banco de dados não está disponível.");
+    }
+
     const userCredential = await createUserWithEmailAndPassword(firebaseAuthService, email, pass);
     const firebaseUser = userCredential.user;
 
@@ -270,12 +281,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
   
   const sendPasswordReset = async (email: string) => {
-    if (!firebaseAuthService) throw new Error("Firebase Auth service is not available.");
+    if (!firebaseAuthService) {
+      console.error("[AuthProvider/sendPasswordReset] Firebase Auth service is not available.");
+      throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
+    }
     await sendPasswordResetEmail(firebaseAuthService, email);
   };
 
   const logout = async () => {
-    if (!firebaseAuthService) throw new Error("Firebase Auth service is not available.");
+    if (!firebaseAuthService) {
+      console.error("[AuthProvider/logout] Firebase Auth service is not available.");
+      throw new Error("O serviço de autenticação não está disponível.");
+    }
     await signOut(firebaseAuthService);
     router.push('/login'); 
   };
