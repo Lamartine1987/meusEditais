@@ -28,7 +28,6 @@ export default function LoginPage() {
       toast({ title: "Login Bem-sucedido!", description: "Redirecionando para a página inicial...", variant: "default", className: "bg-accent text-accent-foreground" });
       router.push('/'); 
     } catch (error: any) {
-      console.error("[LoginPage] Login failed. Full error object:", error);
       let errorMessage = "Ocorreu um erro inesperado. Tente novamente."; // Mensagem padrão
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
         errorMessage = "Credenciais inválidas. Verifique seu e-mail e senha.";
@@ -36,8 +35,6 @@ export default function LoginPage() {
         errorMessage = "Muitas tentativas de login. Tente novamente mais tarde.";
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = "O formato do e-mail é inválido.";
-      } else {
-        console.error(`[LoginPage] Unhandled login error. Code: ${error.code}, Message: ${error.message}`);
       }
       toast({ title: "Falha no Login", description: errorMessage, variant: "destructive"});
     } finally {

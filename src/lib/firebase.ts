@@ -4,7 +4,6 @@ import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
 import { appConfig } from "./config";
 
-// Configuração do Firebase usando a chave de API do appConfig
 const firebaseConfig = {
   apiKey: appConfig.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: "meuseditais.firebaseapp.com",
@@ -16,48 +15,35 @@ const firebaseConfig = {
   measurementId: "G-CK2H4TKG6C"
 };
 
-let app: FirebaseApp | undefined;
-let auth: Auth | undefined;
-let db: Database | undefined;
-let functions: Functions | undefined;
+let app: FirebaseApp;
+let auth: Auth;
+let db: Database;
+let functions: Functions;
 
-// DEBUG LOG: Adicionado para verificar a chave de API antes da inicialização
-if (typeof window !== 'undefined') { // Log apenas no lado do cliente
-    console.log(`[firebase.ts] DEBUG: Attempting to initialize Firebase. Is apiKey valid? ${!!(firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10)}`);
-}
-
-try {
-    if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10) {
-        if (!getApps().length) {
-            app = initializeApp(firebaseConfig);
-            if (typeof window !== 'undefined') {
-                console.log("[firebase.ts] DEBUG: Firebase initialized for the first time.");
-            }
-        } else {
-            app = getApp();
-            if (typeof window !== 'undefined') {
-                console.log("[firebase.ts] DEBUG: Firebase app already exists. Getting instance.");
-            }
-        }
-        
-        // Se a inicialização foi bem-sucedida, obtenha os serviços
-        auth = getAuth(app);
-        db = getDatabase(app);
-        functions = getFunctions(app);
-        if (typeof window !== 'undefined') {
-             console.log("[firebase.ts] DEBUG: Firebase services (auth, db, functions) were obtained.");
-        }
-    } else {
-        // Se a chave não for válida, lança um erro para o bloco catch
-        throw new Error("A chave de API do Firebase é inválida ou não foi encontrada.");
+// This check ensures that Firebase is only initialized on the client side.
+// It prevents the "Firebase App named '[DEFAULT]' already exists" error in development
+// and ensures server-side rendering builds don't fail due to missing API keys.
+if (typeof window !== 'undefined' && !getApps().length) {
+  if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10) {
+    try {
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getDatabase(app);
+      functions = getFunctions(app);
+    } catch (error) {
+      console.error("[firebase.ts] CRITICAL: Firebase client initialization failed.", error);
     }
-
-} catch (error: any) {
-    // Se a inicialização falhar por qualquer motivo (ex: chave inválida),
-    // o erro é registrado, mas a aplicação não quebra.
-    // As funcionalidades que dependem do Firebase (login, etc.) falharão graciosamente.
-    console.error(`[firebase.ts] CRITICAL DEBUG: A inicialização do Firebase falhou. Motivo: ${error.message}`);
+  } else {
+    console.error("[firebase.ts] CRITICAL: Firebase API key is invalid or missing. Firebase will not be initialized.");
+  }
+} else if (typeof window !== 'undefined') {
+  app = getApp();
+  auth = getAuth(app);
+  db = getDatabase(app);
+  functions = getFunctions(app);
 }
 
-// Exporta as variáveis que podem ser undefined se a inicialização falhar
+// We export the initialized services. They will be undefined on the server-side,
+// and the application code (like AuthProvider) should handle this gracefully.
+// @ts-ignore
 export { app, auth, db, functions };
