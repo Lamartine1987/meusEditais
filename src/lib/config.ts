@@ -14,9 +14,10 @@ function parseStripeSecrets(): StripeSecrets {
   const defaultSecrets: StripeSecrets = {
     SECRET_KEY_PROD: '',
     WEBHOOK_SECRET_PROD: '',
-    PRICE_ID_PLANO_CARGO: '',
-    PRICE_ID_PLANO_EDITAL: '',
-    PRICE_ID_PLANO_ANUAL: '',
+    // Use fallback placeholder values to allow build to succeed
+    PRICE_ID_PLANO_CARGO: 'price_plano_cargo_fallback_placeholder',
+    PRICE_ID_PLANO_EDITAL: 'price_plano_edital_fallback_placeholder',
+    PRICE_ID_PLANO_ANUAL: 'price_plano_anual_fallback_placeholder',
   };
 
   try {
@@ -26,7 +27,7 @@ function parseStripeSecrets(): StripeSecrets {
       // Mescla os segredos analisados com os padrões para garantir que todas as chaves existam
       return { ...defaultSecrets, ...parsed };
     }
-    console.warn("Variável de ambiente STRIPE_SECRETS não encontrada ou está vazia. Usando valores padrão.");
+    console.warn("Variável de ambiente STRIPE_SECRETS não encontrada ou está vazia. Usando valores padrão/fallback.");
     return defaultSecrets;
   } catch (error) {
     console.error("Falha ao analisar STRIPE_SECRETS JSON. Verifique se o segredo está formatado corretamente.", error);
@@ -45,7 +46,6 @@ interface AppConfig {
   STRIPE_PRICE_ID_PLANO_ANUAL: string;
   
   // Outras chaves
-  FIREBASE_ADMIN_UIDS: string;
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
   NEXT_PUBLIC_APP_URL: string;
   NEXT_PUBLIC_GOOGLE_API_KEY: string;
@@ -60,7 +60,6 @@ export const appConfig: AppConfig = {
   STRIPE_PRICE_ID_PLANO_ANUAL: stripeSecrets.PRICE_ID_PLANO_ANUAL,
   
   // Lê as outras variáveis de ambiente diretamente
-  FIREBASE_ADMIN_UIDS: process.env.FIREBASE_ADMIN_UIDS || '',
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || '',
   NEXT_PUBLIC_GOOGLE_API_KEY: process.env.NEXT_PUBLIC_GOOGLE_API_KEY || '',
