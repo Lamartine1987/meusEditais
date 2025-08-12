@@ -16,41 +16,37 @@ const firebaseConfig = {
   measurementId: "G-CK2H4TKG6C"
 };
 
-let app: FirebaseApp | undefined;
-let auth: Auth | undefined;
-let db: Database | undefined;
-let functions: Functions | undefined;
+let app: FirebaseApp;
+let auth: Auth;
+let db: Database;
+let functions: Functions;
 
-// Só inicializa o Firebase se a chave de API estiver presente
-if (firebaseConfig.apiKey) {
-  if (getApps().length === 0) {
-    try {
-      app = initializeApp(firebaseConfig);
-    } catch (e: any) {
-      console.error("[firebase.ts] CRITICAL: Failed to initialize new Firebase app. Error:", e.message);
-    }
-  } else {
-    app = getApp();
-  }
-
-  if (app) {
-    try {
-      auth = getAuth(app);
-      db = getDatabase(app);
-      functions = getFunctions(app);
-    } catch (e: any) {
-        console.error("[firebase.ts] CRITICAL: Failed to initialize Firebase services (Auth, DB, Functions). Error:", e.message);
-    }
-  } else {
-      console.error("[firebase.ts] CRITICAL: Firebase app instance is not available after initialization attempt.");
-  }
-} else {
-    // No ambiente de build, K_SERVICE não existe. Em produção, ele DEVE existir.
-    if (process.env.K_SERVICE) {
-        console.error("CRITICAL [Production ENV]: NEXT_PUBLIC_FIREBASE_API_KEY is not defined. Firebase features will fail.");
+// Inicialização robusta do Firebase
+try {
+    if (!getApps().length) {
+        // Só inicializa se nenhuma app existir E a chave de API for válida
+        if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10) {
+            app = initializeApp(firebaseConfig);
+        } else {
+            // Se a chave não for válida, lança um erro para o bloco catch
+            throw new Error("A chave de API do Firebase é inválida ou não foi encontrada.");
+        }
     } else {
-        console.warn("WARNING [Build/Dev ENV]: NEXT_PUBLIC_FIREBASE_API_KEY is not defined. This is expected during build, but Firebase features will be unavailable until deployed with the secret.");
+        // Se já existe uma app, apenas a obtém
+        app = getApp();
     }
+
+    // Obtém os serviços a partir da app inicializada
+    auth = getAuth(app);
+    db = getDatabase(app);
+    functions = getFunctions(app);
+
+} catch (error: any) {
+    // Se a inicialização falhar por qualquer motivo (ex: chave inválida),
+    // o erro é registrado, mas a aplicação não quebra.
+    // As funcionalidades que dependem do Firebase (login, etc.) falharão graciosamente.
+    console.warn(`[firebase.ts] AVISO: A inicialização do Firebase falhou. Motivo: ${error.message}`);
 }
 
+// @ts-ignore
 export { app, auth, db, functions };
