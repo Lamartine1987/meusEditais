@@ -56,7 +56,6 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  cpf?: string;
   avatarUrl?: string;
   registeredCargoIds?: string[]; 
   studiedTopicIds?: string[];

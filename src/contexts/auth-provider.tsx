@@ -33,7 +33,7 @@ interface AuthContextType {
   user: AppUser | null;
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
-  register: (name: string, email: string, pass: string, cpf: string) => Promise<void>;
+  register: (name: string, email: string, pass: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (updatedInfo: { name?: string; email?: string; avatarUrl?: string }) => Promise<void>; 
@@ -78,8 +78,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const dbUnsubscribeRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
-    // If the auth service is not available (e.g., in a build environment without API keys),
-    // stop loading and do nothing.
     if (!firebaseAuthService) {
       setLoading(false);
       return;
@@ -112,7 +110,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                   name: firebaseUser.displayName || 'Usuário',
                   email: firebaseUser.email || '',
                   avatarUrl: firebaseUser.photoURL || undefined,
-                  cpf: undefined,
                   registeredCargoIds: [],
                   studiedTopicIds: [],
                   studyLogs: [],
@@ -149,7 +146,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               id: firebaseUser.uid,
               name: dbData.name || firebaseUser.displayName || 'Usuário',
               email: dbData.email || firebaseUser.email || '',
-              cpf: dbData.cpf,
               avatarUrl: dbData.avatarUrl || firebaseUser.photoURL || undefined,
               registeredCargoIds: dbData.registeredCargoIds || [],
               studiedTopicIds: dbData.studiedTopicIds || [],
@@ -238,7 +234,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await signInWithEmailAndPassword(firebaseAuthService, email, pass);
   };
 
-  const register = async (name: string, email: string, pass: string, cpf: string) => {
+  const register = async (name: string, email: string, pass: string) => {
     if (!firebaseAuthService) throw new Error("Firebase Auth service is not available.");
     if (!db) throw new Error("Firebase DB service is not available.");
     const userCredential = await createUserWithEmailAndPassword(firebaseAuthService, email, pass);
@@ -252,7 +248,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         id: firebaseUser.uid,
         name: name,
         email: email,
-        cpf: cpf,
         registeredCargoIds: [],
         studiedTopicIds: [],
         studyLogs: [],
