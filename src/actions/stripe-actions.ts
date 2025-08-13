@@ -53,15 +53,12 @@ export async function createCheckoutSession(
     console.error(`[createCheckoutSession] ${errorMessage}`);
     throw new Error(`Configuration error: Stripe Price ID for plan '${planId}' is invalid or not configured. Check server logs.`);
   }
-
-  const appUrl = appConfig.NEXT_PUBLIC_APP_URL || 'http://localhost:9002'; 
-  console.log(`[createCheckoutSession] App URL for redirect: ${appUrl}`);
-  if (appUrl === 'http://localhost:9002' && process.env.NODE_ENV === 'production') {
-    console.warn(`[createCheckoutSession] Warning: NEXT_PUBLIC_APP_URL is not set in config. Using default ${appUrl}. This might cause issues with Stripe redirects.`);
-  }
-
-  const successUrl = `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
-  const cancelUrl = `${appUrl}/checkout/cancel`;
+  
+  // Usar caminhos relativos para URLs de sucesso e cancelamento.
+  // O Stripe construirá a URL completa com base no domínio de onde a solicitação foi feita.
+  const origin = headers().get('origin') || 'https://fallback-url.com'; // Use a origem do cabeçalho
+  const successUrl = `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl = `${origin}/checkout/cancel`;
   console.log(`[createCheckoutSession] SuccessURL: ${successUrl}, CancelURL: ${cancelUrl}`);
 
   let stripeCustomerId: string | undefined;

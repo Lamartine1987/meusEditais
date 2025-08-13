@@ -50,7 +50,6 @@ interface AppConfig {
 
   // Outras chaves
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
-  NEXT_PUBLIC_APP_URL: string;
 }
 
 const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '';
@@ -66,5 +65,4 @@ export const appConfig: AppConfig = {
   // Lê as outras variáveis de ambiente diretamente
   NEXT_PUBLIC_FIREBASE_API_KEY: apiKey,
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
-  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || '',
 };
