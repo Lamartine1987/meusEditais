@@ -3,14 +3,12 @@
 interface StripeSecrets {
   SECRET_KEY_PROD: string;
   WEBHOOK_SECRET_PROD: string;
-  PRICE_ID_PLANO_CARGO: string;
-  PRICE_ID_PLANO_EDITAL: string;
-  PRICE_ID_PLANO_ANUAL: string;
+  // Os Price IDs não são mais necessários aqui, pois serão lidos diretamente do JSON.
 }
 
 // Analisa os segredos do Stripe a partir de uma string JSON
-function parseStripeSecrets(): StripeSecrets {
-  const defaultSecrets: StripeSecrets = {
+function parseStripeSecrets(): StripeSecrets & { PRICE_ID_PLANO_CARGO: string; PRICE_ID_PLANO_EDITAL: string; PRICE_ID_PLANO_ANUAL: string; } {
+  const defaultSecrets = {
     SECRET_KEY_PROD: '',
     WEBHOOK_SECRET_PROD: '',
     // Use fallback placeholder values to allow build to succeed
@@ -53,6 +51,11 @@ interface AppConfig {
 }
 
 const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '';
+// Log para depuração em produção para garantir que a chave de API está sendo lida.
+if (typeof window !== 'undefined') {
+  console.log('[config.ts] Firebase API Key loaded:', apiKey ? `Starts with ${apiKey.substring(0, 4)}...` : 'Not found');
+}
+
 
 export const appConfig: AppConfig = {
   // Atribui os valores analisados do JSON
