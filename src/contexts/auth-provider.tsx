@@ -18,7 +18,6 @@ import { ref, set, get, update, remove, onValue, type Unsubscribe } from "fireba
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
-import { appConfig } from '@/lib/config';
 
 const TRIAL_DURATION_DAYS = 30;
 
@@ -79,7 +78,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     if (!auth) {
-      console.error("[AuthProvider] Firebase Auth service is not available on mount. Auth features will be disabled.");
       setLoading(false);
       return;
     }
@@ -94,7 +92,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (firebaseUser) {
         if (!db) {
-            console.error("[AuthProvider] Firebase DB service is not available for a logged-in user.");
             setUser(null);
             setLoading(false);
             return;
@@ -105,24 +102,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         dbUnsubscribeRef.current = onValue(userRef, async (snapshot) => {
           try {
             if (!snapshot.exists()) {
-              console.warn(`[AuthProvider] User data not found in DB for ${firebaseUser.uid}. This is normal during registration.`);
               const temporaryUser: AppUser = {
                   id: firebaseUser.uid,
                   name: firebaseUser.displayName || 'Usuário',
                   email: firebaseUser.email || '',
                   avatarUrl: firebaseUser.photoURL || undefined,
-                  registeredCargoIds: [],
-                  studiedTopicIds: [],
-                  studyLogs: [],
-                  questionLogs: [],
-                  revisionSchedules: [],
-                  notes: [],
-                  activePlan: null,
-                  activePlans: [],
-                  stripeCustomerId: null,
-                  hasHadFreeTrial: false,
-                  planHistory: [],
-                  isRankingParticipant: null,
+                  registeredCargoIds: [], studiedTopicIds: [], studyLogs: [],
+                  questionLogs: [], revisionSchedules: [], notes: [], activePlan: null,
+                  activePlans: [], stripeCustomerId: null, hasHadFreeTrial: false,
+                  planHistory: [], isRankingParticipant: null, isAdmin: false,
               };
               setUser(temporaryUser);
               setLoading(false);
@@ -143,6 +131,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               dbData = { ...dbData, ...updatesToSyncToDb };
             }
             
+            const adminRef = ref(db, `admins/${firebaseUser.uid}`);
+            const adminSnapshot = await get(adminRef);
+            const isAdmin = adminSnapshot.exists();
+
             let appUser: AppUser = {
               id: firebaseUser.uid,
               name: dbData.name || firebaseUser.displayName || 'Usuário',
@@ -160,12 +152,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               hasHadFreeTrial: dbData.hasHadFreeTrial || false,
               planHistory: dbData.planHistory || [],
               isRankingParticipant: dbData.isRankingParticipant ?? null,
+              isAdmin: isAdmin,
             };
 
             let trialExpiredToastShown = false;
             const trialPlan = appUser.activePlans?.find(p => p.planId === 'plano_trial');
             if (trialPlan && trialPlan.expiryDate && isPast(datefnsParseISO(trialPlan.expiryDate))) {
-                console.log(`[AuthProvider] Free trial for user ${firebaseUser.uid} expired on ${trialPlan.expiryDate}. Removing from active plans.`);
                 const updatedActivePlans = appUser.activePlans?.filter(p => p.planId !== 'plano_trial') || [];
                 
                 let highestPlan: PlanDetails | null = null;
@@ -198,19 +190,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
 
           } catch (error) {
-            console.error("Error processing RTDB snapshot or updating DB:", error);
             toast({ title: "Erro ao carregar dados", description: "Não foi possível buscar seus dados salvos.", variant: "destructive" });
             setUser({
               id: firebaseUser.uid, name: firebaseUser.displayName || 'Usuário', email: firebaseUser.email || '',
               registeredCargoIds: [], studiedTopicIds: [], studyLogs: [], questionLogs: [], revisionSchedules: [],
               notes: [], activePlan: null, activePlans: [], stripeCustomerId: null, hasHadFreeTrial: false, planHistory: [],
-              isRankingParticipant: null
+              isRankingParticipant: null, isAdmin: false,
             });
           } finally {
             setLoading(false);
           }
         }, (error) => {
-          console.error("Firebase RTDB onValue listener error:", error);
           toast({ title: "Erro de Conexão com Dados", description: "Não foi possível sincronizar seus dados.", variant: "destructive" });
           setUser(null);
           setLoading(false);
@@ -231,22 +221,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [toast]);
 
   const login = async (email: string, pass: string) => {
-    if (!auth) {
-      console.error("[AuthProvider/login] Firebase Auth service is not available.");
-      throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
-    }
+    if (!auth) throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
     await signInWithEmailAndPassword(auth, email, pass);
   };
 
   const register = async (name: string, email: string, pass: string) => {
-    if (!auth) {
-      console.error("[AuthProvider/register] Firebase Auth service is not available.");
-      throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
-    }
-    if (!db) {
-      console.error("[AuthProvider/register] Firebase DB service is not available.");
-      throw new Error("O serviço de banco de dados não está disponível.");
-    }
+    if (!auth) throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
+    if (!db) throw new Error("O serviço de banco de dados não está disponível.");
 
     const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
     const firebaseUser = userCredential.user;
@@ -259,18 +240,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         id: firebaseUser.uid,
         name: name,
         email: email,
-        registeredCargoIds: [],
-        studiedTopicIds: [],
-        studyLogs: [],
-        questionLogs: [],
-        revisionSchedules: [],
-        notes: [],
-        activePlan: null,
-        activePlans: [],
-        stripeCustomerId: null,
-        hasHadFreeTrial: false,
-        planHistory: [],
-        isRankingParticipant: null,
+        registeredCargoIds: [], studiedTopicIds: [], studyLogs: [],
+        questionLogs: [], revisionSchedules: [], notes: [], activePlan: null,
+        activePlans: [], stripeCustomerId: null, hasHadFreeTrial: false,
+        planHistory: [], isRankingParticipant: null,
     };
 
     if (firebaseUser.photoURL) {
@@ -281,18 +254,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
   
   const sendPasswordReset = async (email: string) => {
-    if (!auth) {
-      console.error("[AuthProvider/sendPasswordReset] Firebase Auth service is not available.");
-      throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
-    }
+    if (!auth) throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
     await sendPasswordResetEmail(auth, email);
   };
 
   const logout = async () => {
-    if (!auth) {
-      console.error("[AuthProvider/logout] Firebase Auth service is not available.");
-      throw new Error("O serviço de autenticação não está disponível.");
-    }
+    if (!auth) throw new Error("O serviço de autenticação não está disponível.");
     await signOut(auth);
     router.push('/login'); 
   };
@@ -320,7 +287,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         toast({ title: "Perfil Atualizado!", description: "Suas informações foram salvas.", variant: "default", className: "bg-accent text-accent-foreground" });
       } catch (error) {
-        console.error("Error updating user profile:", error);
         toast({ title: "Erro ao Atualizar", description: "Não foi possível salvar suas informações.", variant: "destructive" });
       } finally {
         setLoading(false);
@@ -359,7 +325,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       await update(ref(db, `users/${user.id}`), { registeredCargoIds: updatedRegisteredCargoIds });
     } catch (error) {
-      console.error("Error registering for cargo:", error);
       toast({ title: "Erro na Inscrição do Cargo", description: "Não foi possível salvar a inscrição no cargo.", variant: "destructive" });
       throw error; 
     }
@@ -395,7 +360,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       toast({ title: "Inscrição Cancelada", description: `Sua inscrição e progresso no cargo foram removidos.` });
     } catch (error) {
-      console.error("Error unregistering from cargo and clearing progress:", error);
       toast({ title: "Erro ao Cancelar", description: "Não foi possível remover a inscrição ou o progresso do cargo.", variant: "destructive" });
     } 
   };
@@ -409,7 +373,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         await update(ref(db, `users/${user.id}`), { studiedTopicIds: updatedStudiedTopicIds });
       } catch (error) {
-        console.error("Error toggling topic study status:", error);
         toast({ title: "Erro ao Atualizar Status", description: "Não foi possível salvar o status do tópico.", variant: "destructive" });
       } 
     }
@@ -430,7 +393,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
             await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
         } catch (error) {
-            console.error("Error adding study log:", error);
             toast({ title: "Erro ao Salvar Log", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
         }
     }
@@ -443,7 +405,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const finalLogCount = updatedStudyLogs.length;
 
         if (initialLogCount === finalLogCount) {
-             console.warn(`[AuthProvider/deleteStudyLog] Warning: Log ID "${logId}" not found in user's studyLogs. No deletion will occur.`);
              toast({ title: "Atenção", description: "O registro a ser excluído não foi encontrado. A lista pode já estar atualizada.", variant: "default" });
              return;
         }
@@ -452,7 +413,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
             toast({ title: "Registro Excluído", description: "O registro de estudo foi removido.", variant: "default" });
         } catch (error) {
-            console.error("[AuthProvider/deleteStudyLog] Error deleting study log from DB:", error);
             toast({ title: "Erro ao Excluir", description: "Não foi possível remover o registro do banco de dados.", variant: "destructive" });
         }
     }
@@ -465,7 +425,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         await update(ref(db, `users/${user.id}`), { questionLogs: updatedQuestionLogs });
       } catch (error) {
-        console.error("Error adding question log:", error);
         toast({ title: "Erro ao Salvar Desempenho", description: "Não foi possível salvar o registro de questões.", variant: "destructive" });
       } 
     }
@@ -485,7 +444,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         await update(ref(db, `users/${user.id}`), { revisionSchedules: updatedRevisionSchedules });
       } catch (error) {
-        console.error("Error adding revision schedule:", error);
         toast({ title: "Erro ao Agendar Revisão", description: "Não foi possível salvar o agendamento.", variant: "destructive" });
       }
     }
@@ -506,7 +464,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
           await update(ref(db, `users/${user.id}`), { revisionSchedules: updatedRevisionSchedules });
         } catch (error) {
-          console.error("Error toggling revision status:", error);
           toast({ title: "Erro ao Atualizar Revisão", description: "Não foi possível salvar o status da revisão.", variant: "destructive" });
         }
       }
@@ -526,7 +483,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 await update(ref(db, `users/${user.id}`), { notes: updatedNotes });
                 toast({ title: "Anotação Salva!", description: "Sua anotação foi salva com sucesso.", variant: "default", className: "bg-accent text-accent-foreground" });
             } catch (error) {
-                console.error("Error adding note:", error);
                 toast({ title: "Erro ao Salvar", description: "Não foi possível salvar sua anotação.", variant: "destructive" });
             }
         }
@@ -539,7 +495,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 await update(ref(db, `users/${user.id}`), { notes: updatedNotes });
                 toast({ title: "Anotação Excluída", description: "Sua anotação foi removida.", variant: "default" });
             } catch (error) {
-                console.error("Error deleting note:", error);
                 toast({ title: "Erro ao Excluir", description: "Não foi possível remover a anotação.", variant: "destructive" });
             }
         }
@@ -623,7 +578,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       router.push('/'); 
     } catch (error) {
-      console.error("Error starting free trial:", error);
       toast({ title: "Erro ao Ativar Teste", description: "Não foi possível iniciar seu período de teste.", variant: "destructive" });
     } 
   };
@@ -641,7 +595,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           className: "bg-accent text-accent-foreground",
         });
       } catch (error) {
-        console.error("Error setting ranking participation:", error);
         toast({ title: "Erro", description: "Não foi possível salvar sua preferência de ranking.", variant: "destructive" });
         throw error;
       }
@@ -676,7 +629,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         className: "bg-accent text-accent-foreground",
       });
     } catch (error) {
-      console.error("Error requesting plan refund:", error);
       toast({ title: "Erro ao Solicitar", description: "Não foi possível enviar sua solicitação.", variant: "destructive" });
     }
   };
