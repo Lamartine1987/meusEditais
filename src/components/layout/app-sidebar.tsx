@@ -109,6 +109,21 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {user.isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === '/admin'}
+                    tooltip={{content: "Admin", side:"right", align:"center"}}
+                    onClick={closeMobileSidebar}
+                  >
+                    <Link href="/admin">
+                      <Shield />
+                      <span>Admin</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </>
           )}
           <SidebarMenuItem>
