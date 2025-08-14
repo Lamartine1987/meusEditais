@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -8,7 +9,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, AlertTriangle, ShieldCheck, Users, BadgeHelp } from 'lucide-react';
-import type { User, PlanId } from '@/types';
+import type { User, PlanId, PlanDetails } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
@@ -133,7 +134,7 @@ export default function AdminPage() {
                                                 <TableCell>
                                                     {u.activePlans && u.activePlans.length > 0 ? (
                                                         <div className="flex flex-col gap-1">
-                                                            {u.activePlans.map(plan => (
+                                                            {u.activePlans.map((plan: PlanDetails) => (
                                                                 <TooltipProvider key={plan.stripePaymentIntentId || plan.startDate}>
                                                                     <Tooltip>
                                                                         <TooltipTrigger asChild>
