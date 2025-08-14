@@ -1,5 +1,5 @@
 
-import { initializeApp as initializeAdminApp, getApps as getAdminApps, App as AdminApp, credential } from 'firebase-admin/app';
+import { initializeApp as initializeAdminApp, getApps as getAdminApps, App as AdminApp, Credential } from 'firebase-admin/app';
 import { getDatabase as getAdminDatabase, Database } from 'firebase-admin/database';
 import { auth as adminAuth } from 'firebase-admin';
 
