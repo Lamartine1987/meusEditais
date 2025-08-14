@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, AlertTriangle, ShieldCheck, Users, BadgeHelp, CheckCircle } from 'lucide-react';
+import { Loader2, AlertTriangle, ShieldCheck, Users, BadgeHelp, CheckCircle, Filter } from 'lucide-react';
 import type { User, PlanId, PlanDetails } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,8 @@ import { ptBR } from 'date-fns/locale';
 import { getAuth } from 'firebase/auth';
 import { processRefund } from '@/actions/admin-actions';
 import { useToast } from '@/hooks/use-toast';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from '@/components/ui/label';
 
 const getPlanDisplayName = (planId?: PlanId | null): string => {
     if (!planId) return "Nenhum";
@@ -38,6 +40,7 @@ export default function AdminPage() {
     const [error, setError] = useState<string | null>(null);
     const [processingRefundId, setProcessingRefundId] = useState<string | null>(null);
     const { toast } = useToast();
+    const [refundFilter, setRefundFilter] = useState('all');
 
     const fetchUsers = async () => {
         try {
@@ -50,6 +53,7 @@ export default function AdminPage() {
             }
             
             const idToken = await currentUser.getIdToken();
+            console.log("[AdminPage] Fetching users with token:", idToken ? "Token present" : "Token MISSING");
 
             const res = await fetch('/api/admin/users', {
                 headers: {
@@ -59,11 +63,13 @@ export default function AdminPage() {
 
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({ error: 'Falha ao analisar a resposta de erro.' }));
+                 console.error("[AdminPage] Error response from API:", res.status, errorData);
                 throw new Error(errorData.error || `Falha ao buscar dados dos usuários. Status: ${res.status}`);
             }
             const data = await res.json();
             setUsers(data);
         } catch (err: any) {
+            console.error("[AdminPage] Error in fetchUsers:", err);
             setError(err.message);
         } finally {
             setLoadingData(false);
@@ -79,6 +85,21 @@ export default function AdminPage() {
             fetchUsers();
         }
     }, [user, authLoading, router]);
+
+    const filteredUsers = useMemo(() => {
+        if (refundFilter === 'all') {
+            return users;
+        }
+        return users.filter(u => {
+            if (refundFilter === 'refundRequested') {
+                return u.activePlans?.some(p => p.status === 'refundRequested');
+            }
+            if (refundFilter === 'refunded') {
+                return u.planHistory?.some(p => p.status === 'refunded');
+            }
+            return false;
+        });
+    }, [users, refundFilter]);
     
     const handleProcessRefund = async (userId: string, paymentIntentId: string) => {
         setProcessingRefundId(paymentIntentId);
@@ -125,13 +146,30 @@ export default function AdminPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center">
-                            <Users className="mr-2 h-5 w-5" />
-                            Lista de Usuários
-                        </CardTitle>
-                        <CardDescription>
-                            Total de {users.length} usuário(s) cadastrado(s).
-                        </CardDescription>
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                                <CardTitle className="flex items-center">
+                                    <Users className="mr-2 h-5 w-5" />
+                                    Lista de Usuários
+                                </CardTitle>
+                                <CardDescription>
+                                    Exibindo {filteredUsers.length} de {users.length} usuário(s) cadastrado(s).
+                                </CardDescription>
+                            </div>
+                            <div className="w-full sm:w-auto">
+                                <Label htmlFor="refund-filter" className="text-xs text-muted-foreground">Filtrar por reembolso</Label>
+                                <Select value={refundFilter} onValueChange={setRefundFilter}>
+                                    <SelectTrigger id="refund-filter" className="w-full sm:w-[200px]">
+                                        <SelectValue placeholder="Filtrar por status..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos os Usuários</SelectItem>
+                                        <SelectItem value="refundRequested">Reembolsos Pendentes</SelectItem>
+                                        <SelectItem value="refunded">Reembolsados</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         {error ? (
@@ -152,7 +190,7 @@ export default function AdminPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {users.map((u) => (
+                                        {filteredUsers.map((u) => (
                                             <TableRow key={u.id}>
                                                 <TableCell className="font-medium">{u.name}</TableCell>
                                                 <TableCell>{u.email}</TableCell>
@@ -240,6 +278,12 @@ export default function AdminPage() {
                                         ))}
                                     </TableBody>
                                 </Table>
+                                {filteredUsers.length === 0 && (
+                                    <div className="text-center p-8 text-muted-foreground">
+                                        <Filter className="mx-auto h-8 w-8 mb-2" />
+                                        Nenhum usuário encontrado para o filtro selecionado.
+                                    </div>
+                                )}
                             </div>
                         )}
                     </CardContent>
