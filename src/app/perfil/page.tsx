@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
@@ -14,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package, DollarSign } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package, DollarSign, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import type { PlanId, Edital as EditalType, Cargo as CargoType, PlanDetails } from '@/types';
@@ -380,6 +379,7 @@ export default function ProfilePage() {
                                 <h3 className="text-lg font-semibold text-foreground flex items-center">
                                   <Package className="mr-2 h-5 w-5" />
                                   {getPlanDisplayName(plan.planId)}
+                                   {plan.status === 'refundRequested' && <Badge variant="destructive" className="ml-2 animate-pulse"><Clock className="mr-1.5 h-3 w-3" /> Reembolso em Processamento</Badge>}
                                 </h3>
                                 <p className="text-sm text-muted-foreground mt-1 pl-7">
                                   {getPlanDetailsDescription(plan)}
@@ -463,21 +463,25 @@ export default function ProfilePage() {
         <Card className="shadow-lg rounded-xl bg-card">
             <CardHeader>
                 <CardTitle className="text-xl flex items-center"><History className="mr-3 h-6 w-6 text-primary"/>Histórico de Assinaturas</CardTitle>
-                <CardDescription>Seus planos anteriores.</CardDescription>
+                <CardDescription>Seus planos anteriores e reembolsados.</CardDescription>
             </CardHeader>
             <Separator className="mb-1" />
             <CardContent className="pt-6 space-y-4">
                 {user.planHistory && user.planHistory.length > 0 ? (
                     <ul className="space-y-3">
                         {user.planHistory.map((plan, index) => {
-                            const status = "Expirado/Substituído";
-
+                            let statusText = "Expirado/Substituído";
+                            let badgeVariant: "secondary" | "outline" = "outline";
+                            if (plan.status === 'refunded') {
+                                statusText = "Reembolsado";
+                                badgeVariant = "secondary";
+                            }
                             return (
-                                <li key={index} className="p-3 border rounded-md text-sm">
+                                <li key={plan.stripePaymentIntentId || index} className="p-3 border rounded-md text-sm">
                                     <div className="flex justify-between items-center mb-1">
                                       <p className="font-semibold">{getPlanDisplayName(plan.planId)}</p>
-                                      <Badge variant={'secondary'}>
-                                        {status}
+                                      <Badge variant={badgeVariant}>
+                                        {statusText}
                                       </Badge>
                                     </div>
                                     {plan.startDate && (
