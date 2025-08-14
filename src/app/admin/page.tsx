@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, AlertTriangle, ShieldCheck, Users, BadgeHelp } from 'lucide-react';
-import type { User, PlanDetails, PlanId } from '@/types';
+import type { User, PlanId } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
@@ -40,9 +40,10 @@ export default function AdminPage() {
                 router.push('/login?redirect=/admin');
                 return;
             }
+            // A verificação de admin será feita no servidor, mas podemos ter uma verificação inicial no cliente
             if (!user.isAdmin) {
-                router.push('/'); // Redireciona para a home se não for admin
-                return;
+                // Não redirecione imediatamente, permita que a chamada à API determine o acesso.
+                // Isso evita um piscar de tela se o estado do cliente estiver desatualizado.
             }
 
             const fetchUsers = async () => {
@@ -63,8 +64,8 @@ export default function AdminPage() {
                     });
 
                     if (!res.ok) {
-                        const errorData = await res.json();
-                        throw new Error(errorData.error || 'Falha ao buscar dados dos usuários.');
+                        const errorData = await res.json().catch(() => ({ error: 'Falha ao analisar a resposta de erro.' }));
+                        throw new Error(errorData.error || `Falha ao buscar dados dos usuários. Status: ${res.status}`);
                     }
                     const data = await res.json();
                     setUsers(data);
@@ -84,23 +85,6 @@ export default function AdminPage() {
             <PageWrapper>
                 <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-screen">
                     <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                </div>
-            </PageWrapper>
-        );
-    }
-
-    if (!user?.isAdmin) {
-         return (
-            <PageWrapper>
-                <div className="container mx-auto px-4 py-8 text-center">
-                    <Card className="max-w-md mx-auto">
-                        <CardHeader>
-                            <CardTitle>Acesso Negado</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p>Você não tem permissão para acessar esta página.</p>
-                        </CardContent>
-                    </Card>
                 </div>
             </PageWrapper>
         );
