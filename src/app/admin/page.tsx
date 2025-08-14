@@ -7,12 +7,13 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, AlertTriangle, ShieldCheck, Users, BadgeHelp, BadgeCheck } from 'lucide-react';
+import { Loader2, AlertTriangle, ShieldCheck, Users, BadgeHelp } from 'lucide-react';
 import type { User, PlanDetails, PlanId } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { getAuth } from 'firebase/auth';
 
 const getPlanDisplayName = (planId?: PlanId | null): string => {
     if (!planId) return "Nenhum";
@@ -46,7 +47,21 @@ export default function AdminPage() {
 
             const fetchUsers = async () => {
                 try {
-                    const res = await fetch('/api/admin/users');
+                    const auth = getAuth();
+                    const currentUser = auth.currentUser;
+
+                    if (!currentUser) {
+                        throw new Error("Usuário não autenticado para fazer a solicitação.");
+                    }
+                    
+                    const idToken = await currentUser.getIdToken();
+
+                    const res = await fetch('/api/admin/users', {
+                        headers: {
+                            'Authorization': `Bearer ${idToken}`,
+                        },
+                    });
+
                     if (!res.ok) {
                         const errorData = await res.json();
                         throw new Error(errorData.error || 'Falha ao buscar dados dos usuários.');
