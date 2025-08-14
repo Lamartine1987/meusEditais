@@ -1,36 +1,33 @@
 
-import { initializeApp as initializeAdminApp, getApps as getAdminApps, App as AdminApp, Credential } from 'firebase-admin/app';
-import { getDatabase as getAdminDatabase, Database } from 'firebase-admin/database';
-import { auth as adminAuth } from 'firebase-admin';
+import { initializeApp, getApp, getApps, type App } from 'firebase-admin/app';
+import { getDatabase, type Database } from 'firebase-admin/database';
+import { getAuth, type Auth } from 'firebase-admin/auth';
 
+let adminApp: App;
 let adminDb: Database;
-let auth: adminAuth.Auth;
+let auth: Auth;
 
-// This pattern ensures we're not re-initializing the app on every hot-reload or serverless function invocation.
-if (!getAdminApps().length) {
+// Este padrão garante que não estamos reinicializando o app em cada hot-reload ou invocação de função serverless.
+if (!getApps().length) {
   try {
-    // When deployed to Google Cloud environments, the SDK can automatically discover credentials.
-    // No need to pass a service account key file.
     console.log("[firebase-admin.ts] Initializing Firebase Admin SDK...");
-    const adminApp = initializeAdminApp({
+    adminApp = initializeApp({
       databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/"
     });
-    
-    adminDb = getAdminDatabase(adminApp);
-    auth = adminAuth(adminApp);
     console.log("[firebase-admin.ts] Firebase Admin SDK initialized successfully.");
-
   } catch (error: any) {
     console.error("[firebase-admin.ts] CRITICAL: Failed to initialize Firebase Admin SDK.", error);
-    // Create a dummy object to prevent the app from crashing, while logging the error.
-    adminDb = { ref: () => { throw new Error("Firebase Admin DB not initialized."); } } as unknown as Database;
-    auth = { verifyIdToken: () => { throw new Error("Firebase Admin Auth not initialized."); } } as unknown as adminAuth.Auth;
+    // Lança um erro para interromper o processo se a inicialização falhar,
+    // pois a aplicação não pode funcionar corretamente sem ela.
+    throw new Error("Could not initialize Firebase Admin SDK. See server logs for details.");
   }
 } else {
-    const adminApp = getAdminApps()[0];
-    adminDb = getAdminDatabase(adminApp);
-    auth = adminAuth(adminApp);
-    console.log("[firebase-admin.ts] Using existing Firebase Admin SDK instance.");
+  adminApp = getApp();
+  console.log("[firebase-admin.ts] Using existing Firebase Admin SDK instance.");
 }
+
+// Obtém os serviços usando a instância do app inicializada.
+adminDb = getDatabase(adminApp);
+auth = getAuth(adminApp);
 
 export { adminDb, auth };
