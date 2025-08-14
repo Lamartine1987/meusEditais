@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from 'react';
@@ -8,13 +7,16 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, AlertTriangle, ShieldCheck, Users, BadgeHelp } from 'lucide-react';
+import { Loader2, AlertTriangle, ShieldCheck, Users, BadgeHelp, CheckCircle } from 'lucide-react';
 import type { User, PlanId, PlanDetails } from '@/types';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getAuth } from 'firebase/auth';
+import { processRefund } from '@/actions/admin-actions';
+import { useToast } from '@/hooks/use-toast';
 
 const getPlanDisplayName = (planId?: PlanId | null): string => {
     if (!planId) return "Nenhum";
@@ -34,6 +36,39 @@ export default function AdminPage() {
     const [users, setUsers] = useState<User[]>([]);
     const [loadingData, setLoadingData] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [processingRefundId, setProcessingRefundId] = useState<string | null>(null);
+    const { toast } = useToast();
+
+    const fetchUsers = async () => {
+        try {
+            setLoadingData(true);
+            const auth = getAuth();
+            const currentUser = auth.currentUser;
+
+            if (!currentUser) {
+                throw new Error("Usuário não autenticado para fazer a solicitação.");
+            }
+            
+            const idToken = await currentUser.getIdToken();
+
+            const res = await fetch('/api/admin/users', {
+                headers: {
+                    'Authorization': `Bearer ${idToken}`,
+                },
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({ error: 'Falha ao analisar a resposta de erro.' }));
+                throw new Error(errorData.error || `Falha ao buscar dados dos usuários. Status: ${res.status}`);
+            }
+            const data = await res.json();
+            setUsers(data);
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setLoadingData(false);
+        }
+    };
 
     useEffect(() => {
         if (!authLoading) {
@@ -41,45 +76,34 @@ export default function AdminPage() {
                 router.push('/login?redirect=/admin');
                 return;
             }
-            // A verificação de admin será feita no servidor, mas podemos ter uma verificação inicial no cliente
-            if (!user.isAdmin) {
-                // Não redirecione imediatamente, permita que a chamada à API determine o acesso.
-                // Isso evita um piscar de tela se o estado do cliente estiver desatualizado.
-            }
-
-            const fetchUsers = async () => {
-                try {
-                    const auth = getAuth();
-                    const currentUser = auth.currentUser;
-
-                    if (!currentUser) {
-                        throw new Error("Usuário não autenticado para fazer a solicitação.");
-                    }
-                    
-                    const idToken = await currentUser.getIdToken();
-
-                    const res = await fetch('/api/admin/users', {
-                        headers: {
-                            'Authorization': `Bearer ${idToken}`,
-                        },
-                    });
-
-                    if (!res.ok) {
-                        const errorData = await res.json().catch(() => ({ error: 'Falha ao analisar a resposta de erro.' }));
-                        throw new Error(errorData.error || `Falha ao buscar dados dos usuários. Status: ${res.status}`);
-                    }
-                    const data = await res.json();
-                    setUsers(data);
-                } catch (err: any) {
-                    setError(err.message);
-                } finally {
-                    setLoadingData(false);
-                }
-            };
-
             fetchUsers();
         }
     }, [user, authLoading, router]);
+    
+    const handleProcessRefund = async (userId: string, paymentIntentId: string) => {
+        setProcessingRefundId(paymentIntentId);
+        try {
+            const idToken = await getAuth().currentUser?.getIdToken();
+            if (!idToken) throw new Error("Token de autenticação não encontrado.");
+            
+            await processRefund({ userId, paymentIntentId, idToken });
+            toast({
+                title: "Reembolso Processado!",
+                description: "O status do plano foi atualizado para reembolsado.",
+                variant: 'default',
+                className: "bg-accent text-accent-foreground",
+            });
+            await fetchUsers(); // Recarrega os dados para refletir a mudança
+        } catch (error: any) {
+            toast({
+                title: "Erro ao Processar Reembolso",
+                description: error.message || "Não foi possível atualizar o status do plano.",
+                variant: 'destructive',
+            });
+        } finally {
+            setProcessingRefundId(null);
+        }
+    };
 
     if (authLoading || loadingData) {
         return (
@@ -123,6 +147,7 @@ export default function AdminPage() {
                                             <TableHead>Nome</TableHead>
                                             <TableHead>Email</TableHead>
                                             <TableHead>Planos Ativos</TableHead>
+                                            <TableHead>Histórico de Planos</TableHead>
                                             <TableHead className="text-center">Admin</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -133,33 +158,72 @@ export default function AdminPage() {
                                                 <TableCell>{u.email}</TableCell>
                                                 <TableCell>
                                                     {u.activePlans && u.activePlans.length > 0 ? (
-                                                        <div className="flex flex-col gap-1">
+                                                        <div className="flex flex-col gap-1.5">
                                                             {u.activePlans.map((plan: PlanDetails) => (
-                                                                <TooltipProvider key={plan.stripePaymentIntentId || plan.startDate}>
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                            <Badge
-                                                                                variant={plan.status === 'refundRequested' ? 'destructive' : 'secondary'}
-                                                                                className="cursor-pointer"
-                                                                            >
-                                                                                {getPlanDisplayName(plan.planId)}
-                                                                                {plan.status === 'refundRequested' && <BadgeHelp className="ml-1.5 h-3 w-3"/>}
-                                                                            </Badge>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent>
-                                                                            <p>ID do Pagamento: {plan.stripePaymentIntentId || 'N/A'}</p>
-                                                                            {plan.startDate && <p>Início: {format(parseISO(plan.startDate), 'dd/MM/yy', {locale: ptBR})}</p>}
-                                                                            {plan.expiryDate && <p>Expira: {format(parseISO(plan.expiryDate), 'dd/MM/yy', {locale: ptBR})}</p>}
-                                                                            {plan.status === 'refundRequested' && <p className="font-bold text-destructive">REEMBOLSO SOLICITADO</p>}
-                                                                            {plan.requestDate && <p>Data Solicitação: {format(parseISO(plan.requestDate), 'dd/MM/yy HH:mm', {locale: ptBR})}</p>}
-                                                                        </TooltipContent>
-                                                                    </Tooltip>
-                                                                </TooltipProvider>
+                                                                <div key={plan.stripePaymentIntentId || plan.startDate} className="flex flex-col gap-1">
+                                                                    <TooltipProvider>
+                                                                        <Tooltip>
+                                                                            <TooltipTrigger asChild>
+                                                                                <Badge
+                                                                                    variant={plan.status === 'refundRequested' ? 'destructive' : 'secondary'}
+                                                                                    className="cursor-pointer self-start"
+                                                                                >
+                                                                                    {getPlanDisplayName(plan.planId)}
+                                                                                    {plan.status === 'refundRequested' && <BadgeHelp className="ml-1.5 h-3 w-3"/>}
+                                                                                </Badge>
+                                                                            </TooltipTrigger>
+                                                                            <TooltipContent>
+                                                                                <p>ID do Pagamento: {plan.stripePaymentIntentId || 'N/A'}</p>
+                                                                                {plan.startDate && <p>Início: {format(parseISO(plan.startDate), 'dd/MM/yy', {locale: ptBR})}</p>}
+                                                                                {plan.expiryDate && <p>Expira: {format(parseISO(plan.expiryDate), 'dd/MM/yy', {locale: ptBR})}</p>}
+                                                                                {plan.status === 'refundRequested' && <p className="font-bold text-destructive">REEMBOLSO SOLICITADO</p>}
+                                                                                {plan.requestDate && <p>Data Solicitação: {format(parseISO(plan.requestDate), 'dd/MM/yy HH:mm', {locale: ptBR})}</p>}
+                                                                            </TooltipContent>
+                                                                        </Tooltip>
+                                                                    </TooltipProvider>
+                                                                    {plan.status === 'refundRequested' && plan.stripePaymentIntentId && (
+                                                                        <Button 
+                                                                            size="sm" 
+                                                                            variant="outline" 
+                                                                            className="h-7 text-xs"
+                                                                            onClick={() => handleProcessRefund(u.id, plan.stripePaymentIntentId!)}
+                                                                            disabled={processingRefundId === plan.stripePaymentIntentId}
+                                                                        >
+                                                                            {processingRefundId === plan.stripePaymentIntentId ? <Loader2 className="h-3 w-3 animate-spin mr-1"/> : <CheckCircle className="h-3 w-3 mr-1"/>}
+                                                                            Processar Reembolso
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
                                                             ))}
                                                         </div>
                                                     ) : (
                                                         <Badge variant="outline">Nenhum</Badge>
                                                     )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {u.planHistory && u.planHistory.length > 0 ? (
+                                                        <div className="flex flex-col gap-1">
+                                                            {u.planHistory.map((plan: PlanDetails) => (
+                                                                <TooltipProvider key={plan.stripePaymentIntentId || plan.startDate}>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <Badge
+                                                                                variant={plan.status === 'refunded' ? 'secondary' : 'outline'}
+                                                                                className="cursor-pointer self-start"
+                                                                            >
+                                                                                {plan.status === 'refunded' ? 'Reembolsado' : 'Expirado'}: {getPlanDisplayName(plan.planId)}
+                                                                            </Badge>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p>ID do Pagamento: {plan.stripePaymentIntentId || 'N/A'}</p>
+                                                                            {plan.status === 'refunded' && plan.refundedDate && <p>Data Reembolso: {format(parseISO(plan.refundedDate), 'dd/MM/yy HH:mm', {locale: ptBR})}</p>}
+                                                                            {plan.startDate && <p>Período: {format(parseISO(plan.startDate), 'dd/MM/yy', {locale: ptBR})} - {plan.expiryDate ? format(parseISO(plan.expiryDate), 'dd/MM/yy', {locale: ptBR}) : 'N/A'}</p>}
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                </TooltipProvider>
+                                                            ))}
+                                                        </div>
+                                                    ) : null}
                                                 </TableCell>
                                                 <TableCell className="text-center">
                                                     {u.isAdmin && (

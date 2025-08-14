@@ -1,4 +1,3 @@
-
 export interface NoteEntry {
   id: string; // Unique ID for the note
   compositeTopicId: string;
@@ -48,8 +47,9 @@ export interface PlanDetails {
   stripePaymentIntentId?: string | null;
   stripeCustomerId?: string | null;
   // Refund status
-  status?: 'active' | 'refundRequested';
+  status?: 'active' | 'refundRequested' | 'refunded';
   requestDate?: string; // ISO date when refund was requested
+  refundedDate?: string; // ISO date when refund was processed
 }
 
 export interface User {
