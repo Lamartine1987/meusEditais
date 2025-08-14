@@ -72,9 +72,11 @@ const cleanProgressForCargo = (user: AppUser, cargoCompositeIdPrefix: string): P
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
   const { toast } = useToast();
   const dbUnsubscribeRef = useRef<Unsubscribe | null>(null);
+  // Get router once and pass it to functions that need it
+  const router = useRouter();
+
 
   useEffect(() => {
     if (!auth) {
@@ -189,7 +191,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 });
             }
 
-          } catch (error) {
+          } catch (error: any) {
+            console.error("[AuthProvider] Erro ao ler dados do usuário do DB:", error);
             toast({ title: "Erro ao carregar dados", description: "Não foi possível buscar seus dados salvos.", variant: "destructive" });
             setUser({
               id: firebaseUser.uid, name: firebaseUser.displayName || 'Usuário', email: firebaseUser.email || '',
@@ -201,7 +204,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setLoading(false);
           }
         }, (error) => {
-          toast({ title: "Erro de Conexão com Dados", description: "Não foi possível sincronizar seus dados.", variant: "destructive" });
+          console.error("[AuthProvider] Erro de permissão ou conexão ao DB:", error);
+          toast({ title: "Erro de Conexão com Dados", description: "Não foi possível sincronizar seus dados. Verifique as regras de segurança do Firebase.", variant: "destructive", duration: 7000 });
           setUser(null);
           setLoading(false);
         });
