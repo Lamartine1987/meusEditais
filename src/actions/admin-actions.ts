@@ -3,7 +3,7 @@
 import { adminDb, auth as adminAuth } from '@/lib/firebase-admin';
 import type { User as AppUser, PlanDetails } from '@/types';
 
-async function verifyAdmin(idToken: string): Promise<boolean> {
+async function verifyAdmin(idToken: string): Promise<{isAdmin: boolean; uid: string | null}> {
     try {
         const decodedToken = await adminAuth.verifyIdToken(idToken);
         const uid = decodedToken.uid;
@@ -11,10 +11,10 @@ async function verifyAdmin(idToken: string): Promise<boolean> {
         const adminRef = adminDb.ref(`admins/${uid}`);
         const snapshot = await adminRef.once('value');
         
-        return snapshot.exists();
+        return { isAdmin: snapshot.exists(), uid };
     } catch (error) {
         console.error("[AdminAction] Admin verification failed:", error);
-        return false;
+        return { isAdmin: false, uid: null };
     }
 }
 
@@ -27,8 +27,8 @@ interface ProcessRefundInput {
 export async function processRefund(input: ProcessRefundInput): Promise<{ success: true }> {
     const { userId, paymentIntentId, idToken } = input;
     
-    const isAdmin = await verifyAdmin(idToken);
-    if (!isAdmin) {
+    const { isAdmin, uid: adminUid } = await verifyAdmin(idToken);
+    if (!isAdmin || !adminUid) {
         throw new Error("Acesso negado. Apenas administradores podem processar reembolsos.");
     }
     
@@ -55,6 +55,7 @@ export async function processRefund(input: ProcessRefundInput): Promise<{ succes
         ...activePlans[planIndex],
         status: 'refunded' as const,
         refundedDate: new Date().toISOString(),
+        refundedBy: adminUid, // Salva o UID do admin que processou
     };
 
     // Remove o plano dos ativos e adiciona ao histórico

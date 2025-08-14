@@ -50,6 +50,7 @@ export interface PlanDetails {
   status?: 'active' | 'refundRequested' | 'refunded';
   requestDate?: string; // ISO date when refund was requested
   refundedDate?: string; // ISO date when refund was processed
+  refundedBy?: string; // UID of the admin who processed the refund
 }
 
 export interface User {

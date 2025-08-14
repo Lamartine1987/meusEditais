@@ -203,7 +203,9 @@ export default function AdminPage() {
                                                 <TableCell>
                                                     {u.planHistory && u.planHistory.length > 0 ? (
                                                         <div className="flex flex-col gap-1">
-                                                            {u.planHistory.map((plan: PlanDetails) => (
+                                                            {u.planHistory.map((plan: PlanDetails) => {
+                                                                const adminProcessor = plan.refundedBy ? users.find(adm => adm.id === plan.refundedBy) : null;
+                                                                return (
                                                                 <TooltipProvider key={plan.stripePaymentIntentId || plan.startDate}>
                                                                     <Tooltip>
                                                                         <TooltipTrigger asChild>
@@ -217,11 +219,12 @@ export default function AdminPage() {
                                                                         <TooltipContent>
                                                                             <p>ID do Pagamento: {plan.stripePaymentIntentId || 'N/A'}</p>
                                                                             {plan.status === 'refunded' && plan.refundedDate && <p>Data Reembolso: {format(parseISO(plan.refundedDate), 'dd/MM/yy HH:mm', {locale: ptBR})}</p>}
+                                                                            {plan.status === 'refunded' && adminProcessor && <p>Processado por: {adminProcessor.name}</p>}
                                                                             {plan.startDate && <p>Período: {format(parseISO(plan.startDate), 'dd/MM/yy', {locale: ptBR})} - {plan.expiryDate ? format(parseISO(plan.expiryDate), 'dd/MM/yy', {locale: ptBR}) : 'N/A'}</p>}
                                                                         </TooltipContent>
                                                                     </Tooltip>
                                                                 </TooltipProvider>
-                                                            ))}
+                                                            )})}
                                                         </div>
                                                     ) : null}
                                                 </TableCell>
