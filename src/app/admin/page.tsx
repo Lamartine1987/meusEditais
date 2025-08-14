@@ -147,8 +147,8 @@ export default function AdminPage() {
                                             <TableHead>Nome</TableHead>
                                             <TableHead>Email</TableHead>
                                             <TableHead>Planos Ativos</TableHead>
-                                            <TableHead>Histórico de Planos</TableHead>
-                                            <TableHead className="text-center">Admin</TableHead>
+                                            <TableHead>Detalhes da Transação</TableHead>
+                                            <TableHead className="text-center">Status Admin</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -202,29 +202,23 @@ export default function AdminPage() {
                                                 </TableCell>
                                                 <TableCell>
                                                     {u.planHistory && u.planHistory.length > 0 ? (
-                                                        <div className="flex flex-col gap-1">
+                                                        <div className="flex flex-col gap-2 text-xs">
                                                             {u.planHistory.map((plan: PlanDetails) => {
                                                                 const adminProcessor = plan.refundedBy ? users.find(adm => adm.id === plan.refundedBy) : null;
                                                                 return (
-                                                                <TooltipProvider key={plan.stripePaymentIntentId || plan.startDate}>
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                            <Badge
-                                                                                variant={plan.status === 'refunded' ? 'secondary' : 'outline'}
-                                                                                className="cursor-pointer self-start"
-                                                                            >
-                                                                                {plan.status === 'refunded' ? 'Reembolsado' : 'Expirado'}: {getPlanDisplayName(plan.planId)}
-                                                                            </Badge>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent>
-                                                                            <p>ID do Pagamento: {plan.stripePaymentIntentId || 'N/A'}</p>
-                                                                            {plan.status === 'refunded' && plan.refundedDate && <p>Data Reembolso: {format(parseISO(plan.refundedDate), 'dd/MM/yy HH:mm', {locale: ptBR})}</p>}
-                                                                            {plan.status === 'refunded' && adminProcessor && <p>Processado por: {adminProcessor.name}</p>}
-                                                                            {plan.startDate && <p>Período: {format(parseISO(plan.startDate), 'dd/MM/yy', {locale: ptBR})} - {plan.expiryDate ? format(parseISO(plan.expiryDate), 'dd/MM/yy', {locale: ptBR}) : 'N/A'}</p>}
-                                                                        </TooltipContent>
-                                                                    </Tooltip>
-                                                                </TooltipProvider>
-                                                            )})}
+                                                                    <div key={plan.stripePaymentIntentId || plan.startDate} className="p-2 border rounded-md bg-muted/50">
+                                                                        <p className="font-semibold">
+                                                                            {plan.status === 'refunded' ? 'Reembolsado' : 'Expirado'}: {getPlanDisplayName(plan.planId)}
+                                                                        </p>
+                                                                        {plan.status === 'refunded' && (
+                                                                            <>
+                                                                                {plan.refundedDate && <p>Data: {format(parseISO(plan.refundedDate), 'dd/MM/yy HH:mm', { locale: ptBR })}</p>}
+                                                                                {adminProcessor && <p>Por: {adminProcessor.name}</p>}
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
                                                     ) : null}
                                                 </TableCell>
