@@ -34,6 +34,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from '@/components/ui/switch';
+import { isWithinGracePeriod } from '@/lib/utils';
 
 
 const profileSchema = z.object({
@@ -384,6 +385,7 @@ export default function ProfilePage() {
                 <ul className="space-y-4">
                   {user.activePlans.map((plan, index) => {
                     const isPlanRefunding = plan.stripePaymentIntentId ? isRequestingRefund === plan.stripePaymentIntentId : false;
+                    const canRequestRefund = isWithinGracePeriod(plan.startDate, 7);
                     return (
                         <li key={plan.stripePaymentIntentId || index} className="p-4 border rounded-lg bg-muted/50">
                           <div className="flex justify-between items-start gap-2">
@@ -406,15 +408,30 @@ export default function ProfilePage() {
                                         Reembolso Solicitado
                                     </Button>
                                   ) : (
-                                    <Button 
-                                      variant="destructive" 
-                                      size="sm"
-                                      onClick={() => handleRequestRefund(plan)}
-                                      disabled={isPlanRefunding || !plan.stripePaymentIntentId}
-                                    >
-                                      {isPlanRefunding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                      Solicitar Reembolso
-                                    </Button>
+                                    <TooltipProvider>
+                                      <Tooltip delayDuration={0}>
+                                        <TooltipTrigger asChild>
+                                          {/* Usamos um span para o TooltipTrigger funcionar corretamente com um botão desabilitado */}
+                                          <span tabIndex={0}>
+                                            <Button 
+                                              variant="destructive" 
+                                              size="sm"
+                                              onClick={() => handleRequestRefund(plan)}
+                                              disabled={isPlanRefunding || !plan.stripePaymentIntentId || !canRequestRefund}
+                                              className="w-full"
+                                            >
+                                              {isPlanRefunding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                              Solicitar Reembolso
+                                            </Button>
+                                          </span>
+                                        </TooltipTrigger>
+                                        {!canRequestRefund && (
+                                          <TooltipContent>
+                                            <p>O período de 7 dias para solicitar o reembolso expirou.</p>
+                                          </TooltipContent>
+                                        )}
+                                      </Tooltip>
+                                    </TooltipProvider>
                                   )}
                               </div>
                           )}
