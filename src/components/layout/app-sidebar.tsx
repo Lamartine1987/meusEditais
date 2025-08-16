@@ -13,9 +13,10 @@ import {
   SidebarFooter
 } from '@/components/ui/sidebar';
 import { AppLogo } from './app-logo';
-import { Home, Briefcase, BarChart3, Gem, Trophy, Star, Shield, Info } from 'lucide-react';
+import { Home, Briefcase, BarChart3, Gem, Trophy, Star, Shield, Info, FileText, Lock } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar'; 
 import { useAuth } from '@/hooks/use-auth';
+import { Separator } from '@/components/ui/separator';
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -143,7 +144,7 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarContent>
-       <SidebarFooter>
+       <SidebarFooter className="border-t">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
@@ -155,6 +156,33 @@ export function AppSidebar() {
               <Link href="/sobre-nos">
                 <Info />
                 <span>Sobre Nós</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+           <Separator className="my-1" />
+           <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={pathname === '/termos-de-uso'}
+              tooltip={{content: "Termos de Uso", side:"right", align:"center"}}
+              onClick={closeMobileSidebar}
+            >
+              <Link href="/termos-de-uso">
+                <FileText />
+                <span>Termos de Uso</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+           <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={pathname === '/politica-de-privacidade'}
+              tooltip={{content: "Política de Privacidade", side:"right", align:"center"}}
+              onClick={closeMobileSidebar}
+            >
+              <Link href="/politica-de-privacidade">
+                <Lock />
+                <span>Política de Privacidade</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
