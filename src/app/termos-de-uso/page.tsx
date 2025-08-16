@@ -35,11 +35,12 @@ export default function TermosDeUsoPage() {
                     </section>
                     
                     <section className="space-y-2">
-                        <h2 className="text-lg font-semibold text-primary">2. Planos e Pagamentos</h2>
+                        <h2 className="text-lg font-semibold text-primary">2. Planos, Pagamentos e Cancelamentos</h2>
                         <p>2.1. A plataforma oferece planos de acesso gratuitos (Teste) e pagos (Plano Cargo, Plano Edital, Plano Anual). Cada plano concede diferentes níveis de acesso ao conteúdo, conforme descrito na página "Nossos Planos".</p>
                         <p>2.2. Os pagamentos para planos pagos são processados através de nosso parceiro de pagamentos, Stripe. Ao fornecer informações de pagamento, você declara que tem o direito legal de usar o método de pagamento selecionado.</p>
                         <p>2.3. Os planos pagos são baseados em pagamento único com validade de 1 (um) ano. Não há cobranças recorrentes automáticas.</p>
-                        <p>2.4. A política de reembolso está sujeita às condições descritas em seu perfil. As solicitações de reembolso devem ser feitas através da página de perfil e serão analisadas pela nossa equipe administrativa.</p>
+                        <p>2.4. <strong>Cancelamento e Reembolso:</strong> O usuário pode solicitar o reembolso de um plano pago diretamente através da sua página de Perfil. A solicitação será analisada pela nossa equipe administrativa.</p>
+                        <p>2.5. Uma vez que o reembolso seja aprovado e processado por nossa equipe, a transação de estorno será iniciada junto à nossa processadora de pagamentos (Stripe). Você receberá um e-mail de confirmação da Stripe assim que o estorno for realizado. Por favor, esteja ciente de que, após nossa confirmação, o tempo para que o valor seja creditado em sua fatura ou conta depende exclusivamente dos prazos da sua operadora de cartão de crédito, podendo levar alguns dias úteis.</p>
                     </section>
 
                     <section className="space-y-2">
