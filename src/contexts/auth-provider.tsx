@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { User as AppUser, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, PlanId, PlanDetails, NoteEntry } from '@/types';
@@ -11,6 +10,7 @@ import {
   sendPasswordResetEmail,
   signOut,
   updateProfile,
+  deleteUser,
   type User as FirebaseUser 
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase'; 
@@ -52,6 +52,7 @@ interface AuthContextType {
   isPlanoCargoWithinGracePeriod: () => boolean;
   setRankingParticipation: (participate: boolean) => Promise<void>;
   requestPlanRefund: (paymentIntentId: string) => Promise<void>;
+  deleteUserAccount: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -637,6 +638,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const deleteUserAccount = async () => {
+    const firebaseCurrentUser = auth.currentUser;
+    if (!firebaseCurrentUser || !user || !db) {
+      toast({ title: "Erro", description: "Nenhuma sessão de usuário encontrada para exclusão.", variant: "destructive" });
+      throw new Error("Usuário não encontrado para exclusão.");
+    }
+  
+    try {
+      // 1. Deletar dados do Realtime Database
+      const userDbRef = ref(db, `users/${user.id}`);
+      await remove(userDbRef);
+  
+      // 2. Deletar o usuário do Firebase Authentication
+      await deleteUser(firebaseCurrentUser);
+  
+      toast({
+        title: "Conta Excluída",
+        description: "Sua conta e todos os seus dados foram excluídos com sucesso.",
+        variant: "default",
+        className: "bg-accent text-accent-foreground",
+      });
+      // O onAuthStateChanged irá lidar com o redirecionamento após a exclusão bem-sucedida.
+  
+    } catch (error: any) {
+      console.error("Erro ao excluir conta:", error);
+      let errorMessage = "Não foi possível excluir sua conta. Tente novamente mais tarde.";
+      if (error.code === 'auth/requires-recent-login') {
+        errorMessage = "Esta é uma operação sensível. Por favor, faça login novamente antes de excluir sua conta.";
+      }
+      toast({
+        title: "Falha na Exclusão da Conta",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 9000
+      });
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, loading, login, register, sendPasswordReset, logout, updateUser, 
@@ -645,7 +685,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
       addNote, deleteNote,
       cancelSubscription, startFreeTrial, changeCargoForPlanoCargo, isPlanoCargoWithinGracePeriod,
-      setRankingParticipation, requestPlanRefund
+      setRankingParticipation, requestPlanRefund,
+      deleteUserAccount
     }}>
       {children}
     </AuthContext.Provider>

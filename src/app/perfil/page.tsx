@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package, DollarSign, Clock } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package, DollarSign, Clock, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import type { PlanId, Edital as EditalType, Cargo as CargoType, PlanDetails } from '@/types';
@@ -43,11 +43,12 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export default function ProfilePage() {
-  const { user, updateUser, sendPasswordReset, cancelSubscription, loading: authLoading, isPlanoCargoWithinGracePeriod, setRankingParticipation, requestPlanRefund } = useAuth();
+  const { user, updateUser, sendPasswordReset, cancelSubscription, loading: authLoading, isPlanoCargoWithinGracePeriod, setRankingParticipation, requestPlanRefund, deleteUserAccount } = useAuth();
   const { toast } = useToast();
   const [isPasswordResetting, setIsPasswordResetting] = useState(false);
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
   const [isRequestingRefund, setIsRequestingRefund] = useState<string | null>(null);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   
   const [allEditaisData, setAllEditaisData] = useState<EditalType[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -209,6 +210,17 @@ export default function ProfilePage() {
       } finally {
           setIsRequestingRefund(null);
       }
+  };
+
+  const handleDeleteAccountConfirm = async () => {
+    setIsDeletingAccount(true);
+    try {
+        await deleteUserAccount();
+    } catch (error) {
+        // Toast is handled in auth-provider
+    } finally {
+        setIsDeletingAccount(false);
+    }
   };
 
 
@@ -498,6 +510,51 @@ export default function ProfilePage() {
                     <p className="text-sm text-muted-foreground text-center">Nenhum plano anterior encontrado.</p>
                 )}
             </CardContent>
+        </Card>
+        
+        <Card className="shadow-lg rounded-xl bg-card border-destructive">
+          <CardHeader>
+            <CardTitle className="text-xl flex items-center text-destructive"><AlertTriangle className="mr-3 h-6 w-6"/>Zona de Perigo</CardTitle>
+            <CardDescription>Ações permanentes e irreversíveis.</CardDescription>
+          </CardHeader>
+          <Separator />
+          <CardContent className="pt-6">
+             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+               <div>
+                  <h3 className="font-semibold">Excluir Conta</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Esta ação excluirá permanentemente sua conta, assinaturas e todos os seus dados de progresso. Esta ação não pode ser desfeita.
+                  </p>
+               </div>
+               <AlertDialog>
+                 <AlertDialogTrigger asChild>
+                   <Button variant="destructive" className="w-full sm:w-auto shrink-0">
+                     <Trash2 className="mr-2 h-4 w-4" />
+                     Excluir Minha Conta
+                   </Button>
+                 </AlertDialogTrigger>
+                 <AlertDialogContent>
+                   <AlertDialogHeader>
+                     <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
+                     <AlertDialogDescription>
+                       Esta ação é irreversível. Todos os seus dados, incluindo progresso de estudo, histórico de questões, anotações e informações de perfil, serão permanentemente apagados.
+                     </AlertDialogDescription>
+                   </AlertDialogHeader>
+                   <AlertDialogFooter>
+                     <AlertDialogCancel disabled={isDeletingAccount}>Cancelar</AlertDialogCancel>
+                     <AlertDialogAction
+                       className="bg-destructive hover:bg-destructive/90"
+                       onClick={handleDeleteAccountConfirm}
+                       disabled={isDeletingAccount}
+                     >
+                       {isDeletingAccount && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                       Sim, excluir minha conta
+                     </AlertDialogAction>
+                   </AlertDialogFooter>
+                 </AlertDialogContent>
+               </AlertDialog>
+             </div>
+          </CardContent>
         </Card>
 
       </div>
