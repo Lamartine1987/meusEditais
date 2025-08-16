@@ -10,9 +10,10 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarFooter
 } from '@/components/ui/sidebar';
 import { AppLogo } from './app-logo';
-import { Home, Briefcase, BarChart3, Gem, Trophy, Star, Shield } from 'lucide-react';
+import { Home, Briefcase, BarChart3, Gem, Trophy, Star, Shield, Info } from 'lucide-react';
 import { useSidebar } from '@/components/ui/sidebar'; 
 import { useAuth } from '@/hooks/use-auth';
 
@@ -142,6 +143,23 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarContent>
+       <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={pathname === '/sobre-nos'}
+              tooltip={{content: "Sobre Nós", side:"right", align:"center"}}
+              onClick={closeMobileSidebar}
+            >
+              <Link href="/sobre-nos">
+                <Info />
+                <span>Sobre Nós</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   );
 }
