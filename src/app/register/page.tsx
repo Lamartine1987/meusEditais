@@ -19,12 +19,17 @@ export default function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password.length < 6) {
       toast({ title: "Senha Inválida", description: "A senha deve ter pelo menos 6 caracteres.", variant: "destructive"});
+      return;
+    }
+    if (password !== confirmPassword) {
+      toast({ title: "Senhas não conferem", description: "Os campos de senha e confirmação devem ser iguais.", variant: "destructive"});
       return;
     }
     
@@ -101,6 +106,19 @@ export default function RegisterPage() {
                 required 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="text-base h-11 rounded-md shadow-sm"
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword" className="font-semibold">Confirmar Senha</Label>
+              <Input 
+                id="confirmPassword" 
+                type="password" 
+                placeholder="Repita a senha criada" 
+                required 
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 className="text-base h-11 rounded-md shadow-sm"
                 autoComplete="new-password"
               />
