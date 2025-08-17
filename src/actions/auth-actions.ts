@@ -2,7 +2,6 @@
 
 import { adminDb, auth as adminAuth } from '@/lib/firebase-admin';
 import { type User as AppUser } from '@/types';
-import { get, query, ref, orderByChild, equalTo } from "firebase/database";
 
 interface RegisterUserInput {
   name: string;
@@ -20,10 +19,9 @@ export async function registerUser(input: RegisterUserInput): Promise<RegisterUs
   const { name, email, cpf, password } = input;
 
   try {
-    // 1. Check for CPF uniqueness in Realtime Database
-    const usersRef = ref(adminDb, 'users');
-    const cpfQuery = query(usersRef, orderByChild('cpf'), equalTo(cpf));
-    const snapshot = await get(cpfQuery);
+    // 1. Check for CPF uniqueness in Realtime Database using Admin SDK syntax
+    const usersRef = adminDb.ref('users');
+    const snapshot = await usersRef.orderByChild('cpf').equalTo(cpf).once('value');
 
     if (snapshot.exists()) {
       return { error: 'Este CPF já está cadastrado.' };
@@ -37,7 +35,6 @@ export async function registerUser(input: RegisterUserInput): Promise<RegisterUs
     });
 
     // 3. Save user data (including CPF) in Realtime Database
-    const userRefDb = ref(adminDb, `users/${userRecord.uid}`);
     const newUserDbData: Omit<AppUser, 'id'> = {
       name: name,
       email: email,
