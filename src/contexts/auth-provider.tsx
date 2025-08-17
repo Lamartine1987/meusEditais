@@ -6,7 +6,6 @@ import {
   getAuth, 
   onAuthStateChanged, 
   signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   signOut,
   updateProfile,
@@ -18,6 +17,7 @@ import { ref, set, get, update, remove, onValue, type Unsubscribe } from "fireba
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
+import { registerUser } from '@/actions/auth-actions';
 
 const TRIAL_DURATION_DAYS = 30;
 
@@ -32,7 +32,7 @@ interface AuthContextType {
   user: AppUser | null;
   loading: boolean;
   login: (email: string, pass: string) => Promise<void>;
-  register: (name: string, email: string, pass: string) => Promise<void>;
+  register: (name: string, email: string, cpf: string, pass: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (updatedInfo: { name?: string; email?: string; avatarUrl?: string }) => Promise<void>; 
@@ -142,6 +142,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               id: firebaseUser.uid,
               name: dbData.name || firebaseUser.displayName || 'Usuário',
               email: dbData.email || firebaseUser.email || '',
+              cpf: dbData.cpf,
               avatarUrl: dbData.avatarUrl || firebaseUser.photoURL || undefined,
               registeredCargoIds: dbData.registeredCargoIds || [],
               studiedTopicIds: dbData.studiedTopicIds || [],
@@ -230,32 +231,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await signInWithEmailAndPassword(auth, email, pass);
   };
 
-  const register = async (name: string, email: string, pass: string) => {
-    if (!auth) throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
-    if (!db) throw new Error("O serviço de banco de dados não está disponível.");
-
-    const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-    const firebaseUser = userCredential.user;
-
-    await updateProfile(firebaseUser, { displayName: name });
-    
-    const userRefDb = ref(db, `users/${firebaseUser.uid}`);
-    
-    const newUserDbData: any = {
-        id: firebaseUser.uid,
-        name: name,
-        email: email,
-        registeredCargoIds: [], studiedTopicIds: [], studyLogs: [],
-        questionLogs: [], revisionSchedules: [], notes: [], activePlan: null,
-        activePlans: [], stripeCustomerId: null, hasHadFreeTrial: false,
-        planHistory: [], isRankingParticipant: null,
-    };
-
-    if (firebaseUser.photoURL) {
-      newUserDbData.avatarUrl = firebaseUser.photoURL;
+  const register = async (name: string, email: string, cpf: string, pass: string) => {
+    // This now delegates to the server action
+    const result = await registerUser({ name, email, cpf, password: pass });
+    if (result.error) {
+      throw new Error(result.error);
     }
-    
-    await set(userRefDb, newUserDbData);
+    // After successful server-side registration, sign the user in on the client
+    await signInWithEmailAndPassword(auth, email, pass);
   };
   
   const sendPasswordReset = async (email: string) => {
@@ -677,9 +660,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  return (
-    <AuthContext.Provider value={{ 
-      user, loading, login, register, sendPasswordReset, logout, updateUser, 
+  const contextValue: AuthContextType = {
+      user, loading, login, 
+      register: (name, email, cpf, pass) => register(name, email, cpf, pass),
+      sendPasswordReset, logout, updateUser, 
       registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, 
       deleteStudyLog,
       addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
@@ -687,7 +671,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       cancelSubscription, startFreeTrial, changeCargoForPlanoCargo, isPlanoCargoWithinGracePeriod,
       setRankingParticipation, requestPlanRefund,
       deleteUserAccount
-    }}>
+  };
+
+  return (
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

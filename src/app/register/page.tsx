@@ -7,17 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth } from '@/hooks/use-auth';
 import { AppLogo } from '@/components/layout/app-logo';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { registerUser } from '@/actions/auth-actions'; // Import server action
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [cpf, setCpf] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,24 +36,16 @@ export default function RegisterPage() {
     setIsSubmitting(true);
     
     try {
-      await register(name, email, password);
+      const result = await registerUser({ name, email, cpf, password });
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
       toast({ title: "Cadastro Realizado!", description: "Redirecionando para a página inicial...", variant: "default", className: "bg-accent text-accent-foreground" });
       router.push('/');
 
     } catch (error: any) {
-      let errorMessage = error.message || "Não foi possível realizar o cadastro.";
-
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = "Este e-mail já está em uso.";
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = "O formato do e-mail é inválido.";
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = "A senha é muito fraca. Tente uma senha mais forte.";
-      } else {
-         console.error("Registration failed:", error);
-      }
-
-      toast({ title: "Falha no Cadastro", description: errorMessage, variant: "destructive"});
+      toast({ title: "Falha no Cadastro", description: error.message, variant: "destructive"});
     } finally {
       setIsSubmitting(false);
     }
@@ -97,6 +89,19 @@ export default function RegisterPage() {
                 autoComplete="email"
               />
             </div>
+             <div className="space-y-2">
+              <Label htmlFor="cpf" className="font-semibold">CPF</Label>
+              <Input 
+                id="cpf" 
+                type="text" 
+                placeholder="000.000.000-00" 
+                required 
+                value={cpf}
+                onChange={(e) => setCpf(e.target.value)}
+                className="text-base h-11 rounded-md shadow-sm"
+                autoComplete="off"
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="password" className="font-semibold">Senha</Label>
               <Input 
@@ -125,8 +130,8 @@ export default function RegisterPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4 pt-2 pb-6">
-            <Button type="submit" className="w-full h-11 text-base" disabled={isSubmitting || authLoading}>
-              {(isSubmitting || authLoading) ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
+            <Button type="submit" className="w-full h-11 text-base" disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
               Cadastrar
             </Button>
             <p className="text-center text-sm text-muted-foreground">
