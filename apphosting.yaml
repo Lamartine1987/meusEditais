@@ -5,19 +5,19 @@ runConfig:
   maxInstances: 1
 
 # Para reduzir custos, todos os segredos foram consolidados em um único segredo.
-# Você precisará criar um segredo chamado 'MEUS_EDITAIS_SECRETS' no Secret Manager
-# com o seguinte conteúdo JSON, preenchendo com seus valores reais:
+# Você precisará editar seu segredo 'STRIPE_SECRETS' no Secret Manager
+# para que ele contenha o seguinte JSON, preenchendo com seus valores reais:
 # {
 #   "GOOGLE_API_KEY": "sua_google_api_key",
-#   "STRIPE_SECRET_KEY_PROD": "sua_stripe_secret_key",
-#   "STRIPE_WEBHOOK_SECRET_PROD": "seu_stripe_webhook_secret",
-#   "STRIPE_PRICE_ID_PLANO_CARGO": "seu_price_id_cargo",
-#   "STRIPE_PRICE_ID_PLANO_EDITAL": "seu_price_id_edital",
-#   "STRIPE_PRICE_ID_PLANO_ANUAL": "seu_price_id_anual"
+#   "SECRET_KEY_PROD": "sua_stripe_secret_key",
+#   "WEBHOOK_SECRET_PROD": "seu_stripe_webhook_secret",
+#   "PRICE_ID_PLANO_CARGO": "seu_price_id_cargo",
+#   "PRICE_ID_PLANO_EDITAL": "seu_price_id_edital",
+#   "PRICE_ID_PLANO_ANUAL": "seu_price_id_anual"
 # }
 env:
-  - variable: MEUS_EDITAIS_SECRETS
-    secret: MEUS_EDITAIS_SECRETS
+  - variable: CONSOLIDATED_SECRETS
+    secret: STRIPE_SECRETS
 
   # Chaves públicas que não precisam ser segredos.
   - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY

@@ -14,25 +14,34 @@ function parseAppSecrets(): AppSecrets {
   const defaultSecrets: AppSecrets = {
     GOOGLE_API_KEY: '',
     STRIPE_SECRET_KEY_PROD: '',
-    WEBHOOK_SECRET_PROD: '',
+    STRIPE_WEBHOOK_SECRET_PROD: '', // Corrigido de WEBHOOK_SECRET_PROD para STRIPE_WEBHOOK_SECRET_PROD
     // Use fallback placeholder values to allow build to succeed
-    PRICE_ID_PLANO_CARGO: 'price_plano_cargo_fallback_placeholder',
-    PRICE_ID_PLANO_EDITAL: 'price_plano_edital_fallback_placeholder',
-    PRICE_ID_PLANO_ANUAL: 'price_plano_anual_fallback_placeholder',
+    STRIPE_PRICE_ID_PLANO_CARGO: 'price_plano_cargo_fallback_placeholder',
+    STRIPE_PRICE_ID_PLANO_EDITAL: 'price_plano_edital_fallback_placeholder',
+    STRIPE_PRICE_ID_PLANO_ANUAL: 'price_plano_anual_fallback_placeholder',
   };
 
   try {
-    const secretsJson = process.env.MEUS_EDITAIS_SECRETS;
+    const secretsJson = process.env.CONSOLIDATED_SECRETS;
     if (secretsJson) {
       const parsed = JSON.parse(secretsJson);
       // Mescla os segredos analisados com os padrões para garantir que todas as chaves existam
-      return { ...defaultSecrets, ...parsed };
+      const finalSecrets = { ...defaultSecrets, ...parsed };
+      
+      // Mapeia as chaves do seu JSON para as chaves esperadas pela aplicação
+      finalSecrets.STRIPE_SECRET_KEY_PROD = parsed.SECRET_KEY_PROD || defaultSecrets.STRIPE_SECRET_KEY_PROD;
+      finalSecrets.STRIPE_WEBHOOK_SECRET_PROD = parsed.WEBHOOK_SECRET_PROD || defaultSecrets.STRIPE_WEBHOOK_SECRET_PROD;
+      finalSecrets.STRIPE_PRICE_ID_PLANO_CARGO = parsed.PRICE_ID_PLANO_CARGO || defaultSecrets.STRIPE_PRICE_ID_PLANO_CARGO;
+      finalSecrets.STRIPE_PRICE_ID_PLANO_EDITAL = parsed.PRICE_ID_PLANO_EDITAL || defaultSecrets.STRIPE_PRICE_ID_PLANO_EDITAL;
+      finalSecrets.STRIPE_PRICE_ID_PLANO_ANUAL = parsed.PRICE_ID_PLANO_ANUAL || defaultSecrets.STRIPE_PRICE_ID_PLANO_ANUAL;
+
+      return finalSecrets;
     }
     // Este log é esperado durante o desenvolvimento local se .env.local não estiver configurado
-    console.log("[config.ts] MEUS_EDITAIS_SECRETS env var not found. Using fallback values.");
+    console.log("[config.ts] CONSOLIDATED_SECRETS env var not found. Using fallback values.");
     return defaultSecrets;
   } catch (error) {
-    console.error("[config.ts] Failed to parse MEUS_EDITAIS_SECRETS JSON. Check if the secret is correctly formatted.", error);
+    console.error("[config.ts] Failed to parse CONSOLIDATED_SECRETS JSON. Check if the secret is correctly formatted.", error);
     return defaultSecrets;
   }
 }
