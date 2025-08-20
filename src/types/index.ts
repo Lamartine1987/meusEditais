@@ -72,6 +72,7 @@ export interface User {
   planHistory?: PlanDetails[];
   isRankingParticipant?: boolean | null; // null = undecided, true = yes, false = no
   isAdmin?: boolean; // Flag to indicate if user is an admin
+  termsAcceptedOn?: string; // ISO date string for when terms were accepted
 }
 
 export interface Topic {

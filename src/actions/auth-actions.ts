@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminDb, auth as adminAuth } from '@/lib/firebase-admin';
@@ -51,6 +52,7 @@ export async function registerUser(input: RegisterUserInput): Promise<RegisterUs
       hasHadFreeTrial: false,
       planHistory: [],
       isRankingParticipant: null,
+      termsAcceptedOn: new Date().toISOString(), // Salva a data de aceite
     };
     
     await adminDb.ref(`users/${userRecord.uid}`).set(newUserDbData);
