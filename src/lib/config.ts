@@ -68,5 +68,5 @@ export const appConfig: AppConfig = {
   
   // Lê as outras variáveis de ambiente diretamente
   NEXT_PUBLIC_FIREBASE_API_KEY: apiKey,
-  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: 'pk_test_51Pbm5qRxPl1dC9Z4B53p2L1Qf11FwSRAL5dGf1Pmc23s5kIq1vXfG1LqXkK92w1iG4U8kC9wLd2cWbI5a79Yy7fT00l8TZyfEk',
 };
