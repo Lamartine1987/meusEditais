@@ -9,7 +9,7 @@ runConfig:
     # A chave publicável do Stripe é segura para ser exposta.
     # SUBSTITUA PELA SUA CHAVE PUBLICÁVEL DE PRODUÇÃO REAL.
     - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-      value: "pk_live_SEU_VALOR_AQUI" # Substitua este valor
+      value: "pk_live_51RZvaGHTmnc0kY1cDAdcxoTWOqcK5xQYJR3lXmOOHKue1pm5hsq1RUOYpZu9DFWFntrbRlHVNK1g3i4498Pb0aWb00aap0ToqH" # Substitua este valor
 
 # Disponibiliza a chave de API do Firebase para o processo de build do Next.js.
 # Isso é CRÍTICO para o login e outras funcionalidades do Firebase no cliente funcionarem.
