@@ -2,10 +2,8 @@
 # https://firebase.google.com/docs/app-hosting/configure
 
 runConfig:
-  maxInstances: 1
+  # Disponibiliza os segredos do Stripe para o ambiente de execução do servidor.
   env:
-    # O segredo 'STRIPE_SECRETS' deve conter o JSON com as chaves do Stripe.
-    # Esta variável estará disponível no ambiente de execução do servidor.
     - variable: CONSOLIDATED_SECRETS
       secret: STRIPE_SECRETS
 
@@ -13,8 +11,8 @@ runConfig:
 # Isso é CRÍTICO para o login e outras funcionalidades do Firebase no cliente funcionarem.
 build:
   args:
-    # A variável GOOGLE_API_KEY_FOR_BUILD será populada com o valor do segredo GOOGLE_API_KEY.
-    GOOGLE_API_KEY_FOR_BUILD: ${GOOGLE_API_KEY}
+    # A variável NEXT_PUBLIC_FIREBASE_API_KEY estará disponível durante o build.
+    NEXT_PUBLIC_FIREBASE_API_KEY: ${GOOGLE_API_KEY}
 
 # Define os segredos que o App Hosting deve acessar.
 secretEnv:
