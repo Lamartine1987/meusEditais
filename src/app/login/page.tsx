@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, loading: authLoading } = useAuth();
+  const { login, loading: authLoading } from 'useAuth';
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

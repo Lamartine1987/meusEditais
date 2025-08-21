@@ -4,6 +4,8 @@ import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
 import { appConfig } from "./config";
 
+console.log(`[firebase.ts] Attempting to read Firebase API Key from appConfig. Key found: ${appConfig.NEXT_PUBLIC_FIREBASE_API_KEY ? 'YES' : 'NO'}`);
+
 const firebaseConfig = {
   apiKey: appConfig.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: "meuseditais.firebaseapp.com",
@@ -33,13 +35,14 @@ if (typeof window !== 'undefined' && !getApps().length) {
       console.error("[firebase.ts] CRITICAL: Firebase client initialization failed.", error);
     }
   } else {
-    console.error("[firebase.ts] CRITICAL: Firebase API key is invalid or missing. Firebase will not be initialized.");
+    console.error(`[firebase.ts] CRITICAL: Firebase API key is invalid or missing. Firebase will not be initialized. Key value was: "${firebaseConfig.apiKey}"`);
   }
 } else if (typeof window !== 'undefined') {
   app = getApp();
   auth = getAuth(app);
   db = getDatabase(app);
   functions = getFunctions(app);
+  console.log('[firebase.ts] Using existing Firebase client instance.');
 }
 
 // @ts-ignore

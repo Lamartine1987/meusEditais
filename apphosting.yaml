@@ -4,18 +4,8 @@
 # Disponibiliza os segredos para o ambiente de execução do servidor.
 runConfig:
   env:
-    - variable: GOOGLE_API_KEY
-      secret: GOOGLE_API_KEY
-    - variable: STRIPE_SECRET_KEY_PROD
-      secret: STRIPE_SECRET_KEY_PROD
-    - variable: STRIPE_WEBHOOK_SECRET_PROD
-      secret: STRIPE_WEBHOOK_SECRET_PROD
-    - variable: STRIPE_PRICE_ID_PLANO_CARGO
-      secret: STRIPE_PRICE_ID_PLANO_CARGO
-    - variable: STRIPE_PRICE_ID_PLANO_EDITAL
-      secret: STRIPE_PRICE_ID_PLANO_EDITAL
-    - variable: STRIPE_PRICE_ID_PLANO_ANUAL
-      secret: STRIPE_PRICE_ID_PLANO_ANUAL
+    - variable: CONSOLIDATED_SECRETS
+      secret: STRIPE_SECRETS
     - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
       secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 
@@ -29,9 +19,5 @@ build:
 # Define os segredos que o App Hosting deve acessar.
 secretEnv:
   - secret: GOOGLE_API_KEY
-  - secret: STRIPE_SECRET_KEY_PROD
-  - secret: STRIPE_WEBHOOK_SECRET_PROD
-  - secret: STRIPE_PRICE_ID_PLANO_CARGO
-  - secret: STRIPE_PRICE_ID_PLANO_EDITAL
-  - secret: STRIPE_PRICE_ID_PLANO_ANUAL
+  - secret: STRIPE_SECRETS
   - secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
