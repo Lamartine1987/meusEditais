@@ -3,14 +3,13 @@ import { getAuth, type Auth } from "firebase/auth";
 import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
 
-// ====================================================================================
-// CORREÇÃO DEFINITIVA: Configuração do Firebase Hardcoded para o Cliente
-// As chaves a seguir são públicas e seguras para serem expostas no navegador.
-// A segurança é controlada pelas Regras de Segurança do Firebase no backend.
-// Isso garante que o Firebase SEMPRE inicialize corretamente no cliente.
-// ====================================================================================
+// A chave de API agora é lida da variável de ambiente injetada pelo processo de build.
+const firebaseApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+
+console.log(`[firebase.ts] Lendo a chave de API do Firebase injetada pelo build. Comprimento: ${firebaseApiKey?.length || 0}`);
+
 const firebaseConfig = {
-  apiKey: "AIzaSyCV_a208hJ23k23kM-aT7s7sn23k23423", // SUBSTITUA PELO SEU VALOR REAL
+  apiKey: firebaseApiKey,
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
@@ -25,16 +24,16 @@ let auth: Auth;
 let db: Database;
 let functions: Functions;
 
-// Log para depuração no cliente
-console.log(`[firebase.ts] Verificando a chave de API do Firebase. Comprimento: ${firebaseConfig.apiKey?.length || 0}`);
-
-if (!firebaseConfig.apiKey || firebaseConfig.apiKey.length < 10 || firebaseConfig.apiKey.includes("SUBSTITUA")) {
-  console.error(`[firebase.ts] CRÍTICO: A chave de API do Firebase no objeto de configuração é inválida ou é um placeholder. Firebase não será inicializado. Verifique se o valor em src/lib/firebase.ts está correto.`);
+if (!firebaseApiKey || firebaseApiKey.length < 10) {
+  console.error(`[firebase.ts] CRÍTICO: A chave de API do Firebase (NEXT_PUBLIC_FIREBASE_API_KEY) é inválida ou está ausente no ambiente. Firebase não será inicializado. Verifique a configuração do apphosting.yaml.`);
 }
 
 // Este check garante que o Firebase seja inicializado apenas uma vez no cliente.
 if (typeof window !== 'undefined' && !getApps().length) {
   try {
+    if (!firebaseApiKey) {
+      throw new Error("A chave de API do Firebase é obrigatória para a inicialização.");
+    }
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getDatabase(app);
