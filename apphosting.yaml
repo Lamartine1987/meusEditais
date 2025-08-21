@@ -3,23 +3,23 @@
 
 runConfig:
   maxInstances: 1
+  env:
+    # O segredo 'STRIPE_SECRETS' deve conter o JSON com as chaves do Stripe.
+    # Esta variável estará disponível no ambiente de execução do servidor.
+    - variable: CONSOLIDATED_SECRETS
+      secret: STRIPE_SECRETS
+    
+    # A chave pública do Stripe é segura para ser exposta e necessária no cliente.
+    # SUBSTITUA 'pk_test_...' PELA SUA CHAVE PUBLICÁVEL DE PRODUÇÃO 'pk_live_...'.
+    - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+      value: 'pk_test_51Pbm5qRxPl1dC9Z4B53p2L1Qf11FwSRAL5dGf1Pmc23s5kIq1vXfG1LqXkK92w1iG4U8kC9wLd2cWbI5a79Yy7fT00l8TZyfEk'
 
-# Os segredos foram separados para otimizar custos e garantir a disponibilidade
-# da chave de API do Google no momento do build.
-env:
-  # O segredo 'STRIPE_SECRETS' deve conter o JSON com as chaves do Stripe.
-  - variable: CONSOLIDATED_SECRETS
-    secret: STRIPE_SECRETS
-  
-  # O segredo 'GOOGLE_API_KEY' deve conter apenas a string da chave de API do Firebase.
-  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-    secret: GOOGLE_API_KEY
-
-  # Chaves públicas que não precisam ser segredos.
-  - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-    value: 'pk_test_51Pbm5qRxPl1dC9Z4B53p2L1Qf11FwSRAL5dGf1Pmc23s5kIq1vXfG1LqXkK92w1iG4U8kC9wLd2cWbI5a79Yy7fT00l8TZyfEk'
-
+# Disponibiliza a chave de API do Firebase para o processo de build do Next.js.
 build:
   args:
-    # Disponibiliza a chave de API do Firebase durante o processo de build.
-    NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY}
+    NEXT_PUBLIC_FIREBASE_API_KEY: ${GOOGLE_API_KEY}
+
+# Define os segredos que o App Hosting deve acessar.
+secretEnv:
+  - secret: STRIPE_SECRETS
+  - secret: GOOGLE_API_KEY

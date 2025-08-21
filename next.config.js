@@ -15,6 +15,7 @@ const nextConfig = {
   transpilePackages: ['recharts'],
   env: {
     // Garante que a chave da API do Firebase esteja disponível para o cliente Next.js
+    // Esta variável é populada pelo argumento de build no apphosting.yaml
     NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   }
 };
