@@ -1,11 +1,15 @@
 # Configurações do backend do Firebase App Hosting
 # https://firebase.google.com/docs/app-hosting/configure
 
-# Disponibiliza os segredos do Stripe para o ambiente de execução do servidor.
+# Disponibiliza os segredos para o ambiente de execução do servidor.
 runConfig:
   env:
     - variable: CONSOLIDATED_SECRETS
       secret: STRIPE_SECRETS
+    # A chave publicável do Stripe é segura para ser exposta.
+    # SUBSTITUA PELA SUA CHAVE PUBLICÁVEL DE PRODUÇÃO REAL.
+    - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+      value: "pk_live_SEU_VALOR_AQUI" # Substitua este valor
 
 # Disponibiliza a chave de API do Firebase para o processo de build do Next.js.
 # Isso é CRÍTICO para o login e outras funcionalidades do Firebase no cliente funcionarem.

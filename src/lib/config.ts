@@ -47,14 +47,9 @@ interface AppConfig {
   
   // Chave de API do Google/Firebase
   NEXT_PUBLIC_FIREBASE_API_KEY: string;
-}
 
-// Esta é a chave para o login funcionar. Ela vem do next.config.js, que a recebe do apphosting.yaml
-const firebaseApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '';
-
-// Log para depuração no lado do cliente
-if (typeof window !== 'undefined') {
-  console.log('[config.ts] Firebase API Key loaded on client:', firebaseApiKey ? `OK` : 'NOT FOUND');
+  // Chave publicável do Stripe
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
 }
 
 export const appConfig: AppConfig = {
@@ -65,6 +60,9 @@ export const appConfig: AppConfig = {
   STRIPE_PRICE_ID_PLANO_EDITAL: stripeSecrets.PRICE_ID_PLANO_EDITAL,
   STRIPE_PRICE_ID_PLANO_ANUAL: stripeSecrets.PRICE_ID_PLANO_ANUAL,
   
-  // Lê a variável de ambiente pública
-  NEXT_PUBLIC_FIREBASE_API_KEY: firebaseApiKey,
+  // Lê a variável de ambiente pública do Firebase
+  NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
+  
+  // Lê a variável de ambiente pública do Stripe
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
 };

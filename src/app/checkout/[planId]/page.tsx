@@ -76,7 +76,7 @@ function CheckoutPageContent() {
 
 
   useEffect(() => {
-    console.log('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (from client-side config):', appConfig.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+    console.log('Stripe Publishable Key (from client-side config):', appConfig.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ? "Presente" : "AUSENTE!");
     
     if (!stripePromise) {
       console.error("Stripe Publishable Key is not set. Payments will not work.");
