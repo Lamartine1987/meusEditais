@@ -22,36 +22,22 @@ let auth: Auth;
 let db: Database;
 let functions: Functions;
 
-if (!firebaseApiKey || firebaseApiKey.length < 10) {
-  console.error(`[firebase.ts] CRÍTICO: A chave de API do Firebase (NEXT_PUBLIC_FIREBASE_API_KEY) é inválida ou está ausente no ambiente. Firebase não será inicializado. Verifique a configuração do apphosting.yaml.`);
-}
-
 // Este check garante que o Firebase seja inicializado apenas uma vez no cliente.
 if (typeof window !== 'undefined' && !getApps().length) {
-  try {
-    if (!firebaseApiKey) {
-      throw new Error("A chave de API do Firebase é obrigatória para a inicialização.");
-    }
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getDatabase(app);
-    functions = getFunctions(app);
-    console.log('[firebase.ts] Firebase cliente inicializado com SUCESSO.');
-  } catch (error) {
-    console.error("[firebase.ts] CRÍTICO: Falha na inicialização do cliente Firebase.", error);
-    // Adiciona um alerta visual para o desenvolvedor
-    if (document.body) {
-        const errorDiv = document.createElement('div');
-        errorDiv.style.position = 'fixed';
-        errorDiv.style.bottom = '10px';
-        errorDiv.style.left = '10px';
-        errorDiv.style.padding = '10px';
-        errorDiv.style.background = 'red';
-        errorDiv.style.color = 'white';
-        errorDiv.style.zIndex = '9999';
-        errorDiv.style.borderRadius = '5px';
-        errorDiv.textContent = 'ERRO CRÍTICO: Firebase não inicializado. Verifique o console.';
-        document.body.appendChild(errorDiv);
+  // Log para depuração no console do navegador
+  console.log(`[firebase.ts] Tentando inicializar Firebase. Comprimento da chave de API: ${firebaseApiKey?.length || 0}`);
+
+  if (!firebaseApiKey || firebaseApiKey.length < 10) {
+    console.error(`[firebase.ts] CRÍTICO: A chave de API do Firebase (NEXT_PUBLIC_FIREBASE_API_KEY) é inválida ou está ausente. Firebase não será inicializado. Verifique a configuração de build.`);
+  } else {
+    try {
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getDatabase(app);
+      functions = getFunctions(app);
+      console.log('[firebase.ts] Firebase cliente inicializado com SUCESSO.');
+    } catch (error) {
+      console.error("[firebase.ts] CRÍTICO: Falha na inicialização do cliente Firebase.", error);
     }
   }
 } else if (typeof window !== 'undefined') {
