@@ -4,7 +4,9 @@ import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
 import { appConfig } from "./config";
 
-console.log(`[firebase.ts] Attempting to read Firebase API Key from appConfig. Key found: ${appConfig.NEXT_PUBLIC_FIREBASE_API_KEY ? 'YES' : 'NO'}`);
+// Log para depuração no cliente
+console.log(`[firebase.ts] Tentando inicializar o Firebase no cliente. Valor de NEXT_PUBLIC_FIREBASE_API_KEY: ${appConfig.NEXT_PUBLIC_FIREBASE_API_KEY ? 'ENCONTRADA' : 'AUSENTE!!!'}`);
+
 
 const firebaseConfig = {
   apiKey: appConfig.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -22,7 +24,7 @@ let auth: Auth;
 let db: Database;
 let functions: Functions;
 
-// This check ensures that Firebase is only initialized on the client side.
+// Este check garante que o Firebase seja inicializado apenas uma vez no cliente.
 if (typeof window !== 'undefined' && !getApps().length) {
   if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10) {
     try {
@@ -30,19 +32,18 @@ if (typeof window !== 'undefined' && !getApps().length) {
       auth = getAuth(app);
       db = getDatabase(app);
       functions = getFunctions(app);
-      console.log('[firebase.ts] Firebase client initialized successfully.');
+      console.log('[firebase.ts] Firebase cliente inicializado com SUCESSO.');
     } catch (error) {
-      console.error("[firebase.ts] CRITICAL: Firebase client initialization failed.", error);
+      console.error("[firebase.ts] CRÍTICO: Falha na inicialização do cliente Firebase.", error);
     }
   } else {
-    console.error(`[firebase.ts] CRITICAL: Firebase API key is invalid or missing. Firebase will not be initialized. Key value was: "${firebaseConfig.apiKey}"`);
+    console.error(`[firebase.ts] CRÍTICO: A chave de API do Firebase é inválida ou está ausente. Firebase não será inicializado. Valor recebido foi: "${firebaseConfig.apiKey}"`);
   }
 } else if (typeof window !== 'undefined') {
   app = getApp();
   auth = getAuth(app);
   db = getDatabase(app);
   functions = getFunctions(app);
-  console.log('[firebase.ts] Using existing Firebase client instance.');
 }
 
 // @ts-ignore

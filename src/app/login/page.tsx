@@ -29,9 +29,10 @@ export default function LoginPage() {
       toast({ title: "Login Bem-sucedido!", description: "Redirecionando para a página inicial...", variant: "default", className: "bg-accent text-accent-foreground" });
       router.push('/'); 
     } catch (error: any) {
-      console.error("[LoginPage] Detailed login error:", error);
+      // Log detalhado do erro no console do navegador para depuração
+      console.error("[LoginPage] Erro detalhado de login:", error);
 
-      let errorMessage = "Ocorreu um erro inesperado. Tente novamente."; // Default message
+      let errorMessage = "Ocorreu um erro inesperado. Tente novamente."; // Mensagem padrão
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
         errorMessage = "Credenciais inválidas. Verifique seu e-mail e senha.";
       } else if (error.code === 'auth/too-many-requests') {
@@ -39,7 +40,7 @@ export default function LoginPage() {
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = "O formato do e-mail é inválido.";
       } else if (error.message && error.message.includes('auth service is not available')) {
-        errorMessage = "Serviço de autenticação indisponível. Verifique a configuração."
+        errorMessage = "Serviço de autenticação indisponível. Verifique a configuração do Firebase."
       }
       toast({ title: "Falha no Login", description: errorMessage, variant: "destructive"});
     } finally {

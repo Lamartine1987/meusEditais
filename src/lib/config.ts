@@ -15,31 +15,27 @@ interface AppConfig {
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
 }
 
-let parsedStripeSecrets: any = {};
-if (process.env.CONSOLIDATED_SECRETS) {
-  try {
-    parsedStripeSecrets = JSON.parse(process.env.CONSOLIDATED_SECRETS);
-    console.log('[config.ts] Stripe secrets parsed successfully from CONSOLIDATED_SECRETS.');
-  } catch (e) {
-    console.error('[config.ts] CRITICAL: Failed to parse CONSOLIDATED_SECRETS JSON.', e);
-  }
-} else {
-  console.warn('[config.ts] WARNING: CONSOLIDATED_SECRETS env var for Stripe not found. Using fallback values. This is expected during build but is an error in production runtime.');
-}
+// Esta função ajuda a logar se a variável foi encontrada no servidor
+const getServerEnv = (key: string): string => {
+  const value = process.env[key];
+  console.log(`[config.ts] Lendo variável de ambiente do servidor: ${key} - ${value ? 'ENCONTRADA' : 'AUSENTE'}`);
+  return value || '';
+};
 
 export const appConfig: AppConfig = {
-  // Lê as variáveis do segredo Stripe consolidado
-  STRIPE_SECRET_KEY_PROD: parsedStripeSecrets.SECRET_KEY_PROD || '',
-  STRIPE_WEBHOOK_SECRET_PROD: parsedStripeSecrets.WEBHOOK_SECRET_PROD || '',
-  STRIPE_PRICE_ID_PLANO_CARGO: parsedStripeSecrets.PRICE_ID_PLANO_CARGO || '',
-  STRIPE_PRICE_ID_PLANO_EDITAL: parsedStripeSecrets.PRICE_ID_PLANO_EDITAL || '',
-  STRIPE_PRICE_ID_PLANO_ANUAL: parsedStripeSecrets.PRICE_ID_PLANO_ANUAL || '',
+  // Lê as variáveis do Stripe diretamente do ambiente
+  STRIPE_SECRET_KEY_PROD: getServerEnv('STRIPE_SECRET_KEY_PROD'),
+  STRIPE_WEBHOOK_SECRET_PROD: getServerEnv('STRIPE_WEBHOOK_SECRET_PROD'),
+  STRIPE_PRICE_ID_PLANO_CARGO: getServerEnv('STRIPE_PRICE_ID_PLANO_CARGO'),
+  STRIPE_PRICE_ID_PLANO_EDITAL: getServerEnv('STRIPE_PRICE_ID_PLANO_EDITAL'),
+  STRIPE_PRICE_ID_PLANO_ANUAL: getServerEnv('STRIPE_PRICE_ID_PLANO_ANUAL'),
   
   // Lê a variável de ambiente pública do Firebase (passada durante o build)
   NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
   
-  // Lê a variável de ambiente pública do Stripe (passada no runtime)
+  // Lê a variável de ambiente pública do Stripe (passada no runtime e build)
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
 };
 
-console.log(`[config.ts] Final Firebase API Key loaded: ${appConfig.NEXT_PUBLIC_FIREBASE_API_KEY ? 'FOUND' : 'NOT FOUND'}`);
+console.log(`[config.ts] Chave da API do Firebase carregada no config: ${appConfig.NEXT_PUBLIC_FIREBASE_API_KEY ? 'ENCONTRADA' : 'AUSENTE!!!'}`);
+console.log(`[config.ts] Chave publicável do Stripe carregada no config: ${appConfig.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ? 'ENCONTRADA' : 'AUSENTE!!!'}`);

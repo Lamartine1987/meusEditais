@@ -1,11 +1,20 @@
 # Configurações do backend do Firebase App Hosting
 # https://firebase.google.com/docs/app-hosting/configure
 
-# Disponibiliza os segredos para o ambiente de execução do servidor.
 runConfig:
   env:
-    - variable: CONSOLIDATED_SECRETS
-      secret: STRIPE_SECRETS
+    # Segredos do Stripe para o ambiente de execução
+    - variable: STRIPE_SECRET_KEY_PROD
+      secret: STRIPE_SECRET_KEY_PROD
+    - variable: STRIPE_WEBHOOK_SECRET_PROD
+      secret: STRIPE_WEBHOOK_SECRET_PROD
+    - variable: STRIPE_PRICE_ID_PLANO_CARGO
+      secret: STRIPE_PRICE_ID_PLANO_CARGO
+    - variable: STRIPE_PRICE_ID_PLANO_EDITAL
+      secret: STRIPE_PRICE_ID_PLANO_EDITAL
+    - variable: STRIPE_PRICE_ID_PLANO_ANUAL
+      secret: STRIPE_PRICE_ID_PLANO_ANUAL
+    # Chave pública do Stripe para o cliente
     - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
       secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 
@@ -16,8 +25,12 @@ build:
     # A variável NEXT_PUBLIC_FIREBASE_API_KEY estará disponível durante o build.
     NEXT_PUBLIC_FIREBASE_API_KEY: ${GOOGLE_API_KEY}
 
-# Define os segredos que o App Hosting deve acessar.
+# Define todos os segredos que o App Hosting deve acessar.
 secretEnv:
   - secret: GOOGLE_API_KEY
-  - secret: STRIPE_SECRETS
+  - secret: STRIPE_SECRET_KEY_PROD
+  - secret: STRIPE_WEBHOOK_SECRET_PROD
+  - secret: STRIPE_PRICE_ID_PLANO_CARGO
+  - secret: STRIPE_PRICE_ID_PLANO_EDITAL
+  - secret: STRIPE_PRICE_ID_PLANO_ANUAL
   - secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
