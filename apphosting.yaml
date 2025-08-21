@@ -8,16 +8,13 @@ runConfig:
     # Esta variável estará disponível no ambiente de execução do servidor.
     - variable: CONSOLIDATED_SECRETS
       secret: STRIPE_SECRETS
-    
-    # A chave pública do Stripe é segura para ser exposta e necessária no cliente.
-    # SUBSTITUA 'pk_test_...' PELA SUA CHAVE PUBLICÁVEL DE PRODUÇÃO 'pk_live_...'.
-    - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-      value: 'pk_test_51Pbm5qRxPl1dC9Z4B53p2L1Qf11FwSRAL5dGf1Pmc23s5kIq1vXfG1LqXkK92w1iG4U8kC9wLd2cWbI5a79Yy7fT00l8TZyfEk'
 
 # Disponibiliza a chave de API do Firebase para o processo de build do Next.js.
+# Isso é CRÍTICO para o login e outras funcionalidades do Firebase no cliente funcionarem.
 build:
   args:
-    NEXT_PUBLIC_FIREBASE_API_KEY: ${GOOGLE_API_KEY}
+    # A variável GOOGLE_API_KEY_FOR_BUILD será populada com o valor do segredo GOOGLE_API_KEY.
+    GOOGLE_API_KEY_FOR_BUILD: ${GOOGLE_API_KEY}
 
 # Define os segredos que o App Hosting deve acessar.
 secretEnv:

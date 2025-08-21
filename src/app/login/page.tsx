@@ -23,11 +23,18 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    console.log('[LoginPage] Iniciando tentativa de login...');
     try {
       await login(email, password);
+      console.log('[LoginPage] Login bem-sucedido.');
       toast({ title: "Login Bem-sucedido!", description: "Redirecionando para a página inicial...", variant: "default", className: "bg-accent text-accent-foreground" });
       router.push('/'); 
     } catch (error: any) {
+      // Log detalhado do erro real do Firebase
+      console.error("[LoginPage] CRITICAL: Erro detalhado no handleLogin:", error);
+      console.error("[LoginPage] Código do Erro:", error.code);
+      console.error("[LoginPage] Mensagem do Erro:", error.message);
+
       let errorMessage = "Ocorreu um erro inesperado. Tente novamente."; // Mensagem padrão
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
         errorMessage = "Credenciais inválidas. Verifique seu e-mail e senha.";
@@ -35,10 +42,13 @@ export default function LoginPage() {
         errorMessage = "Muitas tentativas de login. Tente novamente mais tarde.";
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = "O formato do e-mail é inválido.";
+      } else if (error.message && error.message.includes('auth service is not available')) {
+        errorMessage = "Serviço de autenticação indisponível. Verifique a configuração."
       }
       toast({ title: "Falha no Login", description: errorMessage, variant: "destructive"});
     } finally {
       setIsSubmitting(false);
+      console.log('[LoginPage] Finalizada tentativa de login.');
     }
   };
 

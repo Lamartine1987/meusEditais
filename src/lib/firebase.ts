@@ -4,6 +4,8 @@ import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
 import { appConfig } from "./config";
 
+console.log('[firebase.ts] Lendo appConfig.NEXT_PUBLIC_FIREBASE_API_KEY:', appConfig.NEXT_PUBLIC_FIREBASE_API_KEY ? 'Presente' : 'AUSENTE!!!');
+
 const firebaseConfig = {
   apiKey: appConfig.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: "meuseditais.firebaseapp.com",
@@ -24,19 +26,22 @@ let functions: Functions;
 // It prevents the "Firebase App named '[DEFAULT]' already exists" error in development
 // and ensures server-side rendering builds don't fail due to missing API keys.
 if (typeof window !== 'undefined' && !getApps().length) {
+  console.log('[firebase.ts] Tentando inicializar Firebase no cliente...');
   if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10) {
     try {
       app = initializeApp(firebaseConfig);
       auth = getAuth(app);
       db = getDatabase(app);
       functions = getFunctions(app);
+      console.log('[firebase.ts] SUCESSO: Firebase client inicializado com sucesso.');
     } catch (error) {
-      console.error("[firebase.ts] CRITICAL: Firebase client initialization failed.", error);
+      console.error("[firebase.ts] CRITICAL: Falha na inicialização do Firebase client.", error);
     }
   } else {
-    console.error("[firebase.ts] CRITICAL: Firebase API key is invalid or missing. Firebase will not be initialized.");
+    console.error("[firebase.ts] CRITICAL: A chave de API do Firebase é inválida ou está ausente. Firebase não será inicializado.");
   }
 } else if (typeof window !== 'undefined') {
+  console.log('[firebase.ts] Usando instância existente do Firebase client.');
   app = getApp();
   auth = getAuth(app);
   db = getDatabase(app);
