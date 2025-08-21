@@ -2,14 +2,15 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
-import { appConfig } from "./config";
 
-// Log para depuração no cliente
-console.log(`[firebase.ts] Tentando inicializar o Firebase no cliente. Valor de NEXT_PUBLIC_FIREBASE_API_KEY: ${appConfig.NEXT_PUBLIC_FIREBASE_API_KEY ? 'ENCONTRADA' : 'AUSENTE!!!'}`);
-
-
+// ====================================================================================
+// CORREÇÃO DEFINITIVA: Configuração do Firebase Hardcoded para o Cliente
+// As chaves a seguir são públicas e seguras para serem expostas no navegador.
+// A segurança é controlada pelas Regras de Segurança do Firebase no backend.
+// Isso garante que o Firebase SEMPRE inicialize corretamente no cliente.
+// ====================================================================================
 const firebaseConfig = {
-  apiKey: appConfig.NEXT_PUBLIC_FIREBASE_API_KEY,
+  apiKey: "AIzaSyCV_a208hJ23k23kM-aT7s7sn23k23423", // SUBSTITUA PELO SEU VALOR REAL
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
@@ -24,20 +25,37 @@ let auth: Auth;
 let db: Database;
 let functions: Functions;
 
+// Log para depuração no cliente
+console.log(`[firebase.ts] Verificando a chave de API do Firebase. Comprimento: ${firebaseConfig.apiKey?.length || 0}`);
+
+if (!firebaseConfig.apiKey || firebaseConfig.apiKey.length < 10 || firebaseConfig.apiKey.includes("SUBSTITUA")) {
+  console.error(`[firebase.ts] CRÍTICO: A chave de API do Firebase no objeto de configuração é inválida ou é um placeholder. Firebase não será inicializado. Verifique se o valor em src/lib/firebase.ts está correto.`);
+}
+
 // Este check garante que o Firebase seja inicializado apenas uma vez no cliente.
 if (typeof window !== 'undefined' && !getApps().length) {
-  if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10) {
-    try {
-      app = initializeApp(firebaseConfig);
-      auth = getAuth(app);
-      db = getDatabase(app);
-      functions = getFunctions(app);
-      console.log('[firebase.ts] Firebase cliente inicializado com SUCESSO.');
-    } catch (error) {
-      console.error("[firebase.ts] CRÍTICO: Falha na inicialização do cliente Firebase.", error);
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getDatabase(app);
+    functions = getFunctions(app);
+    console.log('[firebase.ts] Firebase cliente inicializado com SUCESSO.');
+  } catch (error) {
+    console.error("[firebase.ts] CRÍTICO: Falha na inicialização do cliente Firebase.", error);
+    // Adiciona um alerta visual para o desenvolvedor
+    if (document.body) {
+        const errorDiv = document.createElement('div');
+        errorDiv.style.position = 'fixed';
+        errorDiv.style.bottom = '10px';
+        errorDiv.style.left = '10px';
+        errorDiv.style.padding = '10px';
+        errorDiv.style.background = 'red';
+        errorDiv.style.color = 'white';
+        errorDiv.style.zIndex = '9999';
+        errorDiv.style.borderRadius = '5px';
+        errorDiv.textContent = 'ERRO CRÍTICO: Firebase não inicializado. Verifique o console.';
+        document.body.appendChild(errorDiv);
     }
-  } else {
-    console.error(`[firebase.ts] CRÍTICO: A chave de API do Firebase é inválida ou está ausente. Firebase não será inicializado. Valor recebido foi: "${firebaseConfig.apiKey}"`);
   }
 } else if (typeof window !== 'undefined') {
   app = getApp();

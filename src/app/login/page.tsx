@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -24,27 +23,46 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    console.log('[LoginPage] Iniciando tentativa de login...');
     try {
       await login(email, password);
+      console.log('[LoginPage] Login bem-sucedido.');
       toast({ title: "Login Bem-sucedido!", description: "Redirecionando para a página inicial...", variant: "default", className: "bg-accent text-accent-foreground" });
       router.push('/'); 
     } catch (error: any) {
       // Log detalhado do erro no console do navegador para depuração
-      console.error("[LoginPage] Erro detalhado de login:", error);
+      console.error("[LoginPage] ERRO DETALHADO DE LOGIN:", error);
 
       let errorMessage = "Ocorreu um erro inesperado. Tente novamente."; // Mensagem padrão
-      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        errorMessage = "Credenciais inválidas. Verifique seu e-mail e senha.";
-      } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = "Muitas tentativas de login. Tente novamente mais tarde.";
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = "O formato do e-mail é inválido.";
-      } else if (error.message && error.message.includes('auth service is not available')) {
-        errorMessage = "Serviço de autenticação indisponível. Verifique a configuração do Firebase."
+      if (error.code) {
+        switch (error.code) {
+          case 'auth/invalid-credential':
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+            errorMessage = "Credenciais inválidas. Verifique seu e-mail e senha.";
+            break;
+          case 'auth/too-many-requests':
+            errorMessage = "Muitas tentativas de login. Tente novamente mais tarde.";
+            break;
+          case 'auth/invalid-email':
+            errorMessage = "O formato do e-mail é inválido.";
+            break;
+          case 'auth/network-request-failed':
+             errorMessage = "Erro de rede. Verifique sua conexão com a internet.";
+             break;
+          default:
+             errorMessage = `Ocorreu um erro: ${error.code}. Verifique o console para mais detalhes.`;
+             break;
+        }
+      } else if (error.message && error.message.toLowerCase().includes('auth service is not available')) {
+        errorMessage = "Serviço de autenticação indisponível. A configuração do Firebase pode estar incorreta."
       }
+
+      console.log(`[LoginPage] Exibindo toast de erro: ${errorMessage}`);
       toast({ title: "Falha no Login", description: errorMessage, variant: "destructive"});
     } finally {
       setIsSubmitting(false);
+      console.log('[LoginPage] Finalizada tentativa de login.');
     }
   };
 
