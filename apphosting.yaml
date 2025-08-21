@@ -4,6 +4,8 @@
 # Disponibiliza os segredos para o ambiente de execução do servidor.
 runConfig:
   env:
+    - variable: GOOGLE_API_KEY
+      secret: GOOGLE_API_KEY
     - variable: CONSOLIDATED_SECRETS
       secret: STRIPE_SECRETS
     # A chave publicável do Stripe é segura para ser exposta.

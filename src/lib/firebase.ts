@@ -4,8 +4,6 @@ import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
 import { appConfig } from "./config";
 
-console.log('[firebase.ts] Lendo appConfig.NEXT_PUBLIC_FIREBASE_API_KEY:', appConfig.NEXT_PUBLIC_FIREBASE_API_KEY ? 'Presente' : 'AUSENTE!!!');
-
 const firebaseConfig = {
   apiKey: appConfig.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: "meuseditais.firebaseapp.com",
@@ -24,22 +22,20 @@ let functions: Functions;
 
 // This check ensures that Firebase is only initialized on the client side.
 if (typeof window !== 'undefined' && !getApps().length) {
-  console.log('[firebase.ts] Tentando inicializar Firebase no cliente...');
   if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10) {
     try {
       app = initializeApp(firebaseConfig);
       auth = getAuth(app);
       db = getDatabase(app);
       functions = getFunctions(app);
-      console.log('[firebase.ts] SUCESSO: Firebase client inicializado com sucesso.');
+      console.log('[firebase.ts] Firebase client initialized successfully.');
     } catch (error) {
-      console.error("[firebase.ts] CRITICAL: Falha na inicialização do Firebase client.", error);
+      console.error("[firebase.ts] CRITICAL: Firebase client initialization failed.", error);
     }
   } else {
-    console.error("[firebase.ts] CRITICAL: A chave de API do Firebase é inválida ou está ausente. Firebase não será inicializado.");
+    console.error("[firebase.ts] CRITICAL: Firebase API key is invalid or missing. Firebase will not be initialized.");
   }
 } else if (typeof window !== 'undefined') {
-  console.log('[firebase.ts] Usando instância existente do Firebase client.');
   app = getApp();
   auth = getAuth(app);
   db = getDatabase(app);
