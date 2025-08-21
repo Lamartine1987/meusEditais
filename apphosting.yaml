@@ -6,12 +6,18 @@ runConfig:
   env:
     - variable: GOOGLE_API_KEY
       secret: GOOGLE_API_KEY
-    - variable: CONSOLIDATED_SECRETS
-      secret: STRIPE_SECRETS
-    # A chave publicável do Stripe é segura para ser exposta.
-    # SUBSTITUA PELA SUA CHAVE PUBLICÁVEL DE PRODUÇÃO REAL.
+    - variable: STRIPE_SECRET_KEY_PROD
+      secret: STRIPE_SECRET_KEY_PROD
+    - variable: STRIPE_WEBHOOK_SECRET_PROD
+      secret: STRIPE_WEBHOOK_SECRET_PROD
+    - variable: STRIPE_PRICE_ID_PLANO_CARGO
+      secret: STRIPE_PRICE_ID_PLANO_CARGO
+    - variable: STRIPE_PRICE_ID_PLANO_EDITAL
+      secret: STRIPE_PRICE_ID_PLANO_EDITAL
+    - variable: STRIPE_PRICE_ID_PLANO_ANUAL
+      secret: STRIPE_PRICE_ID_PLANO_ANUAL
     - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-      value: "pk_live_51RZvaGHTmnc0kY1cDAdcxoTWOqcK5xQYJR3lXmOOHKue1pm5hsq1RUOYpZu9DFWFntrbRlHVNK1g3i4498Pb0aWb00aap0ToqH" # Substitua este valor
+      secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 
 # Disponibiliza a chave de API do Firebase para o processo de build do Next.js.
 # Isso é CRÍTICO para o login e outras funcionalidades do Firebase no cliente funcionarem.
@@ -22,5 +28,10 @@ build:
 
 # Define os segredos que o App Hosting deve acessar.
 secretEnv:
-  - secret: STRIPE_SECRETS
   - secret: GOOGLE_API_KEY
+  - secret: STRIPE_SECRET_KEY_PROD
+  - secret: STRIPE_WEBHOOK_SECRET_PROD
+  - secret: STRIPE_PRICE_ID_PLANO_CARGO
+  - secret: STRIPE_PRICE_ID_PLANO_EDITAL
+  - secret: STRIPE_PRICE_ID_PLANO_ANUAL
+  - secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
