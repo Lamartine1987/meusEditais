@@ -1,8 +1,8 @@
 # Configurações do backend do Firebase App Hosting
 # https://firebase.google.com/docs/app-hosting/configure
 
+# Disponibiliza os segredos do Stripe para o ambiente de execução do servidor.
 runConfig:
-  # Disponibiliza os segredos do Stripe para o ambiente de execução do servidor.
   env:
     - variable: CONSOLIDATED_SECRETS
       secret: STRIPE_SECRETS

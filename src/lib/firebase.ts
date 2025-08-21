@@ -23,8 +23,6 @@ let db: Database;
 let functions: Functions;
 
 // This check ensures that Firebase is only initialized on the client side.
-// It prevents the "Firebase App named '[DEFAULT]' already exists" error in development
-// and ensures server-side rendering builds don't fail due to missing API keys.
 if (typeof window !== 'undefined' && !getApps().length) {
   console.log('[firebase.ts] Tentando inicializar Firebase no cliente...');
   if (firebaseConfig.apiKey && firebaseConfig.apiKey.length > 10) {
@@ -48,7 +46,5 @@ if (typeof window !== 'undefined' && !getApps().length) {
   functions = getFunctions(app);
 }
 
-// We export the initialized services. They will be undefined on the server-side,
-// and the application code (like AuthProvider) should handle this gracefully.
 // @ts-ignore
 export { app, auth, db, functions };
