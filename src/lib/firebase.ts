@@ -6,8 +6,6 @@ import { getFunctions, type Functions } from "firebase/functions";
 // A chave de API agora é lida da variável de ambiente injetada pelo processo de build.
 const firebaseApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
-console.log(`[firebase.ts] Lendo a chave de API do Firebase injetada pelo build. Comprimento: ${firebaseApiKey?.length || 0}`);
-
 const firebaseConfig = {
   apiKey: firebaseApiKey,
   authDomain: "meuseditais.firebaseapp.com",
