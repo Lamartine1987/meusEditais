@@ -4,21 +4,14 @@
 runConfig:
   maxInstances: 1
 
-# Para reduzir custos, os segredos do Stripe foram consolidados em um único segredo.
-# Você precisará editar seu segredo 'STRIPE_SECRETS' no Secret Manager
-# para que ele contenha o seguinte JSON, preenchendo com seus valores reais:
-# {
-#   "SECRET_KEY_PROD": "sua_stripe_secret_key",
-#   "WEBHOOK_SECRET_PROD": "seu_stripe_webhook_secret",
-#   "PRICE_ID_PLANO_CARGO": "seu_price_id_cargo",
-#   "PRICE_ID_PLANO_EDITAL": "seu_price_id_edital",
-#   "PRICE_ID_PLANO_ANUAL": "seu_price_id_anual"
-# }
-# A GOOGLE_API_KEY foi separada para estar disponível no momento do build.
+# Os segredos foram separados para otimizar custos e garantir a disponibilidade
+# da chave de API do Google no momento do build.
 env:
+  # O segredo 'STRIPE_SECRETS' deve conter o JSON com as chaves do Stripe.
   - variable: CONSOLIDATED_SECRETS
     secret: STRIPE_SECRETS
   
+  # O segredo 'GOOGLE_API_KEY' deve conter apenas a string da chave de API do Firebase.
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
     secret: GOOGLE_API_KEY
 

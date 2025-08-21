@@ -1,4 +1,3 @@
-
 "use client";
 
 import { PageWrapper } from '@/components/layout/page-wrapper';
@@ -313,7 +312,7 @@ export default function PlanosPage() {
               </CardHeader>
               <CardContent className="flex-grow space-y-4 pt-2">
                 <p className="text-center text-3xl font-bold text-primary">
-                  R$ 4<span className="text-xl font-normal">,99/ano</span>
+                  R$ 9<span className="text-xl font-normal">,90/ano</span>
                 </p>
                 <ul className="space-y-2 text-sm">
                   <PlanFeature>Acesso a <strong>1 cargo específico</strong> de <strong>1 edital</strong> à sua escolha.</PlanFeature>
@@ -352,7 +351,7 @@ export default function PlanosPage() {
               </CardHeader>
               <CardContent className="flex-grow space-y-4 pt-2">
                 <p className="text-center text-3xl font-bold text-primary">
-                  R$ 14<span className="text-xl font-normal">,99/ano</span>
+                  R$ 29<span className="text-xl font-normal">,90/ano</span>
                 </p>
                 <ul className="space-y-2 text-sm">
                   <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>1 edital específico</strong>.</PlanFeature>
@@ -386,7 +385,7 @@ export default function PlanosPage() {
               </CardHeader>
               <CardContent className="flex-grow space-y-4 pt-2">
                 <p className="text-center text-3xl font-bold text-primary">
-                  R$ 39<span className="text-xl font-normal">,99/ano</span>
+                  R$ 59<span className="text-xl font-normal">,90/ano</span>
                 </p>
                 <ul className="space-y-2 text-sm">
                   <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>todos os editais</strong> da plataforma.</PlanFeature>
@@ -572,4 +571,3 @@ export default function PlanosPage() {
     </PageWrapper>
   );
 }
- 
