@@ -17,14 +17,14 @@ const getServerEnv = (key: string): string => {
   const value = process.env[key];
   // Log para depuração no servidor
   if (typeof window === 'undefined') {
-    console.log(`[config.ts - Server-Side] Reading env var: ${key} -> ${value ? 'FOUND' : 'MISSING!'}`);
+    console.log(`[config.ts - Lado do Servidor] Lendo variável de ambiente: ${key} -> ${value ? 'ENCONTRADA' : 'AUSENTE!!!'}`);
   }
   return value || '';
 };
 
 // Esta configuração é para o LADO DO SERVIDOR E CLIENTE.
 export const appConfig: AppConfig = {
-  // Chaves do SERVIDOR
+  // Chaves do SERVIDOR lidas do ambiente
   STRIPE_SECRET_KEY_PROD: getServerEnv('STRIPE_SECRET_KEY_PROD'),
   STRIPE_WEBHOOK_SECRET_PROD: getServerEnv('STRIPE_WEBHOOK_SECRET_PROD'),
   STRIPE_PRICE_ID_PLANO_CARGO: getServerEnv('STRIPE_PRICE_ID_PLANO_CARGO'),
@@ -32,6 +32,5 @@ export const appConfig: AppConfig = {
   STRIPE_PRICE_ID_PLANO_ANUAL: getServerEnv('STRIPE_PRICE_ID_PLANO_ANUAL'),
 
   // Chave do CLIENTE (pública, segura para ser embutida)
-  // Substitua 'pk_live_...' pela sua chave publicável real do Stripe
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_live_51RZvaGHTmnc0kY1c6Fw3xIe6l5kK3WfS8Wq8Vz0iW8iY9X9yL6g5Y7h3xG4nJ2kP1bA0oB9cE8dF7gH00iJ6kL5oI",
 };
