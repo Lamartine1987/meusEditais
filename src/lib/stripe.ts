@@ -25,14 +25,11 @@ function loadStripeSecrets() {
                 // Atualiza o objeto appConfig com os segredos carregados.
                 appConfig.SECRET_KEY_PROD = parsedSecrets.SECRET_KEY_PROD || '';
                 appConfig.WEBHOOK_SECRET_PROD = parsedSecrets.WEBHOOK_SECRET_PROD || '';
-                appConfig.PRICE_ID_PLANO_CARGO = parsedSecrets.PRICE_ID_PLANO_CARGO || '';
-                appConfig.PRICE_ID_PLANO_EDITAL = parsedSecrets.PRICE_ID_PLANO_EDITAL || '';
-                appConfig.PRICE_ID_PLANO_ANUAL = parsedSecrets.PRICE_ID_PLANO_ANUAL || '';
                 
                 if (!appConfig.SECRET_KEY_PROD || !appConfig.WEBHOOK_SECRET_PROD) {
                     console.warn('[Stripe Secrets] AVISO: SECRET_KEY_PROD ou WEBHOOK_SECRET_PROD estão ausentes no JSON do segredo.');
                 } else {
-                    console.log('[Stripe Secrets] SUCESSO: Segredos do Stripe carregados e configurados em runtime.');
+                    console.log('[Stripe Secrets] SUCESSO: Segredos do Stripe (Secret Key, Webhook Secret) carregados em runtime.');
                 }
                 loadedSecrets = true;
             } catch (error) {
@@ -53,7 +50,7 @@ export function getStripeClient(): Stripe {
   const secretKey = appConfig.SECRET_KEY_PROD;
 
   if (!secretKey || secretKey.trim() === '') {
-    const errorMessage = `CRÍTICO: A chave secreta do Stripe (SECRET_KEY_PROD) não está disponível. Isso significa que o segredo 'STRIPE_SECRETS_JSON' não foi carregado ou analisado corretamente no ambiente de execução. Verifique os logs e a configuração do apphosting.yaml.`;
+    const errorMessage = `CRÍTICO: A chave secreta do Stripe (SECRET_KEY_PROD) não está disponível. O segredo 'STRIPE_SECRETS_JSON' pode não ter sido carregado ou analisado corretamente.`;
     console.error(errorMessage);
     throw new Error('A chave secreta do Stripe não está configurada no servidor. Verifique os logs.');
   }
