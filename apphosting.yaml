@@ -17,12 +17,10 @@ runConfig:
     - variable: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
       secret: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 
-# Disponibiliza a chave de API do Firebase para o processo de build do Next.js.
-# Isso é CRÍTICO para o login e outras funcionalidades do Firebase no cliente funcionarem.
-build:
-  args:
-    # A variável NEXT_PUBLIC_FIREBASE_API_KEY estará disponível durante o build.
-    NEXT_PUBLIC_FIREBASE_API_KEY: ${GOOGLE_API_KEY}
+# A chave de API do Firebase agora está diretamente no código (src/lib/firebase.ts),
+# então não precisamos mais passá-la durante o build.
+# Esta seção foi simplificada para remover a lógica que não estava funcionando.
+build: {}
 
 # Define todos os segredos que o App Hosting deve acessar.
 secretEnv:

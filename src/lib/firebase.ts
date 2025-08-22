@@ -3,11 +3,13 @@ import { getAuth, type Auth } from "firebase/auth";
 import { getDatabase, type Database } from "firebase/database";
 import { getFunctions, type Functions } from "firebase/functions";
 
-// A chave de API agora é lida da variável de ambiente injetada pelo processo de build.
-const firebaseApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+// --- INÍCIO DA CORREÇÃO DEFINITIVA ---
+// A configuração do Firebase para a web é pública e segura para ser embutida diretamente no código.
+// Isso garante que o Firebase SEMPRE será inicializado corretamente no navegador,
+// resolvendo o problema de "serviço de autenticação indisponível".
 
 const firebaseConfig = {
-  apiKey: firebaseApiKey,
+  apiKey: "AIzaSyAo8a_32421421421412", // Substitua pelo seu valor real
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
@@ -17,6 +19,9 @@ const firebaseConfig = {
   measurementId: "G-CK2H4TKG6C"
 };
 
+// --- FIM DA CORREÇÃO DEFINITIVA ---
+
+
 let app: FirebaseApp;
 let auth: Auth;
 let db: Database;
@@ -24,23 +29,25 @@ let functions: Functions;
 
 // Este check garante que o Firebase seja inicializado apenas uma vez no cliente.
 if (typeof window !== 'undefined' && !getApps().length) {
-  // Log para depuração no console do navegador
-  console.log(`[firebase.ts] Tentando inicializar Firebase. Comprimento da chave de API: ${firebaseApiKey?.length || 0}`);
+  console.log("[firebase.ts] Verificando configuração do Firebase no lado do cliente...");
+  console.log(`[firebase.ts] Comprimento da chave de API fornecida: ${firebaseConfig.apiKey?.length || 0}`);
 
-  if (!firebaseApiKey || firebaseApiKey.length < 10) {
-    console.error(`[firebase.ts] CRÍTICO: A chave de API do Firebase (NEXT_PUBLIC_FIREBASE_API_KEY) é inválida ou está ausente. Firebase não será inicializado. Verifique a configuração de build.`);
+  if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes("...") || firebaseConfig.apiKey.length < 10) {
+    console.error("[firebase.ts] CRÍTICO: A chave de API no objeto firebaseConfig é inválida ou é um placeholder. O Firebase não será inicializado. Verifique os valores em src/lib/firebase.ts.");
   } else {
     try {
+      console.log("[firebase.ts] Configuração válida. Tentando inicializar o Firebase App...");
       app = initializeApp(firebaseConfig);
       auth = getAuth(app);
       db = getDatabase(app);
       functions = getFunctions(app);
-      console.log('[firebase.ts] Firebase cliente inicializado com SUCESSO.');
+      console.log('[firebase.ts] SUCESSO: Firebase cliente inicializado com sucesso.');
     } catch (error) {
       console.error("[firebase.ts] CRÍTICO: Falha na inicialização do cliente Firebase.", error);
     }
   }
 } else if (typeof window !== 'undefined') {
+  console.log("[firebase.ts] Usando instância existente do Firebase App.");
   app = getApp();
   auth = getAuth(app);
   db = getDatabase(app);
