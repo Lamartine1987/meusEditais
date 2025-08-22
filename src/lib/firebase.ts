@@ -9,7 +9,7 @@ import { getFunctions, type Functions } from "firebase/functions";
 // resolvendo o problema de "serviço de autenticação indisponível".
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAo8a_32421421421412", // Substitua pelo seu valor real
+  apiKey: "AIzaSyAo8a_ASa_xw_Jg_123456789", // Substitua pelo seu valor real
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
@@ -32,7 +32,7 @@ if (typeof window !== 'undefined' && !getApps().length) {
   console.log("[firebase.ts] Verificando configuração do Firebase no lado do cliente...");
   console.log(`[firebase.ts] Comprimento da chave de API fornecida: ${firebaseConfig.apiKey?.length || 0}`);
 
-  if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes("...") || firebaseConfig.apiKey.length < 10) {
+  if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes("...") || firebaseConfig.apiKey.length < 30) {
     console.error("[firebase.ts] CRÍTICO: A chave de API no objeto firebaseConfig é inválida ou é um placeholder. O Firebase não será inicializado. Verifique os valores em src/lib/firebase.ts.");
   } else {
     try {
