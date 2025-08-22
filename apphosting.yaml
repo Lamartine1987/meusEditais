@@ -1,24 +1,17 @@
 # Configurações do backend do Firebase App Hosting
 # https://firebase.google.com/docs/app-hosting/configure
-runConfig:
-  # Esta seção define os segredos que estarão disponíveis SOMENTE no servidor em runtime.
-  # Cada segredo do Secret Manager é mapeado para uma variável de ambiente.
-  secretEnv:
-    - secretName: STRIPE_SECRET_KEY_PROD
-      env: STRIPE_SECRET_KEY_PROD
-    - secretName: STRIPE_WEBHOOK_SECRET_PROD
-      env: STRIPE_WEBHOOK_SECRET_PROD
-    - secretName: STRIPE_PRICE_ID_PLANO_CARGO
-      env: STRIPE_PRICE_ID_PLANO_CARGO
-    - secretName: STRIPE_PRICE_ID_PLANO_EDITAL
-      env: STRIPE_PRICE_ID_PLANO_EDITAL
-    - secretName: STRIPE_PRICE_ID_PLANO_ANUAL
-      env: STRIPE_PRICE_ID_PLANO_ANUAL
 
-# Esta seção passa variáveis durante o PROCESSO DE BUILD.
-# A chave pública do Firebase é necessária para o cliente, então a injetamos aqui.
+# A seção 'build' passa argumentos para o processo de build do Next.js.
+# O segredo GOOGLE_API_KEY do Secret Manager será injetado na variável de ambiente
+# NEXT_PUBLIC_FIREBASE_API_KEY, que o Next.js disponibilizará no navegador.
 build:
   args:
-    # O segredo GOOGLE_API_KEY do Secret Manager será injetado na variável de ambiente
-    # NEXT_PUBLIC_FIREBASE_API_KEY durante o build.
     NEXT_PUBLIC_FIREBASE_API_KEY: GOOGLE_API_KEY
+
+# A seção 'runConfig' define o ambiente de execução do servidor.
+runConfig:
+  # Esta seção define os segredos que estarão disponíveis SOMENTE no servidor em runtime.
+  # O conteúdo completo do segredo 'STRIPE_SECRETS' será colocado na variável de ambiente 'STRIPE_SECRETS_JSON'.
+  secretEnv:
+    - secretName: STRIPE_SECRETS
+      env: STRIPE_SECRETS_JSON

@@ -4,17 +4,17 @@ import { appConfig } from './config';
 
 let stripeClientInstance: Stripe | null = null;
 
-// This function should only be called server-side (e.g., in Server Actions or API routes)
+// Esta função deve ser chamada apenas no lado do servidor (ex: em Server Actions ou rotas de API)
 export function getStripeClient(): Stripe {
-  const secretKey = appConfig.STRIPE_SECRET_KEY_PROD;
+  // Lê a chave secreta diretamente do objeto de configuração, que já processou os segredos do ambiente.
+  const secretKey = appConfig.SECRET_KEY_PROD;
 
-  // Verbose logging for debugging
-  console.log(`[StripeClient] Attempting to initialize. STRIPE_SECRET_KEY_PROD value from config: '${secretKey ? "****** (present)" : "EMPTY_STRING_OR_NULL"}'`);
+  console.log(`[StripeClient] Tentando inicializar. O valor de appConfig.SECRET_KEY_PROD é: '${secretKey ? "****** (presente)" : "VAZIO OU NULO"}'`);
 
   if (!secretKey || secretKey.trim() === '') {
-    const errorMessage = `CRITICAL: STRIPE_SECRET_KEY_PROD is not set or is empty in config. This is a server-side configuration issue for the App Hosting backend. Ensure the secret is linked, has a non-empty value, and the backend has permissions to access it.`;
+    const errorMessage = `CRÍTICO: A chave secreta do Stripe (SECRET_KEY_PROD) não foi carregada da configuração. Isso geralmente significa que o segredo 'STRIPE_SECRETS' não foi lido ou analisado corretamente. Verifique os logs de 'config.ts' e a configuração do apphosting.yaml.`;
     console.error(errorMessage);
-    throw new Error('STRIPE_SECRET_KEY_PROD is not set or is empty. This is a server-side configuration issue. Check server logs.');
+    throw new Error('A chave secreta do Stripe não está configurada no servidor. Verifique os logs.');
   }
 
   if (!stripeClientInstance) {
@@ -22,7 +22,7 @@ export function getStripeClient(): Stripe {
       apiVersion: '2024-06-20',
       typescript: true,
     });
-    console.log("[StripeClient] Stripe client instance (PRODUCTION MODE) created successfully.");
+    console.log("[StripeClient] Instância do cliente Stripe (MODO PRODUÇÃO) criada com sucesso.");
   }
   return stripeClientInstance;
 }
