@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, Suspense, useMemo } from 'react';
@@ -33,21 +34,21 @@ const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
     name: "Plano Cargo",
     price: "R$ 9,90/ano",
     description: "Acesso a 1 cargo específico de 1 edital à sua escolha. Todas as funcionalidades de estudo para o cargo selecionado. Acompanhamento de progresso detalhado.",
-    stripePriceId: appConfig.STRIPE_PRICE_ID_PLANO_CARGO,
+    stripePriceId: appConfig.PRICE_ID_PLANO_CARGO,
   },
   plano_edital: {
     id: 'plano_edital',
     name: "Plano Edital",
     price: "R$ 29,90/ano",
     description: "Acesso a todos os cargos de 1 edital específico. Flexibilidade para estudar para múltiplas vagas do mesmo concurso. Todas as funcionalidades de estudo e acompanhamento.",
-    stripePriceId: appConfig.STRIPE_PRICE_ID_PLANO_EDITAL,
+    stripePriceId: appConfig.PRICE_ID_PLANO_EDITAL,
   },
   plano_anual: {
     id: 'plano_anual',
     name: "Plano Anual",
     price: "R$ 59,90/ano",
     description: "Acesso a todos os cargos de todos os editais da plataforma. Liberdade total para explorar e se preparar para múltiplos concursos. Todas as funcionalidades premium e atualizações futuras.",
-    stripePriceId: appConfig.STRIPE_PRICE_ID_PLANO_ANUAL,
+    stripePriceId: appConfig.PRICE_ID_PLANO_ANUAL,
   },
   plano_trial: {
     id: 'plano_trial',
