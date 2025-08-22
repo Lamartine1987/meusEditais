@@ -95,10 +95,11 @@ function CheckoutPageContent() {
       const planDetails = planDisplayMap[planIdParam as PlanId];
       setSelectedPlanDetails(planDetails);
       setIsValidPlan(true);
+      console.log(`[CheckoutPage] searchParams recebidos:`, searchParams.toString());
     } else {
       setIsValidPlan(false);
     }
-  }, [planIdParam]);
+  }, [planIdParam, searchParams]);
 
   useEffect(() => {
     if (!authLoading && !user) {
