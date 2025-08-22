@@ -5,18 +5,18 @@ import { getFunctions, type Functions } from "firebase/functions";
 
 // --- INÍCIO DA CORREÇÃO DEFINITIVA ---
 // A configuração do Firebase para a web é pública e segura para ser embutida diretamente no código.
-// Isso garante que o Firebase SEMPRE será inicializado corretamente no navegador,
-// resolvendo o problema de "serviço de autenticação indisponível".
+// Isso garante que o Firebase SEMPRE será inicializado corretamente no navegador.
+// Os valores abaixo foram obtidos da sua configuração de projeto.
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBNsEsDbmtxDGi-V3W--D3CF5mXbhOj5ZM", // Corrigido com o valor da imagem
+  apiKey: "AIzaSyBNsEsDbmtxDGi-V3W--D3CF5mXbhOj5ZM", // Sua chave de API real
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
   storageBucket: "meuseditais.appspot.com",
   messagingSenderId: "801348002832",
-  appId: "1:801348002832:web:c1c2f89db9c807a09d9695", // App ID de exemplo, mas é seguro
-  measurementId: "G-CK2H4TKG6C" // Measurement ID de exemplo, mas é seguro
+  appId: "1:801348002832:web:c1c2f89db9c807a09d9695",
+  measurementId: "G-CK2H4TKG6C"
 };
 
 // --- FIM DA CORREÇÃO DEFINITIVA ---

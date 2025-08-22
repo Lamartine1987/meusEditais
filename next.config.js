@@ -13,7 +13,8 @@ const nextConfig = {
     ],
   },
   transpilePackages: ['recharts'],
-  // A chave de API do Firebase agora está diretamente no código (src/lib/firebase.ts),
+  // A chave de API do Firebase e a chave publicável do Stripe agora estão
+  // diretamente no código (src/lib/firebase.ts e src/lib/config.ts),
   // então não precisamos mais da configuração 'env' aqui.
 };
 
