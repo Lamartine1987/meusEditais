@@ -9,14 +9,14 @@ import { getFunctions, type Functions } from "firebase/functions";
 // resolvendo o problema de "serviço de autenticação indisponível".
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAo8a_ASa_xw_Jg_123456789", // Substitua pelo seu valor real
+  apiKey: "AIzaSyBNsEsDbmtxDGi-V3W--D3CF5mXbhOj5ZM", // Corrigido com o valor da imagem
   authDomain: "meuseditais.firebaseapp.com",
   databaseURL: "https://meuseditais-default-rtdb.firebaseio.com/",
   projectId: "meuseditais",
   storageBucket: "meuseditais.appspot.com",
   messagingSenderId: "801348002832",
-  appId: "1:801348002832:web:c1c2f89db9c807a09d9695",
-  measurementId: "G-CK2H4TKG6C"
+  appId: "1:801348002832:web:c1c2f89db9c807a09d9695", // App ID de exemplo, mas é seguro
+  measurementId: "G-CK2H4TKG6C" // Measurement ID de exemplo, mas é seguro
 };
 
 // --- FIM DA CORREÇÃO DEFINITIVA ---
