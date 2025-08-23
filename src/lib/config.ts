@@ -1,22 +1,27 @@
+
 // src/lib/config.ts
 
-// NOTA: A lógica de leitura de 'STRIPE_SECRETS_JSON' foi movida para 'stripe.ts'
-// para garantir que seja executada apenas no ambiente de execução do servidor (runtime).
-// Os Price IDs são públicos e podem ser definidos aqui para uso no cliente.
+// NOTA: Os segredos (chaves secretas, webhook) são agora carregados exclusivamente
+// em runtime no servidor através de `src/lib/stripe.ts`.
 
 interface AppConfig {
+  // Segredos que serão populados em runtime no servidor
   SECRET_KEY_PROD: string;
   WEBHOOK_SECRET_PROD: string;
+  
+  // Price IDs são públicos e podem ser definidos aqui para uso no cliente.
+  // Eles também são recarregados do segredo no servidor para garantir consistência.
   PRICE_ID_PLANO_CARGO: string;
   PRICE_ID_PLANO_EDITAL: string;
   PRICE_ID_PLANO_ANUAL: string;
+  
+  // Chave publicável do Stripe, segura para ser exposta no cliente.
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: string;
 }
 
-// Os segredos (SECRET_KEY_PROD, WEBHOOK_SECRET_PROD) serão carregados sob demanda no runtime do servidor.
-// As chaves públicas (Publishable Key) e os Price IDs são seguros para serem expostos e são definidos aqui.
+// Valores padrão/públicos. Os segredos serão vazios até serem carregados em runtime.
 export const appConfig: AppConfig = {
-  SECRET_KEY_PROD: '',
+  SECRET_KEY_PROD: '', 
   WEBHOOK_SECRET_PROD: '',
   PRICE_ID_PLANO_CARGO: "price_1RgswbHTmnc0kY1cgSdqMwBA",
   PRICE_ID_PLANO_EDITAL: "price_1RgsvOHTmnc0kY1cQ3L6jE8r",
