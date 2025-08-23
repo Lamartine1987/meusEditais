@@ -5,19 +5,9 @@ import { getStripeClient } from '@/lib/stripe';
 import type { PlanId, PlanDetails } from '@/types';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { adminDb } from '@/lib/firebase-admin'; // Use Admin DB
+import { adminDb } from '@/lib/firebase-admin';
 import { formatISO } from 'date-fns';
 import type Stripe from 'stripe';
-import { appConfig } from '@/lib/config';
-
-// Mapeia os IDs de plano da aplicação para os Price IDs do Stripe lidos da configuração.
-// A função getStripeClient() garante que os segredos, incluindo os Price IDs, sejam carregados.
-const getPlanToPriceMap = (): Record<PlanId, string | undefined> => ({
-  plano_cargo: appConfig.PRICE_ID_PLANO_CARGO,
-  plano_edital: appConfig.PRICE_ID_PLANO_EDITAL,
-  plano_anual: appConfig.PRICE_ID_PLANO_ANUAL,
-  plano_trial: undefined, // Trial não tem preço Stripe
-});
 
 const planRank: Record<PlanId, number> = {
   plano_trial: 0,
@@ -26,11 +16,18 @@ const planRank: Record<PlanId, number> = {
   plano_anual: 3,
 };
 
-const FALLBACK_PRICE_IDS = [
-  'price_plano_cargo_fallback_placeholder',
-  'price_plano_edital_fallback_placeholder',
-  'price_plano_anual_fallback_placeholder',
-];
+// Mapeia os IDs de plano da aplicação para os Price IDs do Stripe lidos das variáveis de ambiente no servidor.
+const getPlanToPriceMap = (): Record<PlanId, string | undefined> => {
+    console.log('[StripeAction] Lendo Price IDs das variáveis de ambiente do servidor...');
+    const priceMap = {
+      plano_cargo: process.env.PRICE_ID_PLANO_CARGO,
+      plano_edital: process.env.PRICE_ID_PLANO_EDITAL,
+      plano_anual: process.env.PRICE_ID_PLANO_ANUAL,
+      plano_trial: undefined,
+    };
+    console.log(`[StripeAction] Price IDs carregados: Cargo=${!!priceMap.plano_cargo}, Edital=${!!priceMap.plano_edital}, Anual=${!!priceMap.plano_anual}`);
+    return priceMap;
+};
 
 export async function createCheckoutSession(
   planId: PlanId,
@@ -47,13 +44,13 @@ export async function createCheckoutSession(
   }
   
   const stripe = getStripeClient(); // Esta chamada agora carrega os segredos
-  const planToPriceMap = getPlanToPriceMap(); // Obtém o mapa de preços atualizado
+  const planToPriceMap = getPlanToPriceMap(); // Obtém o mapa de preços do ambiente de execução
 
   const priceId = planToPriceMap[planId];
   console.log(`[StripeAction] Mapeamento de PlanID '${planId}' para PriceID: '${priceId || 'undefined'}'`);
 
-  if (!priceId || priceId.trim() === '' || FALLBACK_PRICE_IDS.includes(priceId)) {
-    const errorMessage = `Erro de configuração: O Price ID do Stripe para o plano '${planId}' é inválido ou não foi carregado. Verifique o segredo 'STRIPE_SECRETS' e os logs do servidor.`;
+  if (!priceId || priceId.trim() === '') {
+    const errorMessage = `Erro de configuração: O Price ID do Stripe para o plano '${planId}' não foi carregado do ambiente do servidor. Verifique o segredo correspondente e a configuração do apphosting.yaml.`;
     console.error(`[StripeAction] ${errorMessage}`);
     throw new Error(errorMessage);
   }
@@ -124,63 +121,48 @@ export async function createCheckoutSession(
   }
 }
 
-// O restante do arquivo (handleStripeWebhook) permanece o mesmo
 export async function handleStripeWebhook(req: Request): Promise<Response> {
-  console.log('[handleStripeWebhook] Requisição de webhook de PRODUÇÃO recebida.');
+  console.log('[handleStripeWebhook] Requisição de webhook recebida.');
   const stripe = getStripeClient();
-  const headersList = await headers();
-  const signature = headersList.get('stripe-signature');
-  console.log(`[handleStripeWebhook] Assinatura Stripe do cabeçalho: ${signature ? 'presente' : 'AUSENTE (ISSO É UM PROBLEMA!)'}`);
-
-  // A função getStripeClient já garante que o segredo foi carregado
-  const webhookSecret = appConfig.WEBHOOK_SECRET_PROD;
-  console.log(`[handleStripeWebhook] appConfig.WEBHOOK_SECRET_PROD: ${webhookSecret ? "****** (presente)" : "STRING VAZIA OU NULA (ISSO É UM PROBLEMA CRÍTICO!)"}`);
-
+  const signature = headers().get('stripe-signature');
+  
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  console.log(`[handleStripeWebhook] Assinatura: ${signature ? 'presente' : 'AUSENTE'}. Segredo do Webhook: ${webhookSecret ? 'presente' : 'AUSENTE'}`);
+  
   if (!signature) {
-    const msg = "Erro de Webhook: Cabeçalho stripe-signature ausente";
-    console.error(`[handleStripeWebhook] ${msg}`);
-    return new Response(msg, { status: 400 });
+    return new Response("Erro: Cabeçalho stripe-signature ausente", { status: 400 });
   }
-  if (!webhookSecret || webhookSecret.trim() === '') {
-    const msg = `CRÍTICO: WEBHOOK_SECRET_PROD não está definido ou está vazio. Isso indica um problema de configuração do lado do servidor.`;
-    console.error(`[handleStripeWebhook] ${msg}`);
-    return new Response('Erro de Webhook: Segredo do webhook não configurado ou está vazio.', { status: 500 });
+  if (!webhookSecret) {
+    return new Response("Erro: Segredo do webhook não configurado no servidor.", { status: 500 });
   }
 
   let event: Stripe.Event;
-  let rawBody: string = '';
   try {
-    rawBody = await req.text(); // Lê o corpo uma vez
+    const rawBody = await req.text();
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
-    console.log(`[handleStripeWebhook] Evento Stripe construído. Tipo: ${event.type}, ID: ${event.id}`);
   } catch (err: any) {
-    console.error(`[handleStripeWebhook] Falha na verificação da assinatura do webhook: ${err.message}.`);
+    console.error(`[handleStripeWebhook] Falha na verificação da assinatura: ${err.message}`);
     return new Response(`Erro de Webhook: ${err.message}`, { status: 400 });
   }
   
-  console.log(`[handleStripeWebhook] Processando evento: ${event.type}`);
+  console.log(`[handleStripeWebhook] Evento processado: ${event.type}`);
   
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
-        console.log(`[handleStripeWebhook] Evento: checkout.session.completed. ID da Sessão: ${session.id}. Metadados: ${JSON.stringify(session.metadata)}`);
+        console.log(`[handleStripeWebhook] checkout.session.completed. Metadados: ${JSON.stringify(session.metadata)}`);
         
         const userId = session.metadata?.userId;
         const planIdFromMetadata = session.metadata?.planId as PlanId | undefined;
         const selectedCargoCompositeId = session.metadata?.selectedCargoCompositeId;
         const selectedEditalId = session.metadata?.selectedEditalId; 
         const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null;
-        const stripeCustomerIdFromSession = session.customer;
+        const stripeCustomerIdFromSession = session.customer as string;
 
         if (!userId || !planIdFromMetadata) {
-          console.error('[handleStripeWebhook] Erro: userId ou planId ausentes nos metadados.', session.metadata);
-          return new Response('Erro de Webhook: Metadados críticos ausentes.', { status: 400 });
-        }
-        
-        if (!stripeCustomerIdFromSession || typeof stripeCustomerIdFromSession !== 'string') {
-          console.error('[handleStripeWebhook] Erro: ID do cliente ausente na sessão.', session);
-          return new Response('Erro de Webhook: ID do cliente ausente.', { status: 400 });
+          console.error('[handleStripeWebhook] Erro: Metadados críticos ausentes.', session.metadata);
+          return new Response('Erro: Metadados críticos ausentes.', { status: 400 });
         }
         
         const userFirebaseRef = adminDb.ref(`users/${userId}`);
@@ -237,15 +219,12 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         
         break;
       }
-      
-      // ... outros casos de webhook ...
-
       default:
         console.log(`[handleStripeWebhook] Evento não tratado: ${event.type}.`);
     }
   } catch (processingError: any) {
       console.error(`[handleStripeWebhook] Erro ao processar o evento ${event.type}:`, processingError);
-      return new Response(`Erro interno ao processar evento ${event.type}.`, { status: 500 });
+      return new Response(`Erro interno ao processar evento.`, { status: 500 });
   }
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });

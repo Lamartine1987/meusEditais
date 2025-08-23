@@ -13,19 +13,16 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft, AlertTriangle, CreditCard, Gem, Zap } from 'lucide-react';
 import type { PlanId } from '@/types';
 import { createCheckoutSession } from '@/actions/stripe-actions';
-import { loadStripe } from '@stripe/stripe-js';
-import { appConfig } from '@/lib/config';
 
-const stripePromise = appConfig.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-  ? loadStripe(appConfig.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
-  : null;
+// A chave publicável do Stripe é pública e segura para ser exposta aqui.
+const NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_live_51RZvaGHTmnc0kY1c6Fw3xIe6l5kK3WfS8Wq8Vz0iW8iY9X9yL6g5Y7h3xG4nJ2kP1bA0oB9cE8dF7gH00iJ6kL5oI";
+
 
 interface PlanDisplayDetails {
   id: PlanId;
   name: string;
   price: string;
   description: string;
-  stripePriceId?: string; 
 }
 
 const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
@@ -34,21 +31,18 @@ const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
     name: "Plano Cargo",
     price: "R$ 9,90/ano",
     description: "Acesso a 1 cargo específico de 1 edital à sua escolha. Todas as funcionalidades de estudo para o cargo selecionado. Acompanhamento de progresso detalhado.",
-    stripePriceId: appConfig.PRICE_ID_PLANO_CARGO,
   },
   plano_edital: {
     id: 'plano_edital',
     name: "Plano Edital",
     price: "R$ 29,90/ano",
     description: "Acesso a todos os cargos de 1 edital específico. Flexibilidade para estudar para múltiplas vagas do mesmo concurso. Todas as funcionalidades de estudo e acompanhamento.",
-    stripePriceId: appConfig.PRICE_ID_PLANO_EDITAL,
   },
   plano_anual: {
     id: 'plano_anual',
     name: "Plano Anual",
     price: "R$ 59,90/ano",
     description: "Acesso a todos os cargos de todos os editais da plataforma. Liberdade total para explorar e se preparar para múltiplos concursos. Todas as funcionalidades premium e atualizações futuras.",
-    stripePriceId: appConfig.PRICE_ID_PLANO_ANUAL,
   },
   plano_trial: {
     id: 'plano_trial',
@@ -77,10 +71,10 @@ function CheckoutPageContent() {
 
 
   useEffect(() => {
-    console.log('Stripe Publishable Key (from client-side config):', appConfig.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ? "Presente" : "AUSENTE!");
+    console.log('Stripe Publishable Key (do cliente):', NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ? "Presente" : "AUSENTE!");
     
-    if (!stripePromise) {
-      console.error("Stripe Publishable Key is not set. Payments will not work.");
+    if (!NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
+      console.error("A chave publicável do Stripe não está definida. Pagamentos não funcionarão.");
       toast({
         title: "Erro de Configuração",
         description: "A chave publicável do Stripe não está configurada. Pagamentos não funcionarão.",
@@ -114,7 +108,7 @@ function CheckoutPageContent() {
   }, [user, authLoading, router, toast, planIdParam, searchParams]);
 
   const handleStripeCheckout = async () => {
-    if (!user || !user.email || !selectedPlanDetails || !selectedPlanDetails.stripePriceId || !stripePromise) {
+    if (!user || !user.email || !selectedPlanDetails) {
       toast({ title: "Erro", description: "Informações do usuário ou do plano incompletas para iniciar o pagamento.", variant: "destructive" });
       return;
     }
@@ -153,12 +147,6 @@ function CheckoutPageContent() {
 
     if (selectedPlanDetails.id === 'plano_edital' && user.activePlans?.some(p => p.selectedEditalId === specificCheckoutDetails.selectedEditalId)) {
         toast({ title: "Edital já Adquirido", description: "Você já possui um plano ativo para este edital específico.", variant: "default" });
-        router.push('/perfil');
-        return;
-    }
-
-    if (selectedPlanDetails.id === 'plano_anual' && user.activePlans?.some(p => p.planId === 'plano_anual')) {
-        toast({ title: "Plano já Adquirido", description: "Você já possui o Plano Anual.", variant: "default" });
         router.push('/perfil');
         return;
     }
@@ -312,7 +300,7 @@ function CheckoutPageContent() {
                 size="lg" 
                 className="w-full text-lg h-12" 
                 onClick={handleStripeCheckout}
-                disabled={isProcessingPayment || authLoading || !stripePromise}
+                disabled={isProcessingPayment || authLoading || !NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
               >
                 {isProcessingPayment || authLoading ? (
                   <Loader2 className="mr-2 h-6 w-6 animate-spin" />
