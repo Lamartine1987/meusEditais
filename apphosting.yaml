@@ -1,10 +1,8 @@
 # Configurações do backend do Firebase App Hosting
 # https://firebase.google.com/docs/app-hosting/configure
-
-# A seção 'runConfig' disponibiliza segredos do Secret Manager como variáveis de ambiente
-# para o ambiente de execução do servidor (runtime).
 runConfig:
-  # Cada segredo agora é carregado em sua própria variável de ambiente.
+  # Disponibiliza segredos do Secret Manager como variáveis de ambiente
+  # para o ambiente de execução do servidor (runtime).
   secretEnv:
     - secretName: STRIPE_SECRET_KEY
       env: STRIPE_SECRET_KEY
@@ -16,6 +14,5 @@ runConfig:
       env: PRICE_ID_PLANO_EDITAL
     - secretName: PRICE_ID_PLANO_ANUAL
       env: PRICE_ID_PLANO_ANUAL
-
 # A seção 'build' não é necessária, pois as chaves são acessadas apenas no runtime.
 build: {}

@@ -1,4 +1,3 @@
-
 import Stripe from 'stripe';
 
 let stripeClientInstance: Stripe | null = null;
@@ -26,7 +25,7 @@ export function getStripeClient(): Stripe {
       apiVersion: '2024-06-20',
       typescript: true,
     });
-    console.log("[stripe.ts] Instância do cliente Stripe (MODO PRODUÇÃO) criada com sucesso em runtime.");
+    console.log("[stripe.ts] Instância do cliente Stripe criada com sucesso em runtime.");
   } else {
     console.log("[stripe.ts] Usando instância existente do cliente Stripe.");
   }
