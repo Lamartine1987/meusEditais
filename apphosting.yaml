@@ -11,7 +11,6 @@ runConfig:
     - secretName: STRIPE_SECRETS
       env: STRIPE_SECRETS_JSON
 
-# A seção 'build' não é mais necessária para as chaves do Firebase,
-# pois elas foram embutidas diretamente no código em src/lib/firebase.ts.
-# Isso remove um ponto de falha anterior.
+# A seção 'build' não é mais necessária para as chaves, pois elas
+# são acessadas apenas no runtime do servidor.
 build: {}
