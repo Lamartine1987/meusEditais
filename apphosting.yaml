@@ -1,9 +1,12 @@
+
 # Configurações do backend do Firebase App Hosting
 # https://firebase.google.com/docs/app-hosting/configure
 
+# A seção 'secretEnv' disponibiliza segredos do Secret Manager como variáveis de ambiente
+# para o ambiente de execução do servidor.
+# Estamos carregando o segredo 'STRIPE_SECRETS' que contém um JSON com todas as chaves
+# para a variável de ambiente 'STRIPE_SECRETS_JSON'.
 runConfig:
-  # A seção 'secretEnv' disponibiliza segredos do Secret Manager como variáveis de ambiente
-  # para o ambiente de execução do servidor.
   secretEnv:
     - secretName: STRIPE_SECRETS
       env: STRIPE_SECRETS_JSON
