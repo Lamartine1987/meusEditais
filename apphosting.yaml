@@ -2,18 +2,16 @@
 # Configurações do backend do Firebase App Hosting
 # https://firebase.google.com/docs/app-hosting/configure
 
-# A seção 'secretEnv' disponibiliza segredos do Secret Manager como variáveis de ambiente
-# para o ambiente de execução do servidor.
-# Estamos carregando o segredo 'STRIPE_SECRETS' que contém um JSON com todas as chaves
-# para a variável de ambiente 'STRIPE_SECRETS_JSON'.
 runConfig:
+  # A seção 'secretEnv' disponibiliza segredos do Secret Manager como variáveis de ambiente
+  # para o ambiente de execução do servidor.
+  # Estamos carregando o segredo 'STRIPE_SECRETS' (que contém um JSON)
+  # para a variável de ambiente 'STRIPE_SECRETS_JSON'.
   secretEnv:
     - secretName: STRIPE_SECRETS
       env: STRIPE_SECRETS_JSON
 
-build:
-  # A seção 'args' passa argumentos para o processo de build do Next.js.
-  # O segredo GOOGLE_API_KEY será injetado na variável de ambiente
-  # NEXT_PUBLIC_FIREBASE_API_KEY, que o Next.js disponibilizará no navegador.
-  args:
-    NEXT_PUBLIC_FIREBASE_API_KEY: GOOGLE_API_KEY
+# A seção 'build' não é mais necessária para as chaves do Firebase,
+# pois elas foram embutidas diretamente no código em src/lib/firebase.ts.
+# Isso remove um ponto de falha anterior.
+build: {}
