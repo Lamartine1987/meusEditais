@@ -12,10 +12,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, ArrowLeft, AlertTriangle, CreditCard, Gem, Zap } from 'lucide-react';
 import type { PlanId } from '@/types';
-import { createCheckoutSession } from '@/actions/stripe-actions';
-
-// A chave publicável do Stripe é pública e segura para ser exposta aqui.
-const NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_live_51RZvaGHTmnc0kY1c6Fw3xIe6l5kK3WfS8Wq8Vz0iW8iY9X9yL6g5Y7h3xG4nJ2kP1bA0oB9cE8dF7gH00iJ6kL5oI";
+import { getAuth } from 'firebase/auth';
 
 
 interface PlanDisplayDetails {
@@ -69,20 +66,6 @@ function CheckoutPageContent() {
     return selectedPlanDetails.id === 'plano_anual' && (user.activePlans?.length ?? 0) > 0;
   }, [user, selectedPlanDetails]);
 
-
-  useEffect(() => {
-    console.log('Stripe Publishable Key (do cliente):', NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ? "Presente" : "AUSENTE!");
-    
-    if (!NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) {
-      console.error("A chave publicável do Stripe não está definida. Pagamentos não funcionarão.");
-      toast({
-        title: "Erro de Configuração",
-        description: "A chave publicável do Stripe não está configurada. Pagamentos não funcionarão.",
-        variant: "destructive",
-        duration: 7000,
-      });
-    }
-  }, [toast]);
 
   useEffect(() => {
     if (planIdParam && (planIdParam === 'plano_cargo' || planIdParam === 'plano_edital' || planIdParam === 'plano_anual')) {
@@ -153,7 +136,36 @@ function CheckoutPageContent() {
 
     setIsProcessingPayment(true);
     try {
-      await createCheckoutSession(selectedPlanDetails.id, user.id, user.email, specificCheckoutDetails);
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error("Usuário não autenticado.");
+      
+      const idToken = await currentUser.getIdToken();
+
+      const response = await fetch('/api/checkout/create-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          planId: selectedPlanDetails.id,
+          ...specificCheckoutDetails
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Falha ao criar sessão de pagamento.');
+      }
+
+      const { url } = await response.json();
+      if (url) {
+        router.push(url);
+      } else {
+        throw new Error('URL de checkout não recebida.');
+      }
+
     } catch (error: any) {
       console.error("Stripe Checkout Error:", error);
       toast({ title: "Erro no Checkout", description: error.message || "Não foi possível iniciar o processo de pagamento.", variant: "destructive" });
@@ -300,7 +312,7 @@ function CheckoutPageContent() {
                 size="lg" 
                 className="w-full text-lg h-12" 
                 onClick={handleStripeCheckout}
-                disabled={isProcessingPayment || authLoading || !NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
+                disabled={isProcessingPayment || authLoading}
               >
                 {isProcessingPayment || authLoading ? (
                   <Loader2 className="mr-2 h-6 w-6 animate-spin" />
