@@ -1,3 +1,4 @@
+
 import Stripe from 'stripe';
 
 let stripeClientInstance: Stripe | null = null;
