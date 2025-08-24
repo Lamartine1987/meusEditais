@@ -13,9 +13,9 @@ export const runtime = 'nodejs';
 const getPlanToPriceMap = (): Record<PlanId, string | undefined> => {
     console.log('[API create-session] Lendo Price IDs das variáveis de ambiente do servidor...');
     const priceMap = {
-      plano_cargo: process.env.PRICE_ID_PLANO_CARGO,
-      plano_edital: process.env.PRICE_ID_PLANO_EDITAL,
-      plano_anual: process.env.PRICE_ID_PLANO_ANUAL,
+      plano_cargo: process.env.STRIPE_PRICE_ID_PLANO_CARGO,
+      plano_edital: process.env.STRIPE_PRICE_ID_PLANO_EDITAL,
+      plano_anual: process.env.STRIPE_PRICE_ID_PLANO_ANUAL,
       plano_trial: undefined,
     };
     console.log(`[API create-session] Price IDs carregados: Cargo=${!!priceMap.plano_cargo}, Edital=${!!priceMap.plano_edital}, Anual=${!!priceMap.plano_anual}`);

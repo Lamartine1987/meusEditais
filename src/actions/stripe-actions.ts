@@ -22,7 +22,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   const stripe = getStripeClient();
   const signature = headers().get('stripe-signature');
   
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_PROD;
   console.log(`[handleStripeWebhook] Assinatura: ${signature ? 'presente' : 'AUSENTE'}. Segredo do Webhook: ${webhookSecret ? 'presente' : 'AUSENTE'}`);
   
   if (!signature) {

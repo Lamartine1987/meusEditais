@@ -12,11 +12,11 @@ export function getStripeClient(): Stripe {
     throw new Error(errorMessage);
   }
 
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-  console.log(`[stripe.ts] Tentando inicializar o Stripe. Chave secreta presente: ${!!secretKey}`);
+  const secretKey = process.env.STRIPE_SECRET_KEY_PROD;
+  console.log(`[stripe.ts] Tentando inicializar o Stripe. Chave secreta (STRIPE_SECRET_KEY_PROD) presente: ${!!secretKey}`);
 
   if (!secretKey || secretKey.trim() === '') {
-    const errorMessage = "[stripe.ts] ERRO CRÍTICO: A variável de ambiente STRIPE_SECRET_KEY não está disponível no servidor. Verifique o apphosting.yaml e os segredos no App Hosting.";
+    const errorMessage = "[stripe.ts] ERRO CRÍTICO: A variável de ambiente STRIPE_SECRET_KEY_PROD não está disponível no servidor. Verifique o apphosting.yaml e os segredos no App Hosting.";
     console.error(errorMessage);
     throw new Error('A chave secreta do Stripe não está configurada no servidor. Verifique os logs do servidor.');
   }
