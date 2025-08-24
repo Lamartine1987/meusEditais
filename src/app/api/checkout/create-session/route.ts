@@ -54,11 +54,10 @@ export async function POST(req: NextRequest) {
         const priceId = planToPriceMap[planId as PlanId];
 
         if (!priceId || priceId.trim() === '') {
-            const errorMessage = `Erro de configuração: O Price ID do Stripe para o plano '${planId}' não foi carregado do ambiente do servidor. Verifique o apphosting.yaml e os segredos.`;
+            const errorMessage = `Erro de configuração: O Price ID do Stripe para o plano '${planId}' não foi carregado do ambiente do servidor.`;
             console.error(`[API create-session] ${errorMessage}`);
             return NextResponse.json({ error: errorMessage }, { status: 500 });
         }
-        console.log(`[API create-session] Usando Price ID: ${priceId} para o plano ${planId}.`);
 
         let stripeCustomerId: string | undefined;
         const userRefDb = adminDb.ref(`users/${userId}`);
@@ -104,9 +103,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ url: session.url });
 
     } catch (error: any) {
-        console.error('[API create-session] ERROR type:', error?.type);
-        console.error('[API create-session] ERROR code:', error?.code);
-        console.error('[API create-session] ERROR msg :', error?.message || error?.raw?.message || String(error));
+        console.error('[API create-session] Erro CRÍTICO:', error);
         return NextResponse.json({ error: 'Falha interna ao criar sessão de pagamento.', details: error.message }, { status: 500 });
     }
 }
