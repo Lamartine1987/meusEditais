@@ -103,7 +103,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ url: session.url });
 
     } catch (error: any) {
-        console.error('[API create-session] Erro CRÍTICO:', error);
+        console.error('[API create-session] ERROR type:', error?.type);
+        console.error('[API create-session] ERROR code:', error?.code);
+        console.error('[API create-session] ERROR msg :', error?.message || error?.raw?.message || String(error));
         return NextResponse.json({ error: 'Falha interna ao criar sessão de pagamento.', details: error.message }, { status: 500 });
     }
 }
