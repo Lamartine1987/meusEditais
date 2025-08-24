@@ -54,10 +54,11 @@ export async function POST(req: NextRequest) {
         const priceId = planToPriceMap[planId as PlanId];
 
         if (!priceId || priceId.trim() === '') {
-            const errorMessage = `Erro de configuração: O Price ID do Stripe para o plano '${planId}' não foi carregado do ambiente do servidor.`;
+            const errorMessage = `Erro de configuração: O Price ID do Stripe para o plano '${planId}' não foi carregado do ambiente do servidor. Verifique o apphosting.yaml e os segredos.`;
             console.error(`[API create-session] ${errorMessage}`);
             return NextResponse.json({ error: errorMessage }, { status: 500 });
         }
+        console.log(`[API create-session] Usando Price ID: ${priceId} para o plano ${planId}.`);
 
         let stripeCustomerId: string | undefined;
         const userRefDb = adminDb.ref(`users/${userId}`);

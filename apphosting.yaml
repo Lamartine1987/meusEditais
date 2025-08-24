@@ -1,14 +1,14 @@
 runConfig:
   minInstances: 0
   secretEnv:
-    - secretName: STRIPE_SECRET_KEY
+    - secretName: STRIPE_SECRET_KEY_PROD
       env: STRIPE_SECRET_KEY
-    - secretName: STRIPE_WEBHOOK_SECRET
+    - secretName: STRIPE_WEBHOOK_SECRET_PROD
       env: STRIPE_WEBHOOK_SECRET
-    - secretName: PRICE_ID_PLANO_CARGO
+    - secretName: STRIPE_PRICE_ID_PLANO_CARGO
       env: PRICE_ID_PLANO_CARGO
-    - secretName: PRICE_ID_PLANO_EDITAL
+    - secretName: STRIPE_PRICE_ID_PLANO_EDITAL
       env: PRICE_ID_PLANO_EDITAL
-    - secretName: PRICE_ID_PLANO_ANUAL
+    - secretName: STRIPE_PRICE_ID_PLANO_ANUAL
       env: PRICE_ID_PLANO_ANUAL
 build: {}
