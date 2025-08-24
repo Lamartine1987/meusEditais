@@ -1,11 +1,8 @@
-
 import Stripe from 'stripe';
 
 let stripeClientInstance: Stripe | null = null;
 
-// Esta função deve ser chamada apenas no lado do servidor (ex: em Server Actions ou rotas de API)
 export function getStripeClient(): Stripe {
-  // Garante que este código só execute no lado do servidor.
   if (typeof window !== 'undefined') {
     const errorMessage = '[stripe.ts] ERRO CRÍTICO: Tentativa de criar cliente Stripe no lado do cliente.';
     console.error(errorMessage);

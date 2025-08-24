@@ -1,15 +1,12 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripeClient } from '@/lib/stripe';
 import { adminDb, auth as adminAuth } from '@/lib/firebase-admin';
 import type { PlanId } from '@/types';
-import type Stripe from 'stripe';
 import { headers } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// Mapeia os IDs de plano da aplicação para os Price IDs do Stripe lidos das variáveis de ambiente no servidor.
 const getPlanToPriceMap = (): Record<PlanId, string | undefined> => {
     console.log('[API create-session] Lendo Price IDs das variáveis de ambiente do servidor...');
     const priceMap = {
@@ -103,7 +100,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ url: session.url });
 
     } catch (error: any) {
-        console.error('[API create-session] Erro CRÍTICO:', error);
+        console.error('[API create-session] ERRO CRÍTICO TIPO:', error?.type);
+        console.error('[API create-session] ERRO CRÍTICO CÓDIGO:', error?.code);
+        console.error('[API create-session] ERRO CRÍTICO MENSAGEM:', error?.message || error?.raw?.message || String(error));
         return NextResponse.json({ error: 'Falha interna ao criar sessão de pagamento.', details: error.message }, { status: 500 });
     }
 }
