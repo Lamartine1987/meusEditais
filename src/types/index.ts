@@ -36,8 +36,8 @@ export type PlanId = 'plano_cargo' | 'plano_edital' | 'plano_anual' | 'plano_tri
 
 export interface PlanDetails {
   planId: PlanId;
-  startDate?: string; // ISO date
-  expiryDate?: string; // ISO date
+  startDate: string; // ISO date
+  expiryDate: string; // ISO date
   // Specific to 'plano_cargo'
   selectedCargoCompositeId?: string; // e.g., "edital1_cargo1"
   // Specific to 'plano_edital'

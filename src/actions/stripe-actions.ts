@@ -4,7 +4,6 @@
 import { getStripeClient } from '@/lib/stripe';
 import type { PlanId, PlanDetails } from '@/types';
 import { headers } from 'next/headers';
-import { redirect } from 'next/navigation';
 import { adminDb } from '@/lib/firebase-admin';
 import { formatISO } from 'date-fns';
 import type Stripe from 'stripe';
@@ -78,6 +77,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           stripeSubscriptionId: null,
           stripePaymentIntentId: paymentIntentId,
           stripeCustomerId: stripeCustomerIdFromSession,
+          status: 'active',
         };
         
         const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
