@@ -1,4 +1,3 @@
-// lib/secrets.ts
 'use server';
 
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
@@ -39,6 +38,6 @@ export async function getSecret(name: string): Promise<string> {
 }
 
 export async function getEnvOrSecret(name: string): Promise<string> {
-  // Prioriza a variável de ambiente se ela existir, senão busca no Secret Manager.
+  // Prioriza a variável de ambiente se ela existir (para dev local), senão busca no Secret Manager.
   return process.env[name] ?? (await getSecret(name));
 }

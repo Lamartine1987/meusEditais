@@ -1,6 +1,5 @@
-
-import Stripe from 'stripe';
 import { NextRequest, NextResponse } from 'next/server';
+import { getStripeClient } from '@/lib/stripe';
 import { adminDb, auth as adminAuth } from '@/lib/firebase-admin';
 import type { PlanId } from '@/types';
 import { headers } from 'next/headers';
@@ -44,15 +43,12 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'planId é obrigatório e não pode ser plano_trial.' }, { status: 400 });
         }
 
-        const stripeSecretKey = await getEnvOrSecret('STRIPE_SECRET_KEY_PROD');
-        const stripe = new Stripe(stripeSecretKey, {
-          apiVersion: '2024-06-20',
-        });
+        const stripe = await getStripeClient();
         
         const planToPriceMap = await getPlanToPriceMap();
         const priceId = planToPriceMap[planId as keyof typeof planToPriceMap];
         
-        console.log(`[API create-session] Mapeamento para checkout: planId='${planId}', priceId='${priceId.slice(0,10)}...'`);
+        console.log(`[API create-session] Mapeamento para checkout: planId='${planId}', priceId='${priceId ? priceId.slice(0,10) + '...' : 'N/A'}'`);
 
         const price = await stripe.prices.retrieve(priceId);
         console.log('[API create-session] Price validado:', { id: price.id, livemode: price.livemode });
