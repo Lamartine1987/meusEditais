@@ -1,3 +1,4 @@
+
 'use server';
 
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
@@ -24,7 +25,7 @@ export async function getSecret(name: string): Promise<string> {
     const [version] = await sm.accessSecretVersion({
       name: secretPath,
     });
-    const val = version.payload?.data?.toString('utf8') || '';
+    const val = version.payload?.data?.toString() || '';
     if (!val) {
       console.error(`[secrets] Segredo '${name}' está vazio ou não pôde ser decodificado.`);
       throw new Error(`Secret vazio: ${name}`);
