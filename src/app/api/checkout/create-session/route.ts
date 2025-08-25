@@ -11,6 +11,7 @@ export const runtime = 'nodejs';
 function getEnvOrThrow(key: string): string {
   const value = process.env[key];
   if (!value) {
+    console.error(`[create-session] ERRO CRÍTICO: Variável de ambiente ausente: ${key}`);
     throw new Error(`Variável de ambiente ausente: ${key}`);
   }
   return value;
@@ -29,7 +30,6 @@ export async function GET() {
     },
   });
 }
-
 
 const getPlanToPriceMap = (): Record<Exclude<PlanId, 'plano_trial'>, string> => {
     return {
