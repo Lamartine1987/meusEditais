@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'planId é obrigatório.' }, { status: 400 });
         }
 
-        const stripe = getStripeClient();
+        const stripe = await getStripeClient();
         const planToPriceMap = getPlanToPriceMap();
         const priceId = planToPriceMap[planId as PlanId];
 
