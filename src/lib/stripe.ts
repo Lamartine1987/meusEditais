@@ -1,12 +1,12 @@
 import Stripe from 'stripe';
-import { getEnvOrSecret } from './secrets';
+import { getSecret } from './secrets';
 
 let client: Stripe | null = null;
 
 export async function getStripeClient(): Promise<Stripe> {
   if (client) return client;
   
-  const key = await getEnvOrSecret('STRIPE_SECRET_KEY_PROD');
+  const key = await getSecret('STRIPE_SECRET_KEY_PROD');
   if (!key) {
     throw new Error('A chave secreta do Stripe (STRIPE_SECRET_KEY_PROD) não foi encontrada.');
   }
