@@ -1,6 +1,5 @@
-
-import { NextRequest, NextResponse } from 'next/server';
-import { getStripeClient } from '@/lib/stripe';
+import Stripe from 'stripe';
+import { NextResponse } from 'next/server';
 import { adminDb, auth as adminAuth } from '@/lib/firebase-admin';
 import type { PlanId } from '@/types';
 import { headers } from 'next/headers';
@@ -8,6 +7,7 @@ import { headers } from 'next/headers';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// Mapeia os IDs de plano da aplicação para os Price IDs do Stripe lidos das variáveis de ambiente no servidor.
 const getPlanToPriceMap = (): Record<PlanId, string | undefined> => {
     console.log('[API create-session] Lendo Price IDs das variáveis de ambiente do servidor...');
     const priceMap = {
@@ -20,7 +20,7 @@ const getPlanToPriceMap = (): Record<PlanId, string | undefined> => {
     return priceMap;
 };
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
     console.log('[API create-session] Recebida requisição POST.');
     try {
         const authHeader = headers().get('authorization');
@@ -47,12 +47,14 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'planId é obrigatório.' }, { status: 400 });
         }
 
-        const stripe = getStripeClient();
+        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY_PROD!, {
+          apiVersion: '2024-06-20',
+        });
         const planToPriceMap = getPlanToPriceMap();
         const priceId = planToPriceMap[planId as PlanId];
 
         if (!priceId || priceId.trim() === '') {
-            const errorMessage = `Erro de configuração: O Price ID do Stripe para o plano '${planId}' não foi carregado do ambiente do servidor.`;
+            const errorMessage = `Erro de configuração: O Price ID do Stripe para o plano '${planId}' não foi carregado do ambiente do servidor. Verifique os segredos e o apphosting.yaml.`;
             console.error(`[API create-session] ${errorMessage}`);
             return NextResponse.json({ error: errorMessage }, { status: 500 });
         }
