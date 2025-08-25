@@ -1,5 +1,6 @@
+
 import Stripe from 'stripe';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, auth as adminAuth } from '@/lib/firebase-admin';
 import type { PlanId } from '@/types';
 import { headers } from 'next/headers';
@@ -7,20 +8,38 @@ import { headers } from 'next/headers';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// Mapeia os IDs de plano da aplicação para os Price IDs do Stripe lidos das variáveis de ambiente no servidor.
-const getPlanToPriceMap = (): Record<PlanId, string | undefined> => {
-    console.log('[API create-session] Lendo Price IDs das variáveis de ambiente do servidor...');
-    const priceMap = {
-      plano_cargo: process.env.STRIPE_PRICE_ID_PLANO_CARGO,
-      plano_edital: process.env.STRIPE_PRICE_ID_PLANO_EDITAL,
-      plano_anual: process.env.STRIPE_PRICE_ID_PLANO_ANUAL,
-      plano_trial: undefined,
+function getEnvOrThrow(key: string): string {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Variável de ambiente ausente: ${key}`);
+  }
+  return value;
+}
+
+// GET de debug rápido (remova depois de confirmar que funciona)
+export async function GET() {
+  const present = (k: string) => Boolean(process.env[k]);
+  return NextResponse.json({
+    runtime: 'nodejs',
+    envPresent: {
+      STRIPE_SECRET_KEY_PROD: present('STRIPE_SECRET_KEY_PROD'),
+      STRIPE_PRICE_ID_PLANO_CARGO: present('STRIPE_PRICE_ID_PLANO_CARGO'),
+      STRIPE_PRICE_ID_PLANO_EDITAL: present('STRIPE_PRICE_ID_PLANO_EDITAL'),
+      STRIPE_PRICE_ID_PLANO_ANUAL: present('STRIPE_PRICE_ID_PLANO_ANUAL'),
+    },
+  });
+}
+
+
+const getPlanToPriceMap = (): Record<Exclude<PlanId, 'plano_trial'>, string> => {
+    return {
+      plano_cargo: getEnvOrThrow('STRIPE_PRICE_ID_PLANO_CARGO'),
+      plano_edital: getEnvOrThrow('STRIPE_PRICE_ID_PLANO_EDITAL'),
+      plano_anual: getEnvOrThrow('STRIPE_PRICE_ID_PLANO_ANUAL'),
     };
-    console.log(`[API create-session] Price IDs carregados: Cargo=${!!priceMap.plano_cargo}, Edital=${!!priceMap.plano_edital}, Anual=${!!priceMap.plano_anual}`);
-    return priceMap;
 };
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     console.log('[API create-session] Recebida requisição POST.');
     try {
         const authHeader = headers().get('authorization');
@@ -42,22 +61,24 @@ export async function POST(req: Request) {
         const body = await req.json();
         const { planId, selectedCargoCompositeId, selectedEditalId } = body;
 
-        if (!planId) {
-            console.error('[API create-session] Erro: planId ausente no corpo da requisição.');
-            return NextResponse.json({ error: 'planId é obrigatório.' }, { status: 400 });
+        if (!planId || planId === 'plano_trial') {
+            console.error('[API create-session] Erro: planId ausente ou inválido no corpo da requisição.');
+            return NextResponse.json({ error: 'planId é obrigatório e não pode ser plano_trial.' }, { status: 400 });
         }
 
-        const stripe = new Stripe(process.env.STRIPE_SECRET_KEY_PROD!, {
+        const stripe = new Stripe(getEnvOrThrow('STRIPE_SECRET_KEY_PROD'), {
           apiVersion: '2024-06-20',
         });
+        
         const planToPriceMap = getPlanToPriceMap();
-        const priceId = planToPriceMap[planId as PlanId];
+        const priceId = planToPriceMap[planId as keyof typeof planToPriceMap];
+        
+        console.log(`[API create-session] Mapeamento para checkout: planId='${planId}', priceId='${priceId.slice(0,10)}...'`);
 
-        if (!priceId || priceId.trim() === '') {
-            const errorMessage = `Erro de configuração: O Price ID do Stripe para o plano '${planId}' não foi carregado do ambiente do servidor. Verifique os segredos e o apphosting.yaml.`;
-            console.error(`[API create-session] ${errorMessage}`);
-            return NextResponse.json({ error: errorMessage }, { status: 500 });
-        }
+        // Valida se o preço existe no Stripe antes de criar a sessão
+        const price = await stripe.prices.retrieve(priceId);
+        console.log('[API create-session] Price validado:', { id: price.id, livemode: price.livemode });
+
 
         let stripeCustomerId: string | undefined;
         const userRefDb = adminDb.ref(`users/${userId}`);
@@ -88,14 +109,17 @@ export async function POST(req: Request) {
             ...(selectedEditalId && { selectedEditalId }),
         };
 
-        const origin = headers().get('origin') || 'https://fallback-url.com';
+        const origin = new URL(req.url).origin;
+        const success_url = `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
+        const cancel_url = `${origin}/checkout/cancel`;
+
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
             mode: 'payment',
             customer: stripeCustomerId,
             line_items: [{ price: priceId, quantity: 1 }],
-            success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${origin}/checkout/cancel`,
+            success_url: success_url,
+            cancel_url: cancel_url,
             metadata: metadata,
         });
 
@@ -103,9 +127,13 @@ export async function POST(req: Request) {
         return NextResponse.json({ url: session.url });
 
     } catch (error: any) {
-        console.error('[API create-session] ERRO CRÍTICO TIPO:', error?.type);
-        console.error('[API create-session] ERRO CRÍTICO CÓDIGO:', error?.code);
-        console.error('[API create-session] ERRO CRÍTICO MENSAGEM:', error?.message || error?.raw?.message || String(error));
-        return NextResponse.json({ error: 'Falha interna ao criar sessão de pagamento.', details: error.message }, { status: 500 });
+        console.error('[API create-session] ERRO CRÍTICO:', {
+            message: error?.message,
+            type: error?.type,
+            code: error?.code,
+            raw: error?.raw?.message,
+            stack: error?.stack,
+        });
+        return NextResponse.json({ error: error?.raw?.message || error?.message || 'Falha interna ao criar sessão de pagamento.', details: error.message }, { status: 500 });
     }
 }
