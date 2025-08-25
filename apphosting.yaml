@@ -1,14 +1,20 @@
 runConfig:
   minInstances: 0
+
+  # variáveis normais (não secretas)
+  env:
+    - key: NEXT_PUBLIC_APP_URL
+      value: https://meuseditais.com.br
+
+  # SECRETS mapeados para nomes de env usados no código
   secretEnv:
     - secretName: STRIPE_SECRET_KEY_PROD
       env: STRIPE_SECRET_KEY_PROD
-    - secretName: STRIPE_WEBHOOK_SECRET_PROD
-      env: STRIPE_WEBHOOK_SECRET_PROD
     - secretName: STRIPE_PRICE_ID_PLANO_CARGO
       env: STRIPE_PRICE_ID_PLANO_CARGO
     - secretName: STRIPE_PRICE_ID_PLANO_EDITAL
       env: STRIPE_PRICE_ID_PLANO_EDITAL
     - secretName: STRIPE_PRICE_ID_PLANO_ANUAL
       env: STRIPE_PRICE_ID_PLANO_ANUAL
-build: {}
+    - secretName: STRIPE_WEBHOOK_SECRET_PROD
+      env: STRIPE_WEBHOOK_SECRET_PROD
