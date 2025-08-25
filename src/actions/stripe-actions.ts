@@ -7,6 +7,7 @@ import { headers } from 'next/headers';
 import { adminDb } from '@/lib/firebase-admin';
 import { formatISO } from 'date-fns';
 import type Stripe from 'stripe';
+import { getEnvOrSecret } from '@/lib/secrets';
 
 const planRank: Record<PlanId, number> = {
   plano_trial: 0,
@@ -18,10 +19,10 @@ const planRank: Record<PlanId, number> = {
 
 export async function handleStripeWebhook(req: Request): Promise<Response> {
   console.log('[handleStripeWebhook] Requisição de webhook recebida.');
-  const stripe = getStripeClient();
+  const stripe = await getStripeClient();
   const signature = headers().get('stripe-signature');
   
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_PROD;
+  const webhookSecret = await getEnvOrSecret('STRIPE_WEBHOOK_SECRET_PROD');
   console.log(`[handleStripeWebhook] Assinatura: ${signature ? 'presente' : 'AUSENTE'}. Segredo do Webhook: ${webhookSecret ? 'presente' : 'AUSENTE'}`);
   
   if (!signature) {

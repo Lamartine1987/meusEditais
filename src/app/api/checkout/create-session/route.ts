@@ -4,38 +4,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, auth as adminAuth } from '@/lib/firebase-admin';
 import type { PlanId } from '@/types';
 import { headers } from 'next/headers';
+import { getEnvOrSecret } from '@/lib/secrets';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-function getEnvOrThrow(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    console.error(`[create-session] ERRO CRÍTICO: Variável de ambiente ausente: ${key}`);
-    throw new Error(`Variável de ambiente ausente: ${key}`);
-  }
-  return value;
-}
-
-// GET de debug rápido (remova depois de confirmar que funciona)
-export async function GET() {
-  const present = (k: string) => Boolean(process.env[k]);
-  return NextResponse.json({
-    runtime: 'nodejs',
-    envPresent: {
-      STRIPE_SECRET_KEY_PROD: present('STRIPE_SECRET_KEY_PROD'),
-      STRIPE_PRICE_ID_PLANO_CARGO: present('STRIPE_PRICE_ID_PLANO_CARGO'),
-      STRIPE_PRICE_ID_PLANO_EDITAL: present('STRIPE_PRICE_ID_PLANO_EDITAL'),
-      STRIPE_PRICE_ID_PLANO_ANUAL: present('STRIPE_PRICE_ID_PLANO_ANUAL'),
-    },
-  });
-}
-
-const getPlanToPriceMap = (): Record<Exclude<PlanId, 'plano_trial'>, string> => {
+async function getPlanToPriceMap(): Promise<Record<Exclude<PlanId, 'plano_trial'>, string>> {
     return {
-      plano_cargo: getEnvOrThrow('STRIPE_PRICE_ID_PLANO_CARGO'),
-      plano_edital: getEnvOrThrow('STRIPE_PRICE_ID_PLANO_EDITAL'),
-      plano_anual: getEnvOrThrow('STRIPE_PRICE_ID_PLANO_ANUAL'),
+      plano_cargo: await getEnvOrSecret('STRIPE_PRICE_ID_PLANO_CARGO'),
+      plano_edital: await getEnvOrSecret('STRIPE_PRICE_ID_PLANO_EDITAL'),
+      plano_anual: await getEnvOrSecret('STRIPE_PRICE_ID_PLANO_ANUAL'),
     };
 };
 
@@ -66,16 +44,16 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'planId é obrigatório e não pode ser plano_trial.' }, { status: 400 });
         }
 
-        const stripe = new Stripe(getEnvOrThrow('STRIPE_SECRET_KEY_PROD'), {
+        const stripeSecretKey = await getEnvOrSecret('STRIPE_SECRET_KEY_PROD');
+        const stripe = new Stripe(stripeSecretKey, {
           apiVersion: '2024-06-20',
         });
         
-        const planToPriceMap = getPlanToPriceMap();
+        const planToPriceMap = await getPlanToPriceMap();
         const priceId = planToPriceMap[planId as keyof typeof planToPriceMap];
         
         console.log(`[API create-session] Mapeamento para checkout: planId='${planId}', priceId='${priceId.slice(0,10)}...'`);
 
-        // Valida se o preço existe no Stripe antes de criar a sessão
         const price = await stripe.prices.retrieve(priceId);
         console.log('[API create-session] Price validado:', { id: price.id, livemode: price.livemode });
 
@@ -109,9 +87,9 @@ export async function POST(req: NextRequest) {
             ...(selectedEditalId && { selectedEditalId }),
         };
 
-        const origin = new URL(req.url).origin;
-        const success_url = `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
-        const cancel_url = `${origin}/checkout/cancel`;
+        const appUrl = await getEnvOrSecret('NEXT_PUBLIC_APP_URL').catch(() => 'https://meuseditais.com.br');
+        const success_url = `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
+        const cancel_url = `${appUrl}/checkout/cancel`;
 
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
@@ -132,8 +110,8 @@ export async function POST(req: NextRequest) {
             type: error?.type,
             code: error?.code,
             raw: error?.raw?.message,
-            stack: error?.stack,
+            stack: error?.stack?.substring(0, 300),
         });
-        return NextResponse.json({ error: error?.raw?.message || error?.message || 'Falha interna ao criar sessão de pagamento.', details: error.message }, { status: 500 });
+        return NextResponse.json({ error: error?.raw?.message || error?.message || 'Falha interna ao criar sessão de pagamento.' }, { status: 500 });
     }
 }

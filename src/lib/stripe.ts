@@ -1,29 +1,24 @@
 import Stripe from 'stripe';
+import { getEnvOrSecret } from './secrets';
 
 let stripeClientInstance: Stripe | null = null;
 
-export function getStripeClient(): Stripe {
+export async function getStripeClient(): Promise<Stripe> {
   if (typeof window !== 'undefined') {
     const errorMessage = '[stripe.ts] ERRO CRÍTICO: Tentativa de criar cliente Stripe no lado do cliente.';
     console.error(errorMessage);
     throw new Error(errorMessage);
   }
 
-  const secretKey = process.env.STRIPE_SECRET_KEY_PROD;
-  console.log(`[stripe.ts] Tentando inicializar o Stripe. Chave secreta (STRIPE_SECRET_KEY_PROD) presente: ${!!secretKey}`);
-
-  if (!secretKey || secretKey.trim() === '') {
-    const errorMessage = "[stripe.ts] ERRO CRÍTICO: A variável de ambiente STRIPE_SECRET_KEY_PROD não está disponível no servidor. Verifique o apphosting.yaml e os segredos no App Hosting.";
-    console.error(errorMessage);
-    throw new Error('A chave secreta do Stripe não está configurada no servidor. Verifique os logs do servidor.');
-  }
-
   if (!stripeClientInstance) {
+    console.log("[stripe.ts] Criando nova instância do cliente Stripe...");
+    const secretKey = await getEnvOrSecret('STRIPE_SECRET_KEY_PROD');
+    
     stripeClientInstance = new Stripe(secretKey, {
       apiVersion: '2024-06-20',
       typescript: true,
     });
-    console.log("[stripe.ts] Instância do cliente Stripe criada com sucesso em runtime.");
+    console.log("[stripe.ts] Instância do cliente Stripe criada com sucesso.");
   } else {
     console.log("[stripe.ts] Usando instância existente do cliente Stripe.");
   }
