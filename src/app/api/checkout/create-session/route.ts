@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripeClient } from '@/lib/stripe';
 import { adminDb, auth as adminAuth } from '@/lib/firebase-admin';
