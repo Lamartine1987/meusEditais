@@ -79,7 +79,7 @@ export default function PoliticaDePrivacidadePage() {
 
                     <section className="space-y-2">
                         <h2 className="text-lg font-semibold text-primary">6. Contato</h2>
-                        <p>Se você tiver alguma dúvida sobre esta Política de Privacidade, entre em contato conosco através de [seu e-mail de contato].</p>
+                        <p>Se você tiver alguma dúvida sobre esta Política de Privacidade, entre em contato conosco através de contato@meuseditais.com.br.</p>
                     </section>
                 </div>
             </ScrollArea>
