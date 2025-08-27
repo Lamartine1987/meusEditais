@@ -538,10 +538,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       toast({ title: "Teste Já Utilizado", description: "Você já utilizou seu período de teste gratuito.", variant: "default" });
       return;
     }
-    if (user.activePlans?.some(p => p.planId !== 'plano_trial')) {
-      toast({ title: "Plano Ativo", description: "Você já possui um plano pago ativo.", variant: "default" });
-      return;
+    const hasPaidPlan = user.activePlans?.some(p => p.planId === 'plano_cargo' || p.planId === 'plano_edital' || p.planId === 'plano_anual');
+    if (hasPaidPlan) {
+        toast({ title: "Plano Ativo", description: "Você já possui um plano pago ativo.", variant: "default" });
+        return;
     }
+
 
     const now = new Date();
     const trialPlanDetails: PlanDetails = {
