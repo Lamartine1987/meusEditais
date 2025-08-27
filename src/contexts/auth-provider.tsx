@@ -525,9 +525,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const startFreeTrial = async () => {
-    if (!user) {
-      toast({ title: "Usuário não logado", description: "Faça login para iniciar seu teste.", variant: "destructive" });
-      router.push("/login?redirect=/planos");
+    if (!user || !user.cpf) {
+      toast({ title: "Informação Faltando", description: "Usuário ou CPF não encontrado. Faça login para iniciar seu teste.", variant: "destructive" });
+      if (!user) router.push("/login?redirect=/planos");
       return;
     }
     if (!db) {
@@ -553,11 +553,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const updatedActivePlans = [...(user.activePlans || []).filter(p => p.planId !== 'plano_trial'), trialPlanDetails];
 
     try {
-      await update(ref(db, `users/${user.id}`), { 
+      // Create updates for user node and the persistent trial record
+      const updates: { [key: string]: any } = {};
+      const userUpdates = { 
         activePlan: 'plano_trial',
         activePlans: updatedActivePlans,
         hasHadFreeTrial: true 
-      });
+      };
+      updates[`/users/${user.id}`] = { ...user, ...userUpdates }; // Update existing user data with new plan
+      updates[`/usedTrialsByCpf/${user.cpf.replace(/\D/g, '')}`] = true;
+
+      await update(ref(db), updates);
+
       toast({ 
         title: "Teste Gratuito Ativado!", 
         description: `Você tem ${TRIAL_DURATION_DAYS} dias para explorar todos os recursos. Aproveite!`, 
