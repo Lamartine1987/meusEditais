@@ -585,7 +585,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error("[startFreeTrial] CRITICAL: Erro ao tentar atualizar o banco de dados:", error);
       toast({ title: "Erro ao Ativar Teste", description: "Não foi possível iniciar seu período de teste.", variant: "destructive" });
-      throw error;
     } 
   };
 
