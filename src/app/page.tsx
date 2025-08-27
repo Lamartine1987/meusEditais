@@ -146,7 +146,7 @@ export default function HomePage() {
           <div className="flex items-center gap-3 text-center sm:text-left">
             <Sparkles className="h-10 w-10 sm:h-12 sm:w-12 shrink-0" />
             <div>
-              <h3 className="text-xl sm:text-2xl font-semibold">Experimente Grátis por 30 Dias!</h3>
+              <h3 className="text-xl sm:text-2xl font-semibold">Experimente Grátis por 7 Dias!</h3>
               <p className="text-sm sm:text-base opacity-90">Explore todos os recursos da plataforma sem compromisso.</p>
             </div>
           </div>

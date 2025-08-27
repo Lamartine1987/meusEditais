@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { User as AppUser, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, PlanId, PlanDetails, NoteEntry } from '@/types';
@@ -19,7 +20,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { registerUser } from '@/actions/auth-actions';
 
-const TRIAL_DURATION_DAYS = 30;
+const TRIAL_DURATION_DAYS = 7;
 
 const planRank: Record<PlanId, number> = {
   plano_trial: 0,

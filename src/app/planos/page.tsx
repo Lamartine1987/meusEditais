@@ -1,3 +1,4 @@
+
 "use client";
 
 import { PageWrapper } from '@/components/layout/page-wrapper';
@@ -266,7 +267,7 @@ export default function PlanosPage() {
                 Grátis
               </p>
               <p className="text-center text-sm font-medium text-muted-foreground -mt-2">
-                Durante 30 dias
+                Durante 7 dias
               </p>
               <ul className="space-y-2 text-sm">
                 <PlanFeature>Acesso a <strong>todas as funcionalidades</strong> da plataforma.</PlanFeature>
@@ -550,9 +551,9 @@ export default function PlanosPage() {
                 <CardTitle className="text-xl text-center">Como funciona a assinatura?</CardTitle>
             </CardHeader>
             <CardContent className="text-center text-muted-foreground space-y-3">
-                <p><strong>Plano Teste Gratuito:</strong> Crie uma conta para iniciar seu teste gratuito e ter acesso imediato por 30 dias.</p>
+                <p><strong>Plano Teste Gratuito:</strong> Crie uma conta para iniciar seu teste gratuito e ter acesso imediato por 7 dias.</p>
                 <p>Para os <strong>Planos Cargo, Edital e Anual</strong>, é necessário estar logado para prosseguir ao checkout via Stripe.</p>
-                 <p className="font-semibold text-primary">Todos os planos pagos também incluem 30 dias de teste gratuito no primeiro pagamento!</p>
+                 <p className="font-semibold text-primary">Todos os planos pagos também incluem 7 dias de teste gratuito no primeiro pagamento!</p>
             </CardContent>
              <CardFooter className="justify-center pt-4">
                 {user ? (
