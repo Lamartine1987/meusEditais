@@ -525,26 +525,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const startFreeTrial = async () => {
+    console.log("[startFreeTrial] Iniciando a função.");
     if (!user || !user.cpf) {
+      console.log("[startFreeTrial] Bloqueado: Usuário ou CPF não encontrado.", { hasUser: !!user, hasCpf: !!user?.cpf });
       toast({ title: "Informação Faltando", description: "Usuário ou CPF não encontrado. Faça login para iniciar seu teste.", variant: "destructive" });
       if (!user) router.push("/login?redirect=/planos");
       return;
     }
     if (!db) {
-        toast({ title: "Erro de Conexão", description: "Não foi possível se conectar ao banco de dados.", variant: "destructive" });
-        return;
+      console.log("[startFreeTrial] Bloqueado: Conexão com o banco de dados não disponível.");
+      toast({ title: "Erro de Conexão", description: "Não foi possível se conectar ao banco de dados.", variant: "destructive" });
+      return;
     }
     if (user.hasHadFreeTrial) {
-      toast({ title: "Teste Já Utilizado", description: "Você já utilizou seu período de teste gratuito.", variant: "default" });
+      console.log("[startFreeTrial] Bloqueado: O usuário já utilizou o teste (user.hasHadFreeTrial=true).");
+      toast({ title: "Teste Já Utilizado", description: "Este CPF já utilizou o período de teste gratuito.", variant: "default" });
       return;
     }
     const hasPaidPlan = user.activePlans?.some(p => p.planId === 'plano_cargo' || p.planId === 'plano_edital' || p.planId === 'plano_anual');
     if (hasPaidPlan) {
-        toast({ title: "Plano Ativo", description: "Você já possui um plano pago ativo.", variant: "default" });
-        return;
+      console.log("[startFreeTrial] Bloqueado: Usuário possui plano pago ativo.");
+      toast({ title: "Plano Ativo", description: "Você já possui um plano pago ativo.", variant: "default" });
+      return;
     }
 
-
+    console.log("[startFreeTrial] Todas as verificações iniciais passaram. Prosseguindo com a ativação.");
     const now = new Date();
     const trialPlanDetails: PlanDetails = {
       planId: 'plano_trial',
@@ -555,17 +560,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const updatedActivePlans = [...(user.activePlans || []).filter(p => p.planId !== 'plano_trial'), trialPlanDetails];
 
     try {
-      // Create updates for user node and the persistent trial record
+      console.log("[startFreeTrial] Construindo payload de atualização para o DB.");
       const updates: { [key: string]: any } = {};
-      const userUpdates = { 
-        activePlan: 'plano_trial',
-        activePlans: updatedActivePlans,
-        hasHadFreeTrial: true 
-      };
-      updates[`/users/${user.id}`] = { ...user, ...userUpdates }; // Update existing user data with new plan
-      updates[`/usedTrialsByCpf/${user.cpf.replace(/\D/g, '')}`] = true;
-
+      const userPath = `/users/${user.id}`;
+      const trialPath = `/usedTrialsByCpf/${user.cpf.replace(/\D/g, '')}`;
+      
+      updates[`${userPath}/activePlan`] = 'plano_trial';
+      updates[`${userPath}/activePlans`] = updatedActivePlans;
+      updates[`${userPath}/hasHadFreeTrial`] = true;
+      updates[trialPath] = true;
+      
+      console.log("[startFreeTrial] Payload para o DB:", updates);
       await update(ref(db), updates);
+      console.log("[startFreeTrial] Atualização no DB concluída com sucesso.");
 
       toast({ 
         title: "Teste Gratuito Ativado!", 
@@ -576,7 +583,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
       router.push('/'); 
     } catch (error) {
+      console.error("[startFreeTrial] CRITICAL: Erro ao tentar atualizar o banco de dados:", error);
       toast({ title: "Erro ao Ativar Teste", description: "Não foi possível iniciar seu período de teste.", variant: "destructive" });
+      throw error;
     } 
   };
 
