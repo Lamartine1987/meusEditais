@@ -14,6 +14,36 @@ import { useToast } from '@/hooks/use-toast';
 import { registerUser } from '@/actions/auth-actions'; // Import server action
 import { Checkbox } from '@/components/ui/checkbox';
 
+// Função para validar CPF
+const validateCpf = (cpf: string): boolean => {
+    cpf = cpf.replace(/[^\d]+/g, '');
+    if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false;
+
+    const digits = cpf.split('').map(Number);
+
+    const calcDigit = (sliceEnd: number): number => {
+        let sum = 0;
+        for (let i = 0; i < sliceEnd; i++) {
+            sum += digits[i] * (sliceEnd + 1 - i);
+        }
+        const remainder = sum % 11;
+        return remainder < 2 ? 0 : 11 - remainder;
+    };
+
+    return calcDigit(9) === digits[9] && calcDigit(10) === digits[10];
+};
+
+// Função para formatar CPF
+const formatCpf = (value: string): string => {
+  return value
+    .replace(/\D/g, '') // Remove tudo o que não é dígito
+    .replace(/(\d{3})(\d)/, '$1.$2') // Coloca um ponto entre o terceiro e o quarto dígitos
+    .replace(/(\d{3})(\d)/, '$1.$2') // Coloca um ponto entre o terceiro e o quarto dígitos de novo (para o segundo bloco)
+    .replace(/(\d{3})(\d{1,2})$/, '$1-$2') // Coloca um hífen entre o terceiro e o quarto dígitos
+    .substring(0, 14); // Limita o tamanho
+};
+
+
 export default function RegisterPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -27,6 +57,11 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!validateCpf(cpf)) {
+      toast({ title: "CPF Inválido", description: "Por favor, insira um número de CPF válido.", variant: "destructive" });
+      return;
+    }
 
     if (!termsAccepted) {
       toast({ title: "Termos não aceitos", description: "Você precisa aceitar os Termos de Uso e a Política de Privacidade para continuar.", variant: "destructive"});
@@ -106,7 +141,7 @@ export default function RegisterPage() {
                 placeholder="000.000.000-00" 
                 required 
                 value={cpf}
-                onChange={(e) => setCpf(e.target.value)}
+                onChange={(e) => setCpf(formatCpf(e.target.value))}
                 className="text-base h-11 rounded-md shadow-sm"
                 autoComplete="off"
               />
