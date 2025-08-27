@@ -87,13 +87,25 @@ export default function HomePage() {
       return 'open';
     };
 
+    const statusOrder: Record<Edital['status'], number> = {
+      open: 1,
+      upcoming: 2,
+      closed: 3,
+    };
+
     return allEditais
       .map(edital => ({
         ...edital,
         status: getStatus(edital.publicationDate, edital.closingDate), // Calculate status dynamically
       }))
       .sort((a, b) => {
-        // Sort by publication date, descending (most recent first)
+        // First, sort by status
+        const statusDifference = statusOrder[a.status] - statusOrder[b.status];
+        if (statusDifference !== 0) {
+          return statusDifference;
+        }
+        
+        // If statuses are the same, then sort by publication date (most recent first)
         try {
           return new Date(b.publicationDate).getTime() - new Date(a.publicationDate).getTime();
         } catch (e) {
