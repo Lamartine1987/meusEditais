@@ -185,7 +185,6 @@ export default function SubjectTopicsPage() {
     };
   }, [activeAccordionItem, timerStates, hasAccess]);
 
-
   const handleToggleTopicCheckbox = useCallback(async (topicId: string) => {
     if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
@@ -310,7 +309,21 @@ export default function SubjectTopicsPage() {
 
   const handleQuestionFormChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setQuestionFormData(prev => ({ ...prev, [name]: value }));
+    
+    setQuestionFormData(prev => {
+      const updatedState = { ...prev, [name]: value };
+      
+      const total = parseInt(updatedState.totalQuestions, 10);
+      const correct = parseInt(updatedState.correctQuestions, 10);
+      
+      if (!isNaN(total) && !isNaN(correct) && total >= correct) {
+        updatedState.incorrectQuestions = (total - correct).toString();
+      } else if (name !== 'incorrectQuestions') {
+        updatedState.incorrectQuestions = '';
+      }
+      
+      return updatedState;
+    });
   };
 
   const handleSaveQuestionLog = async () => {
