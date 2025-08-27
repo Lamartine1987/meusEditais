@@ -19,6 +19,7 @@ import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fn
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
 import { registerUser } from '@/actions/auth-actions';
+import { isWithinGracePeriod } from '@/lib/utils';
 
 const TRIAL_DURATION_DAYS = 7;
 
@@ -49,8 +50,7 @@ interface AuthContextType {
   deleteNote: (noteId: string) => Promise<void>;
   cancelSubscription: () => Promise<void>;
   startFreeTrial: () => Promise<void>;
-  changeCargoForPlanoCargo: (newCargoCompositeId: string) => Promise<void>;
-  isPlanoCargoWithinGracePeriod: () => boolean;
+  changeItemForPlan: (paymentIntentId: string, newItemId: string) => Promise<void>;
   setRankingParticipation: (participate: boolean) => Promise<void>;
   requestPlanRefund: (paymentIntentId: string) => Promise<void>;
   deleteUserAccount: () => Promise<void>;
@@ -489,14 +489,53 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
-  const isPlanoCargoWithinGracePeriod = (): boolean => {
-    return false;
-  };
+    const changeItemForPlan = async (paymentIntentId: string, newItemId: string) => {
+        if (!user || !user.activePlans || !db) throw new Error("Usuário ou planos não encontrados.");
+        
+        const planIndex = user.activePlans.findIndex(p => p.stripePaymentIntentId === paymentIntentId);
+        if (planIndex === -1) {
+            toast({ title: "Erro", description: "Plano original não encontrado para realizar a troca.", variant: "destructive" });
+            throw new Error("Plano não encontrado.");
+        }
 
-  const changeCargoForPlanoCargo = async (newCargoCompositeId: string) => {
-    toast({ title: "Função Indisponível", description: "A troca de cargo para planos existentes não está disponível no momento.", variant: "destructive" });
-    return;
-  };
+        const planToChange = user.activePlans[planIndex];
+        if (!isWithinGracePeriod(planToChange.startDate, 7)) {
+            toast({ title: "Período Expirado", description: "O período de 7 dias para troca já passou.", variant: "destructive" });
+            throw new Error("Período de troca expirou.");
+        }
+
+        const updatedPlans = [...user.activePlans];
+        const oldItemId = planToChange.planId === 'plano_cargo' ? planToChange.selectedCargoCompositeId : planToChange.selectedEditalId;
+
+        if (planToChange.planId === 'plano_cargo') {
+            updatedPlans[planIndex].selectedCargoCompositeId = newItemId;
+        } else if (planToChange.planId === 'plano_edital') {
+            updatedPlans[planIndex].selectedEditalId = newItemId;
+        }
+
+        // Limpar progresso e inscrições do item antigo e adicionar o novo
+        const updates: any = { activePlans: updatedPlans };
+        let registeredCargos = user.registeredCargoIds || [];
+
+        if (planToChange.planId === 'plano_cargo' && oldItemId) {
+            Object.assign(updates, cleanProgressForCargo(user, `${oldItemId}_`));
+            registeredCargos = registeredCargos.filter(id => id !== oldItemId);
+            registeredCargos.push(newItemId);
+        } else if (planToChange.planId === 'plano_edital' && oldItemId) {
+            // Para troca de edital, removemos todos os cargos do edital antigo
+            registeredCargos = registeredCargos.filter(id => !id.startsWith(`${oldItemId}_`));
+            Object.assign(updates, cleanProgressForCargo(user, `${oldItemId}_`));
+        }
+        updates.registeredCargoIds = Array.from(new Set(registeredCargos));
+        
+        try {
+            await update(ref(db, `users/${user.id}`), updates);
+            toast({ title: "Troca Realizada!", description: "Seu plano foi atualizado para o novo item selecionado.", variant: "default", className: "bg-accent text-accent-foreground" });
+        } catch (error) {
+            toast({ title: "Erro na Troca", description: "Não foi possível atualizar seu plano.", variant: "destructive" });
+            throw error;
+        }
+    };
 
   const cancelSubscription = async () => {
     if (!user || !user.activePlans || user.activePlans.length === 0 || !db) {
@@ -686,7 +725,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       deleteStudyLog,
       addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
       addNote, deleteNote,
-      cancelSubscription, startFreeTrial, changeCargoForPlanoCargo, isPlanoCargoWithinGracePeriod,
+      cancelSubscription, startFreeTrial, changeItemForPlan,
       setRankingParticipation, requestPlanRefund,
       deleteUserAccount
   };

@@ -51,6 +51,7 @@ export interface PlanDetails {
   requestDate?: string; // ISO date when refund was requested
   refundedDate?: string; // ISO date when refund was processed
   refundedBy?: string; // UID of the admin who processed the refund
+  itemChanged?: boolean; // True if the cargo/edital was changed
 }
 
 export interface User {
