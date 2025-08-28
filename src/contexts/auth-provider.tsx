@@ -10,11 +10,10 @@ import {
   sendPasswordResetEmail,
   signOut,
   updateProfile,
-  deleteUser,
   type User as FirebaseUser 
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase'; 
-import { ref, set, get, update, remove, onValue, type Unsubscribe } from "firebase/database";
+import { ref, update, onValue, type Unsubscribe } from "firebase/database";
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
@@ -106,17 +105,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         dbUnsubscribeRef.current = onValue(userRef, async (snapshot) => {
           try {
             if (!snapshot.exists()) {
-              const temporaryUser: AppUser = {
-                  id: firebaseUser.uid,
-                  name: firebaseUser.displayName || 'Usuário',
-                  email: firebaseUser.email || '',
-                  avatarUrl: firebaseUser.photoURL || undefined,
-                  registeredCargoIds: [], studiedTopicIds: [], studyLogs: [],
-                  questionLogs: [], revisionSchedules: [], notes: [], activePlan: null,
-                  activePlans: [], stripeCustomerId: null, hasHadFreeTrial: false,
-                  planHistory: [], isRankingParticipant: null, isAdmin: false,
-              };
-              setUser(temporaryUser);
+              // This can happen briefly after account deletion before the auth state listener fully logs the user out.
+              // We'll treat this as logged out to prevent errors.
+              console.warn(`[AuthProvider] User is authenticated with UID ${firebaseUser.uid}, but no data found in Realtime Database. Logging out.`);
+              await signOut(auth); // Force client logout to sync state
+              setUser(null);
               setLoading(false);
               return;
             }
@@ -671,25 +664,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const deleteUserAccount = async () => {
     const firebaseCurrentUser = auth.currentUser;
-    // Capture user details BEFORE auth state changes
-    const userIdToDelete = user?.id;
-    const userCpfToDelete = user?.cpf; // Capture CPF
-  
-    if (!firebaseCurrentUser || !userIdToDelete || !db) {
+    if (!firebaseCurrentUser) {
       toast({ title: "Erro", description: "Nenhuma sessão de usuário encontrada para exclusão.", variant: "destructive" });
       throw new Error("Usuário não encontrado para exclusão.");
     }
   
     try {
-      // 1. Delete from Firebase Authentication FIRST.
-      await deleteUser(firebaseCurrentUser);
-  
-      // 2. If Auth deletion succeeds, proceed with database cleanup.
-      const userDbRef = ref(db, `users/${userIdToDelete}`);
-      await remove(userDbRef);
+      const idToken = await firebaseCurrentUser.getIdToken(true);
+      const response = await fetch('/api/account/delete', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+        },
+      });
 
-      // The `usedTrialsByCpf` entry is INTENTIONALLY NOT deleted
-      // to prevent re-registration for a new free trial.
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Falha ao excluir conta no servidor.");
+      }
   
       toast({
         title: "Conta Excluída",
@@ -697,12 +689,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         variant: "default",
         className: "bg-accent text-accent-foreground",
       });
-      // onAuthStateChanged will handle logout and redirect.
+      // onAuthStateChanged will handle logout and redirect automatically.
   
     } catch (error: any) {
       console.error("Erro ao excluir conta:", error);
       let errorMessage = "Não foi possível excluir sua conta. Tente novamente mais tarde.";
-      if (error.code === 'auth/requires-recent-login') {
+      if (error.message.includes('auth/requires-recent-login') || (error.code && error.code.includes('requires-recent-login'))) {
         errorMessage = "Esta é uma operação sensível. Por favor, faça login novamente antes de excluir sua conta.";
       }
       toast({
@@ -717,7 +709,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const contextValue: AuthContextType = {
       user, loading, login, 
-      register: (name, email, cpf, pass) => register(name, email, cpf, pass),
+      register,
       sendPasswordReset, logout, updateUser, 
       registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, 
       deleteStudyLog,
