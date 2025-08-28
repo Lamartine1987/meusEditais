@@ -663,14 +663,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const deleteUserAccount = async () => {
+    console.log('[AuthProvider] Iniciando deleteUserAccount...');
     const firebaseCurrentUser = auth.currentUser;
     if (!firebaseCurrentUser) {
+      console.error('[AuthProvider] Tentativa de exclusão sem usuário logado.');
       toast({ title: "Erro", description: "Nenhuma sessão de usuário encontrada para exclusão.", variant: "destructive" });
       throw new Error("Usuário não encontrado para exclusão.");
     }
   
     try {
+      console.log('[AuthProvider] Obtendo ID token para a requisição de exclusão...');
       const idToken = await firebaseCurrentUser.getIdToken(true);
+      console.log('[AuthProvider] ID token obtido. Fazendo a requisição para a API /api/account/delete...');
       const response = await fetch('/api/account/delete', {
         method: 'POST',
         headers: {
@@ -678,24 +682,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         },
       });
 
+      console.log(`[AuthProvider] Resposta da API recebida com status: ${response.status}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error(`[AuthProvider] Erro da API: ${errorData.error || 'Erro desconhecido do servidor.'}`);
         throw new Error(errorData.error || "Falha ao excluir conta no servidor.");
       }
   
+      console.log('[AuthProvider] Exclusão bem-sucedida no servidor. Exibindo toast de sucesso.');
       toast({
         title: "Conta Excluída",
         description: "Sua conta e todos os seus dados foram excluídos com sucesso.",
         variant: "default",
         className: "bg-accent text-accent-foreground",
       });
-      // onAuthStateChanged will handle logout and redirect automatically.
+      // onAuthStateChanged irá lidar com o logout e redirecionamento automaticamente.
   
     } catch (error: any) {
-      console.error("Erro ao excluir conta:", error);
+      console.error("[AuthProvider] Erro CRÍTICO durante a exclusão da conta:", error);
       let errorMessage = "Não foi possível excluir sua conta. Tente novamente mais tarde.";
-      if (error.message.includes('auth/requires-recent-login') || (error.code && error.code.includes('requires-recent-login'))) {
-        errorMessage = "Esta é uma operação sensível. Por favor, faça login novamente antes de excluir sua conta.";
+      // A mensagem de erro da API já é bastante descritiva.
+      if (error.message) {
+        errorMessage = error.message;
       }
       toast({
         title: "Falha na Exclusão da Conta",
