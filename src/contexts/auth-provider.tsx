@@ -18,7 +18,7 @@ import { ref, set, get, update, remove, onValue, type Unsubscribe } from "fireba
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
-import { registerUsedTrialByCpf } from '@/actions/auth-actions';
+import { registerUser, registerUsedTrialByCpf } from '@/actions/auth-actions';
 import { isWithinGracePeriod } from '@/lib/utils';
 
 const TRIAL_DURATION_DAYS = 7;
@@ -673,7 +673,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const firebaseCurrentUser = auth.currentUser;
     // Capture user details BEFORE auth state changes
     const userIdToDelete = user?.id;
-    const userCpfToDelete = user?.cpf;
   
     if (!firebaseCurrentUser || !userIdToDelete || !db) {
       toast({ title: "Erro", description: "Nenhuma sessão de usuário encontrada para exclusão.", variant: "destructive" });
