@@ -673,6 +673,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const firebaseCurrentUser = auth.currentUser;
     // Capture user details BEFORE auth state changes
     const userIdToDelete = user?.id;
+    const userCpfToDelete = user?.cpf; // Capture CPF
   
     if (!firebaseCurrentUser || !userIdToDelete || !db) {
       toast({ title: "Erro", description: "Nenhuma sessão de usuário encontrada para exclusão.", variant: "destructive" });
@@ -686,7 +687,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // 2. If Auth deletion succeeds, proceed with database cleanup.
       const userDbRef = ref(db, `users/${userIdToDelete}`);
       await remove(userDbRef);
-      
+
       // The `usedTrialsByCpf` entry is INTENTIONALLY NOT deleted
       // to prevent re-registration for a new free trial.
   
