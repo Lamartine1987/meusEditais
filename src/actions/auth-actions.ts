@@ -77,3 +77,27 @@ export async function registerUser(input: RegisterUserInput): Promise<RegisterUs
     return { error: errorMessage };
   }
 }
+
+
+export async function registerUsedTrialByCpf(cpf: string): Promise<{ success?: true, error?: string }> {
+    if (!cpf) {
+        return { error: "CPF não fornecido." };
+    }
+    const sanitizedCpf = cpf.replace(/\D/g, '');
+
+    try {
+        const trialRef = adminDb.ref(`usedTrialsByCpf/${sanitizedCpf}`);
+        const snapshot = await trialRef.once('value');
+
+        if (snapshot.exists()) {
+            return { error: 'Este CPF já utilizou o período de teste gratuito.' };
+        }
+
+        await trialRef.set(true);
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("[AuthAction registerUsedTrialByCpf] Error:", error);
+        return { error: "Ocorreu um erro no servidor ao verificar o teste gratuito." };
+    }
+}

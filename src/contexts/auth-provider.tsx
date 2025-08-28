@@ -18,7 +18,7 @@ import { ref, set, get, update, remove, onValue, type Unsubscribe } from "fireba
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
-import { registerUser } from '@/actions/auth-actions';
+import { registerUser, registerUsedTrialByCpf } from '@/actions/auth-actions';
 import { isWithinGracePeriod } from '@/lib/utils';
 
 const TRIAL_DURATION_DAYS = 7;
@@ -564,54 +564,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const startFreeTrial = async () => {
-    console.log("[startFreeTrial] Iniciando a função.");
     if (!user || !user.cpf) {
-      console.log("[startFreeTrial] Bloqueado: Usuário ou CPF não encontrado.", { hasUser: !!user, hasCpf: !!user?.cpf });
       toast({ title: "Informação Faltando", description: "Usuário ou CPF não encontrado. Faça login para iniciar seu teste.", variant: "destructive" });
       if (!user) router.push("/login?redirect=/planos");
       return;
     }
-    if (!db) {
-      console.log("[startFreeTrial] Bloqueado: Conexão com o banco de dados não disponível.");
-      toast({ title: "Erro de Conexão", description: "Não foi possível se conectar ao banco de dados.", variant: "destructive" });
-      return;
-    }
     if (user.hasHadFreeTrial) {
-      console.log("[startFreeTrial] Bloqueado: O usuário já utilizou o teste (user.hasHadFreeTrial=true).");
       toast({ title: "Teste Já Utilizado", description: "Este CPF já utilizou o período de teste gratuito.", variant: "default" });
       return;
     }
     const hasPaidPlan = user.activePlans?.some(p => p.planId === 'plano_cargo' || p.planId === 'plano_edital' || p.planId === 'plano_anual');
     if (hasPaidPlan) {
-      console.log("[startFreeTrial] Bloqueado: Usuário possui plano pago ativo.");
       toast({ title: "Plano Ativo", description: "Você já possui um plano pago ativo.", variant: "default" });
       return;
     }
 
-    console.log("[startFreeTrial] Todas as verificações iniciais passaram. Prosseguindo com a ativação.");
-    const now = new Date();
-    const trialPlanDetails: PlanDetails = {
-      planId: 'plano_trial',
-      startDate: formatISO(now),
-      expiryDate: formatISO(addDays(now, TRIAL_DURATION_DAYS)),
-    };
-
-    const updatedActivePlans = [...(user.activePlans || []).filter(p => p.planId !== 'plano_trial'), trialPlanDetails];
-
     try {
-      console.log("[startFreeTrial] Construindo payload de atualização para o DB.");
-      const updates: { [key: string]: any } = {};
-      const userPath = `/users/${user.id}`;
-      const trialPath = `/usedTrialsByCpf/${user.cpf.replace(/\D/g, '')}`;
-      
-      updates[`${userPath}/activePlan`] = 'plano_trial';
-      updates[`${userPath}/activePlans`] = updatedActivePlans;
-      updates[`${userPath}/hasHadFreeTrial`] = true;
-      updates[trialPath] = true;
-      
-      console.log("[startFreeTrial] Payload para o DB:", updates);
-      await update(ref(db), updates);
-      console.log("[startFreeTrial] Atualização no DB concluída com sucesso.");
+      // Server Action to check eligibility and register the CPF
+      const result = await registerUsedTrialByCpf(user.cpf);
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      // If server action is successful, update user profile on the client
+      const now = new Date();
+      const trialPlanDetails: PlanDetails = {
+        planId: 'plano_trial',
+        startDate: formatISO(now),
+        expiryDate: formatISO(addDays(now, TRIAL_DURATION_DAYS)),
+      };
+      const updatedActivePlans = [...(user.activePlans || []), trialPlanDetails];
+      const userUpdates = {
+        activePlan: 'plano_trial',
+        activePlans: updatedActivePlans,
+        hasHadFreeTrial: true,
+      };
+
+      await update(ref(db, `users/${user.id}`), userUpdates);
 
       toast({ 
         title: "Teste Gratuito Ativado!", 
@@ -621,10 +610,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         duration: 7000 
       });
       router.push('/'); 
-    } catch (error) {
-      console.error("[startFreeTrial] CRITICAL: Erro ao tentar atualizar o banco de dados:", error);
-      toast({ title: "Erro ao Ativar Teste", description: "Não foi possível iniciar seu período de teste.", variant: "destructive" });
-    } 
+    } catch (error: any) {
+      console.error("[startFreeTrial] CRITICAL: Error during free trial activation:", error);
+      toast({ title: "Erro ao Ativar Teste", description: error.message || "Não foi possível iniciar seu período de teste.", variant: "destructive" });
+    }
   };
 
   const setRankingParticipation = async (participate: boolean) => {
