@@ -18,7 +18,7 @@ import { ref, set, get, update, remove, onValue, type Unsubscribe } from "fireba
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
-import { registerUser, registerUsedTrialByCpf } from '@/actions/auth-actions';
+import { registerUsedTrialByCpf } from '@/actions/auth-actions';
 import { isWithinGracePeriod } from '@/lib/utils';
 
 const TRIAL_DURATION_DAYS = 7;
@@ -565,56 +565,58 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const startFreeTrial = async () => {
     if (!user || !user.cpf) {
-      toast({ title: "Informação Faltando", description: "Usuário ou CPF não encontrado. Faça login para iniciar seu teste.", variant: "destructive" });
-      if (!user) router.push("/login?redirect=/planos");
-      return;
+        toast({ title: "Informação Faltando", description: "Usuário ou CPF não encontrado. Faça login para iniciar seu teste.", variant: "destructive" });
+        if (!user) router.push("/login?redirect=/planos");
+        return;
     }
     if (user.hasHadFreeTrial) {
-      toast({ title: "Teste Já Utilizado", description: "Este CPF já utilizou o período de teste gratuito.", variant: "default" });
-      return;
+        toast({ title: "Teste Já Utilizado", description: "Este CPF já utilizou o período de teste gratuito.", variant: "default" });
+        return;
     }
     const hasPaidPlan = user.activePlans?.some(p => p.planId === 'plano_cargo' || p.planId === 'plano_edital' || p.planId === 'plano_anual');
     if (hasPaidPlan) {
-      toast({ title: "Plano Ativo", description: "Você já possui um plano pago ativo.", variant: "default" });
-      return;
+        toast({ title: "Plano Ativo", description: "Você já possui um plano pago ativo.", variant: "default" });
+        return;
     }
 
     try {
-      // Server Action to check eligibility and register the CPF
-      const result = await registerUsedTrialByCpf(user.cpf);
-      if (result.error) {
-        throw new Error(result.error);
-      }
+        console.log("[startFreeTrial] Calling registerUsedTrialByCpf server action...");
+        const result = await registerUsedTrialByCpf(user.cpf);
+        if (result.error) {
+            throw new Error(result.error);
+        }
+        console.log("[startFreeTrial] Server action successful. Updating user profile on client...");
 
-      // If server action is successful, update user profile on the client
-      const now = new Date();
-      const trialPlanDetails: PlanDetails = {
-        planId: 'plano_trial',
-        startDate: formatISO(now),
-        expiryDate: formatISO(addDays(now, TRIAL_DURATION_DAYS)),
-      };
-      const updatedActivePlans = [...(user.activePlans || []), trialPlanDetails];
-      const userUpdates = {
-        activePlan: 'plano_trial',
-        activePlans: updatedActivePlans,
-        hasHadFreeTrial: true,
-      };
+        const now = new Date();
+        const trialPlanDetails: PlanDetails = {
+            planId: 'plano_trial',
+            startDate: formatISO(now),
+            expiryDate: formatISO(addDays(now, TRIAL_DURATION_DAYS)),
+        };
+        const updatedActivePlans = [...(user.activePlans || []), trialPlanDetails];
+        const userUpdates = {
+            activePlan: 'plano_trial',
+            activePlans: updatedActivePlans,
+            hasHadFreeTrial: true,
+        };
 
-      await update(ref(db, `users/${user.id}`), userUpdates);
+        await update(ref(db, `users/${user.id}`), userUpdates);
+        console.log("[startFreeTrial] User profile updated successfully.");
 
-      toast({ 
-        title: "Teste Gratuito Ativado!", 
-        description: `Você tem ${TRIAL_DURATION_DAYS} dias para explorar todos os recursos. Aproveite!`, 
-        variant: "default",
-        className: "bg-accent text-accent-foreground",
-        duration: 7000 
-      });
-      router.push('/'); 
+        toast({ 
+            title: "Teste Gratuito Ativado!", 
+            description: `Você tem ${TRIAL_DURATION_DAYS} dias para explorar todos os recursos. Aproveite!`, 
+            variant: "default",
+            className: "bg-accent text-accent-foreground",
+            duration: 7000 
+        });
+        router.push('/');
     } catch (error: any) {
-      console.error("[startFreeTrial] CRITICAL: Error during free trial activation:", error);
-      toast({ title: "Erro ao Ativar Teste", description: error.message || "Não foi possível iniciar seu período de teste.", variant: "destructive" });
+        console.error("[startFreeTrial] CRITICAL: Error during free trial activation:", error);
+        toast({ title: "Erro ao Ativar Teste", description: error.message || "Não foi possível iniciar seu período de teste.", variant: "destructive" });
     }
   };
+
 
   const setRankingParticipation = async (participate: boolean) => {
     if (user && db) {
@@ -669,24 +671,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const deleteUserAccount = async () => {
     const firebaseCurrentUser = auth.currentUser;
-    if (!firebaseCurrentUser || !user || !db) {
+    // Capture user details BEFORE auth state changes
+    const userIdToDelete = user?.id;
+    const userCpfToDelete = user?.cpf;
+  
+    if (!firebaseCurrentUser || !userIdToDelete || !db) {
       toast({ title: "Erro", description: "Nenhuma sessão de usuário encontrada para exclusão.", variant: "destructive" });
       throw new Error("Usuário não encontrado para exclusão.");
     }
   
     try {
-      // 1. Tentar excluir o usuário do Firebase Authentication PRIMEIRO.
+      // 1. Delete from Firebase Authentication FIRST.
       await deleteUser(firebaseCurrentUser);
   
-      // 2. Se a exclusão da autenticação for bem-sucedida, prossiga para excluir os dados do banco de dados.
-      const userDbRef = ref(db, `users/${user.id}`);
+      // 2. If Auth deletion succeeds, proceed with database cleanup.
+      const userDbRef = ref(db, `users/${userIdToDelete}`);
       await remove(userDbRef);
       
-      // Opcional: remover o CPF da lista de trials utilizados se essa lógica existir.
-      if (user.cpf) {
-        const trialCpfRef = ref(db, `usedTrialsByCpf/${user.cpf.replace(/\D/g, '')}`);
-        await remove(trialCpfRef);
-      }
+      // The `usedTrialsByCpf` entry is INTENTIONALLY NOT deleted
+      // to prevent re-registration for a new free trial.
   
       toast({
         title: "Conta Excluída",
@@ -694,12 +697,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         variant: "default",
         className: "bg-accent text-accent-foreground",
       });
-      // O onAuthStateChanged irá lidar com o logout e redirecionamento.
+      // onAuthStateChanged will handle logout and redirect.
   
     } catch (error: any) {
       console.error("Erro ao excluir conta:", error);
       let errorMessage = "Não foi possível excluir sua conta. Tente novamente mais tarde.";
-      // Se a exclusão da autenticação falhar, os dados do banco de dados NÃO serão tocados.
       if (error.code === 'auth/requires-recent-login') {
         errorMessage = "Esta é uma operação sensível. Por favor, faça login novamente antes de excluir sua conta.";
       }
@@ -709,7 +711,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         variant: "destructive",
         duration: 9000
       });
-      throw error; // Re-lança o erro para que a interface possa saber que a operação falhou.
+      throw error;
     }
   };
 
