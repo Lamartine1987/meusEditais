@@ -13,7 +13,7 @@ import {
   type User as FirebaseUser 
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase'; 
-import { ref, update, onValue, type Unsubscribe } from "firebase/database";
+import { ref, update, onValue, get, type Unsubscribe } from "firebase/database";
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
