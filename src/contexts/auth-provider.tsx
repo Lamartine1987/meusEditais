@@ -675,12 +675,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   
     try {
-      // 1. Deletar dados do Realtime Database
+      // 1. Tentar excluir o usuário do Firebase Authentication PRIMEIRO.
+      await deleteUser(firebaseCurrentUser);
+  
+      // 2. Se a exclusão da autenticação for bem-sucedida, prossiga para excluir os dados do banco de dados.
       const userDbRef = ref(db, `users/${user.id}`);
       await remove(userDbRef);
-  
-      // 2. Deletar o usuário do Firebase Authentication
-      await deleteUser(firebaseCurrentUser);
+      
+      // Opcional: remover o CPF da lista de trials utilizados se essa lógica existir.
+      if (user.cpf) {
+        const trialCpfRef = ref(db, `usedTrialsByCpf/${user.cpf.replace(/\D/g, '')}`);
+        await remove(trialCpfRef);
+      }
   
       toast({
         title: "Conta Excluída",
@@ -688,11 +694,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         variant: "default",
         className: "bg-accent text-accent-foreground",
       });
-      // O onAuthStateChanged irá lidar com o redirecionamento após a exclusão bem-sucedida.
+      // O onAuthStateChanged irá lidar com o logout e redirecionamento.
   
     } catch (error: any) {
       console.error("Erro ao excluir conta:", error);
       let errorMessage = "Não foi possível excluir sua conta. Tente novamente mais tarde.";
+      // Se a exclusão da autenticação falhar, os dados do banco de dados NÃO serão tocados.
       if (error.code === 'auth/requires-recent-login') {
         errorMessage = "Esta é uma operação sensível. Por favor, faça login novamente antes de excluir sua conta.";
       }
@@ -702,7 +709,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         variant: "destructive",
         duration: 9000
       });
-      throw error;
+      throw error; // Re-lança o erro para que a interface possa saber que a operação falhou.
     }
   };
 
