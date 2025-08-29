@@ -35,10 +35,10 @@ const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
     price: "R$ 29,90/ano",
     description: "Acesso a todos os cargos de 1 edital específico. Flexibilidade para estudar para múltiplas vagas do mesmo concurso. Todas as funcionalidades de estudo e acompanhamento.",
   },
-  plano_anual: {
-    id: 'plano_anual',
-    name: "Plano Anual",
-    price: "R$ 59,90/ano",
+  plano_mensal: {
+    id: 'plano_mensal',
+    name: "Plano Mensal",
+    price: "R$ 6,99/mês",
     description: "Acesso a todos os cargos de todos os editais da plataforma. Liberdade total para explorar e se preparar para múltiplos concursos. Todas as funcionalidades premium e atualizações futuras.",
   },
   plano_trial: {
@@ -63,12 +63,12 @@ function CheckoutPageContent() {
 
   const isUpgrade = useMemo(() => {
     if (!user || !selectedPlanDetails) return false;
-    return selectedPlanDetails.id === 'plano_anual' && (user.activePlans?.length ?? 0) > 0;
+    return selectedPlanDetails.id === 'plano_mensal' && (user.activePlans?.length ?? 0) > 0;
   }, [user, selectedPlanDetails]);
 
 
   useEffect(() => {
-    if (planIdParam && (planIdParam === 'plano_cargo' || planIdParam === 'plano_edital' || planIdParam === 'plano_anual')) {
+    if (planIdParam && (planIdParam === 'plano_cargo' || planIdParam === 'plano_edital' || planIdParam === 'plano_mensal')) {
       const planDetails = planDisplayMap[planIdParam as PlanId];
       setSelectedPlanDetails(planDetails);
       setIsValidPlan(true);
@@ -116,8 +116,8 @@ function CheckoutPageContent() {
         specificCheckoutDetails.selectedEditalId = editalId;
     }
 
-    if (user.activePlans?.some(p => p.planId === 'plano_anual')) {
-        toast({ title: "Plano Máximo Ativo", description: "Você já possui o Plano Anual, que dá acesso a tudo.", variant: "default" });
+    if (user.activePlans?.some(p => p.planId === 'plano_mensal')) {
+        toast({ title: "Plano Máximo Ativo", description: "Você já possui o Plano Mensal, que dá acesso a tudo.", variant: "default" });
         router.push('/perfil');
         return;
     }
@@ -269,7 +269,7 @@ function CheckoutPageContent() {
                             </h3>
                             <div className="mt-2 text-sm text-foreground">
                                 <p>
-                                    Ao adquirir o Plano Anual, seus outros planos serão substituídos por este, garantindo acesso completo.
+                                    Ao adquirir o Plano Mensal, seus outros planos serão substituídos por este, garantindo acesso completo.
                                 </p>
                             </div>
                         </div>

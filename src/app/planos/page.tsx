@@ -45,7 +45,7 @@ interface PlanDisplayInfo {
 const planDisplayMap: Record<PlanId, PlanDisplayInfo> = {
   plano_cargo: { id: 'plano_cargo', name: "Plano Cargo"},
   plano_edital: { id: 'plano_edital', name: "Plano Edital"},
-  plano_anual: { id: 'plano_anual', name: "Plano Anual"},
+  plano_mensal: { id: 'plano_mensal', name: "Plano Mensal"},
   plano_trial: { id: 'plano_trial', name: "Teste Gratuito"},
 };
 
@@ -53,7 +53,7 @@ const planRank: Record<PlanId, number> = {
   plano_trial: 0,
   plano_cargo: 1,
   plano_edital: 2,
-  plano_anual: 3,
+  plano_mensal: 3,
 };
 
 
@@ -185,11 +185,11 @@ export default function PlanosPage() {
      router.push('/login?redirect=/planos');
      return;
    }
-    if (currentUserPlanRank >= planRank.plano_anual) {
-       toast({ title: "Plano Já Ativo", description: `Você já está inscrito no Plano Anual.`, variant: "default" });
+    if (currentUserPlanRank >= planRank.plano_mensal) {
+       toast({ title: "Plano Já Ativo", description: `Você já está inscrito no Plano Mensal.`, variant: "default" });
        return;
    }
-   router.push('/checkout/plano_anual');
+   router.push('/checkout/plano_mensal');
  };
 
   const handleInitiateFreeTrial = async () => {
@@ -217,10 +217,10 @@ export default function PlanosPage() {
   const editalButtonIcon = isEditalUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <ArrowRight className="mr-2 h-5 w-5" />;
   const editalButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_edital : false);
 
-  const isAnualUpgrade = user ? currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_anual : false;
-  const anualButtonText = isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Anual";
+  const isAnualUpgrade = user ? currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_mensal : false;
+  const anualButtonText = isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Mensal";
   const anualButtonIcon = isAnualUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <Gem className="mr-2 h-5 w-5" />;
-  const anualButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_anual : false);
+  const anualButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_mensal : false);
 
 
   return (
@@ -378,16 +378,16 @@ export default function PlanosPage() {
                {!user && !pageIsLoading && <p className="text-xs text-center text-muted-foreground px-6 pb-2 -mt-4">É preciso estar logado para assinar.</p>}
             </Card>
 
-            {/* Plano Anual */}
+            {/* Plano Mensal */}
             <Card className="shadow-lg rounded-xl flex flex-col transform hover:scale-105 transition-transform duration-300">
               <CardHeader className="items-center text-center pb-4">
                 <Zap className="h-12 w-12 text-primary mb-3" />
-                <CardTitle className="text-2xl font-semibold">Plano Anual</CardTitle>
-                <CardDescription className="text-base text-muted-foreground">Acesso total e ilimitado!</CardDescription>
+                <CardTitle className="text-2xl font-semibold">Plano Mensal</CardTitle>
+                <CardDescription className="text-base text-muted-foreground">Acesso total e recorrente!</CardDescription>
               </CardHeader>
               <CardContent className="flex-grow space-y-4 pt-2">
                 <p className="text-center text-3xl font-bold text-primary">
-                  R$ 59<span className="text-xl font-normal">,90/ano</span>
+                  R$ 6<span className="text-xl font-normal">,99/mês</span>
                 </p>
                 <ul className="space-y-2 text-sm">
                   <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>todos os editais</strong> da plataforma.</PlanFeature>
@@ -553,7 +553,7 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="text-center text-muted-foreground space-y-3">
                 <p><strong>Plano Teste Gratuito:</strong> Crie uma conta para iniciar seu teste gratuito e ter acesso imediato por 7 dias.</p>
-                <p>Para os <strong>Planos Cargo, Edital e Anual</strong>, é necessário estar logado para prosseguir ao checkout via Stripe.</p>
+                <p>Para os <strong>Planos Cargo, Edital e Mensal</strong>, é necessário estar logado para prosseguir ao checkout via Stripe.</p>
                  <p className="font-semibold text-primary">Todos os planos pagos também incluem 7 dias de teste gratuito no primeiro pagamento!</p>
             </CardContent>
              <CardFooter className="justify-center pt-4">

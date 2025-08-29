@@ -32,7 +32,7 @@ export interface RevisionScheduleEntry {
   reviewedDate: string | null; // ISO string date for when it was marked as reviewed
 }
 
-export type PlanId = 'plano_cargo' | 'plano_edital' | 'plano_anual' | 'plano_trial';
+export type PlanId = 'plano_cargo' | 'plano_edital' | 'plano_mensal' | 'plano_trial';
 
 export interface PlanDetails {
   planId: PlanId;
