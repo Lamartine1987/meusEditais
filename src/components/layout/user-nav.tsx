@@ -71,7 +71,7 @@ export function UserNav() {
     switch (planId) {
       case 'plano_cargo': return "Plano Cargo";
       case 'plano_edital': return "Plano Edital";
-      case 'plano_anual': return "Plano Anual";
+      case 'plano_mensal': return "Plano Mensal";
       case 'plano_trial': return "Teste Gratuito";
       default: return "Plano";
     }
