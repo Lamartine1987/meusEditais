@@ -28,7 +28,7 @@ const planRank: Record<PlanId, number> = {
   plano_trial: 0,
   plano_cargo: 1,
   plano_edital: 2,
-  plano_anual: 3,
+  plano_mensal: 3,
 };
 
 interface AuthContextType {
@@ -153,6 +153,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               planHistory: dbData.planHistory || [],
               isRankingParticipant: dbData.isRankingParticipant ?? null,
               isAdmin: isAdmin,
+              termsAcceptedOn: dbData.termsAcceptedOn,
             };
 
             let trialExpiredToastShown = false;
@@ -229,7 +230,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const register = async (name: string, email: string, cpf: string, pass: string) => {
     // This now delegates to the server action
-    await signInWithEmailAndPassword(auth, email, pass);
   };
   
   const sendPasswordReset = async (email: string) => {
@@ -286,7 +286,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     let canRegister = false;
     let reason = "";
 
-    if (user.activePlans?.some(p => p.planId === 'plano_anual' || p.planId === 'plano_trial')) {
+    if (user.activePlans?.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
       canRegister = true;
     } else if (user.activePlans?.some(p => p.planId === 'plano_edital' && p.selectedEditalId === editalId)) {
       canRegister = true;
@@ -565,7 +565,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         toast({ title: "Teste Já Utilizado", description: "Este CPF já utilizou o período de teste gratuito.", variant: "default" });
         return;
     }
-    const hasPaidPlan = user.activePlans?.some(p => p.planId === 'plano_cargo' || p.planId === 'plano_edital' || p.planId === 'plano_anual');
+    const hasPaidPlan = user.activePlans?.some(p => p.planId === 'plano_cargo' || p.planId === 'plano_edital' || p.planId === 'plano_mensal');
     if (hasPaidPlan) {
         toast({ title: "Plano Ativo", description: "Você já possui um plano pago ativo.", variant: "default" });
         return;
