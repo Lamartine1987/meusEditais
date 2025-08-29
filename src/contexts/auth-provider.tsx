@@ -17,7 +17,9 @@ import { ref, update, onValue, get, type Unsubscribe, remove } from "firebase/da
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
+
 import { registerUsedTrialByCpf } from '@/actions/auth-actions';
+
 import { isWithinGracePeriod } from '@/lib/utils';
 
 const TRIAL_DURATION_DAYS = 7;
@@ -552,8 +554,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const startFreeTrial = async () => {
+
     if (!user || !user.cpf || !user.email) {
         toast({ title: "Informação Faltando", description: "Usuário, CPF ou e-mail não encontrado. Faça login para iniciar seu teste.", variant: "destructive" });
+
         if (!user) router.push("/login?redirect=/planos");
         return;
     }
@@ -569,11 +573,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
         console.log("[startFreeTrial] Calling registerUsedTrialByCpf server action...");
+
         const result = await registerUsedTrialByCpf({
             cpf: user.cpf,
             email: user.email,
             name: user.name,
         });
+
         if (result.error) {
             throw new Error(result.error);
         }

@@ -79,6 +79,7 @@ export async function registerUser(input: RegisterUserInput): Promise<RegisterUs
 }
 
 
+
 interface RegisterUsedTrialInput {
     cpf: string;
     name: string;
@@ -87,6 +88,7 @@ interface RegisterUsedTrialInput {
 
 export async function registerUsedTrialByCpf(input: RegisterUsedTrialInput): Promise<{ success?: true, error?: string }> {
     const { cpf, name, email } = input;
+  
     if (!cpf) {
         return { error: "CPF não fornecido." };
     }
@@ -107,6 +109,7 @@ export async function registerUsedTrialByCpf(input: RegisterUsedTrialInput): Pro
         };
 
         await trialRef.set(trialData);
+      
         return { success: true };
 
     } catch (error: any) {
