@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
@@ -42,6 +43,13 @@ const profileSchema = z.object({
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
+
+const planRank: Record<PlanId, number> = {
+  plano_trial: 0,
+  plano_cargo: 1,
+  plano_edital: 2,
+  plano_mensal: 3,
+};
 
 export default function ProfilePage() {
   const { user, updateUser, sendPasswordReset, cancelSubscription, loading: authLoading, setRankingParticipation, requestPlanRefund, deleteUserAccount, changeItemForPlan } = useAuth();
@@ -160,7 +168,7 @@ export default function ProfilePage() {
     switch (planId) {
       case 'plano_cargo': return "Plano Cargo";
       case 'plano_edital': return "Plano Edital";
-      case 'plano_anual': return "Plano Anual";
+      case 'plano_mensal': return "Plano Mensal";
       case 'plano_trial': return "Plano Teste Gratuito";
       default: return "Plano Desconhecido";
     }
@@ -168,7 +176,7 @@ export default function ProfilePage() {
 
   const getPlanDetailsDescription = (plan: PlanDetails): React.ReactNode => {
     switch (plan.planId) {
-      case 'plano_anual':
+      case 'plano_mensal':
         return "Acesso ilimitado a todos os editais e cargos.";
       case 'plano_trial':
         return "Acesso completo para avaliação.";
@@ -712,3 +720,5 @@ export default function ProfilePage() {
     </PageWrapper>
   );
 }
+
+    
