@@ -79,7 +79,14 @@ export async function registerUser(input: RegisterUserInput): Promise<RegisterUs
 }
 
 
-export async function registerUsedTrialByCpf(cpf: string): Promise<{ success?: true, error?: string }> {
+interface RegisterUsedTrialInput {
+    cpf: string;
+    name: string;
+    email: string;
+}
+
+export async function registerUsedTrialByCpf(input: RegisterUsedTrialInput): Promise<{ success?: true, error?: string }> {
+    const { cpf, name, email } = input;
     if (!cpf) {
         return { error: "CPF não fornecido." };
     }
@@ -93,7 +100,13 @@ export async function registerUsedTrialByCpf(cpf: string): Promise<{ success?: t
             return { error: 'Este CPF já utilizou o período de teste gratuito.' };
         }
 
-        await trialRef.set(true);
+        const trialData = {
+            name: name,
+            email: email,
+            activatedOn: new Date().toISOString(),
+        };
+
+        await trialRef.set(trialData);
         return { success: true };
 
     } catch (error: any) {

@@ -17,7 +17,7 @@ import { ref, update, onValue, get, type Unsubscribe, remove } from "firebase/da
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
-import { registerUser, registerUsedTrialByCpf } from '@/actions/auth-actions';
+import { registerUsedTrialByCpf } from '@/actions/auth-actions';
 import { isWithinGracePeriod } from '@/lib/utils';
 
 const TRIAL_DURATION_DAYS = 7;
@@ -227,11 +227,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const register = async (name: string, email: string, cpf: string, pass: string) => {
     // This now delegates to the server action
-    const result = await registerUser({ name, email, cpf, password: pass });
-    if (result.error) {
-      throw new Error(result.error);
-    }
-    // After successful server-side registration, sign the user in on the client
     await signInWithEmailAndPassword(auth, email, pass);
   };
   
@@ -557,8 +552,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const startFreeTrial = async () => {
-    if (!user || !user.cpf) {
-        toast({ title: "Informação Faltando", description: "Usuário ou CPF não encontrado. Faça login para iniciar seu teste.", variant: "destructive" });
+    if (!user || !user.cpf || !user.email) {
+        toast({ title: "Informação Faltando", description: "Usuário, CPF ou e-mail não encontrado. Faça login para iniciar seu teste.", variant: "destructive" });
         if (!user) router.push("/login?redirect=/planos");
         return;
     }
@@ -574,7 +569,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
         console.log("[startFreeTrial] Calling registerUsedTrialByCpf server action...");
-        const result = await registerUsedTrialByCpf(user.cpf);
+        const result = await registerUsedTrialByCpf({
+            cpf: user.cpf,
+            email: user.email,
+            name: user.name,
+        });
         if (result.error) {
             throw new Error(result.error);
         }
