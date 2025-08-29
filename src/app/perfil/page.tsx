@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package, DollarSign, Clock, Trash2 } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package, DollarSign, Clock, Trash2, Repeat, Search as SearchIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import type { PlanId, Edital as EditalType, Cargo as CargoType, PlanDetails } from '@/types';
@@ -44,7 +44,7 @@ const profileSchema = z.object({
 type ProfileFormValues = z.infer<typeof profileSchema>;
 
 export default function ProfilePage() {
-  const { user, updateUser, sendPasswordReset, cancelSubscription, loading: authLoading, isPlanoCargoWithinGracePeriod, setRankingParticipation, requestPlanRefund, deleteUserAccount } = useAuth();
+  const { user, updateUser, sendPasswordReset, cancelSubscription, loading: authLoading, setRankingParticipation, requestPlanRefund, deleteUserAccount, changeItemForPlan } = useAuth();
   const { toast } = useToast();
   const [isPasswordResetting, setIsPasswordResetting] = useState(false);
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
@@ -53,6 +53,17 @@ export default function ProfilePage() {
   
   const [allEditaisData, setAllEditaisData] = useState<EditalType[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
+  
+  // State for the item change modal
+  const [isChangeModalOpen, setIsChangeModalOpen] = useState(false);
+  const [planToChange, setPlanToChange] = useState<PlanDetails | null>(null);
+  const [selectedEditalIdInCargoModal, setSelectedEditalIdInCargoModal] = useState<string | null>(null);
+  const [cargosForSelectedEdital, setCargosForSelectedEdital] = useState<CargoType[]>([]);
+  const [cargoSearchTerm, setCargoSearchTerm] = useState('');
+  const [editalSearchTerm, setEditalSearchTerm] = useState('');
+  const [selectedItemInModal, setSelectedItemInModal] = useState<string | null>(null);
+  const [isProcessingChange, setIsProcessingChange] = useState(false);
+
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -72,17 +83,12 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchAllEditais = async () => {
         setDataLoading(true);
-        console.log('[PerfilPage] Fetching editais for plan management...');
         try {
             const response = await fetch('/api/editais');
-            if (!response.ok) {
-                throw new Error('Falha ao carregar dados dos editais.');
-            }
+            if (!response.ok) throw new Error('Falha ao carregar dados dos editais.');
             const data: EditalType[] = await response.json();
-            console.log(`[PerfilPage] Successfully fetched ${data.length} editais.`);
             setAllEditaisData(data);
         } catch (error) {
-            console.error('[PerfilPage] Error fetching editais:', error);
             setAllEditaisData([]);
         } finally {
             setDataLoading(false);
@@ -91,6 +97,63 @@ export default function ProfilePage() {
     
     fetchAllEditais();
   }, []);
+
+  const allSelectableEditais = useMemo(() => allEditaisData.sort((a,b) => a.title.localeCompare(b.title)), [allEditaisData]);
+
+  useEffect(() => {
+    if (planToChange?.planId === 'plano_cargo' && selectedEditalIdInCargoModal) {
+      const edital = allSelectableEditais.find(e => e.id === selectedEditalIdInCargoModal);
+      setCargosForSelectedEdital(edital?.cargos || []);
+      setSelectedItemInModal(null); 
+      setCargoSearchTerm(''); 
+    } else {
+      setCargosForSelectedEdital([]);
+    }
+  }, [selectedEditalIdInCargoModal, planToChange, allSelectableEditais]);
+
+  const filteredCargosForModal = useMemo(() => {
+    if (!cargoSearchTerm) return cargosForSelectedEdital;
+    return cargosForSelectedEdital.filter(cargo => 
+      (cargo?.name || '').toLowerCase().includes(cargoSearchTerm.toLowerCase())
+    );
+  }, [cargosForSelectedEdital, cargoSearchTerm]);
+
+  const filteredEditaisForModal = useMemo(() => {
+    if (!editalSearchTerm) return allSelectableEditais;
+    return allSelectableEditais.filter(edital => 
+      (edital?.title || '').toLowerCase().includes(editalSearchTerm.toLowerCase()) ||
+      (edital?.organization || '').toLowerCase().includes(editalSearchTerm.toLowerCase())
+    );
+  }, [allSelectableEditais, editalSearchTerm]);
+
+
+  const handleOpenChangeModal = (plan: PlanDetails) => {
+    setPlanToChange(plan);
+    setSelectedItemInModal(null);
+    if (plan.planId === 'plano_cargo') {
+        setSelectedEditalIdInCargoModal(null);
+        setCargosForSelectedEdital([]);
+        setCargoSearchTerm('');
+    } else {
+        setEditalSearchTerm('');
+    }
+    setIsChangeModalOpen(true);
+  };
+  
+  const handleConfirmChange = async () => {
+    if (!planToChange || !selectedItemInModal) return;
+    setIsProcessingChange(true);
+    try {
+        await changeItemForPlan(planToChange.stripePaymentIntentId!, selectedItemInModal);
+        setIsChangeModalOpen(false);
+        setPlanToChange(null);
+    } catch(e) {
+        // Toast is handled in auth provider
+    } finally {
+        setIsProcessingChange(false);
+    }
+  };
+
 
   const getPlanDisplayName = (planId?: PlanId | null): string => {
     if (!planId) return "Nenhum plano";
@@ -386,6 +449,8 @@ export default function ProfilePage() {
                   {user.activePlans.map((plan, index) => {
                     const isPlanRefunding = plan.stripePaymentIntentId ? isRequestingRefund === plan.stripePaymentIntentId : false;
                     const canRequestRefund = isWithinGracePeriod(plan.startDate, 7);
+                    const canChangeItem = (plan.planId === 'plano_cargo' || plan.planId === 'plano_edital') && isWithinGracePeriod(plan.startDate, 7);
+
                     return (
                         <li key={plan.stripePaymentIntentId || index} className="p-4 border rounded-lg bg-muted/50">
                           <div className="flex justify-between items-start gap-2">
@@ -402,7 +467,13 @@ export default function ProfilePage() {
                              {plan.expiryDate && <Badge variant="outline">Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>}
                           </div>
                           {plan.planId !== 'plano_trial' && (
-                              <div className="mt-4 pt-4 border-t border-muted-foreground/10 flex justify-end">
+                              <div className="mt-4 pt-4 border-t border-muted-foreground/10 flex flex-col sm:flex-row justify-end gap-2">
+                                  {canChangeItem && plan.status !== 'refundRequested' && (
+                                      <Button variant="secondary" size="sm" onClick={() => handleOpenChangeModal(plan)}>
+                                          <Repeat className="mr-2 h-4 w-4" />
+                                          Trocar Cargo/Edital
+                                      </Button>
+                                  )}
                                   {plan.status === 'refundRequested' ? (
                                     <Button variant="outline" disabled>
                                         Reembolso Solicitado
@@ -411,14 +482,12 @@ export default function ProfilePage() {
                                     <TooltipProvider>
                                       <Tooltip delayDuration={0}>
                                         <TooltipTrigger asChild>
-                                          {/* Usamos um span para o TooltipTrigger funcionar corretamente com um botão desabilitado */}
                                           <span tabIndex={0}>
                                             <Button 
                                               variant="destructive" 
                                               size="sm"
                                               onClick={() => handleRequestRefund(plan)}
                                               disabled={isPlanRefunding || !plan.stripePaymentIntentId || !canRequestRefund}
-                                              className="w-full"
                                             >
                                               {isPlanRefunding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                               Solicitar Reembolso
@@ -575,6 +644,71 @@ export default function ProfilePage() {
         </Card>
 
       </div>
+
+      {/* Item Change Modal */}
+      <AlertDialog open={isChangeModalOpen} onOpenChange={setIsChangeModalOpen}>
+        <AlertDialogContent className="max-w-lg w-full">
+            <AlertDialogHeader>
+                <AlertDialogTitle>Trocar {planToChange?.planId === 'plano_cargo' ? 'Cargo' : 'Edital'}</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Você pode trocar o item do seu plano uma vez dentro do período de 7 dias após a compra.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <Separator />
+
+            {planToChange?.planId === 'plano_cargo' && (
+                <div className="space-y-4 py-2">
+                    <div>
+                        <Label htmlFor="edital-select-change-modal" className="mb-1.5 block text-sm font-medium text-muted-foreground">1. Selecione o Edital:</Label>
+                        <Select value={selectedEditalIdInCargoModal || ""} onValueChange={setSelectedEditalIdInCargoModal}>
+                            <SelectTrigger id="edital-select-change-modal"><SelectValue placeholder="Escolha um edital..." /></SelectTrigger>
+                            <SelectContent>{allSelectableEditais.map(edital => (<SelectItem key={edital.id} value={edital.id}>{edital.title}</SelectItem>))}</SelectContent>
+                        </Select>
+                    </div>
+                    {selectedEditalIdInCargoModal && (
+                        <div className="space-y-2">
+                            <Label htmlFor="cargo-search-input-change" className="block text-sm font-medium text-muted-foreground">2. Busque e Selecione o Novo Cargo:</Label>
+                            <div className="relative"><SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input id="cargo-search-input-change" type="search" placeholder="Buscar cargo..." value={cargoSearchTerm} onChange={(e) => setCargoSearchTerm(e.target.value)} className="pl-8"/></div>
+                            {filteredCargosForModal.length > 0 ? (
+                                <ScrollArea className="h-[200px] pr-3 border rounded-md">
+                                    <RadioGroup value={selectedItemInModal || ''} onValueChange={setSelectedItemInModal} className="space-y-1 p-2">
+                                        {filteredCargosForModal.map(cargo => {
+                                            const compositeCargoId = `${selectedEditalIdInCargoModal}_${cargo.id}`;
+                                            return (<Label htmlFor={compositeCargoId} key={compositeCargoId} className="flex items-center space-x-3 p-2.5 border rounded-md hover:bg-muted/50 cursor-pointer has-[:checked]:bg-accent has-[:checked]:text-accent-foreground has-[:checked]:border-primary transition-colors"><RadioGroupItem value={compositeCargoId} id={compositeCargoId} className="border-muted-foreground"/><span className="font-medium">{cargo.name}</span></Label>);
+                                        })}
+                                    </RadioGroup>
+                                </ScrollArea>
+                            ) : (<p className="text-muted-foreground text-sm text-center py-4">{cargoSearchTerm ? "Nenhum cargo encontrado." : "Nenhum cargo para este edital."}</p>)}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {planToChange?.planId === 'plano_edital' && (
+                <div className="py-2 space-y-2">
+                    <Label htmlFor="edital-search-input-change" className="block text-sm font-medium text-muted-foreground">Busque e Selecione o Novo Edital:</Label>
+                    <div className="relative"><SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input id="edital-search-input-change" type="search" placeholder="Buscar edital..." value={editalSearchTerm} onChange={(e) => setEditalSearchTerm(e.target.value)} className="pl-8"/></div>
+                    {filteredEditaisForModal.length > 0 ? (
+                        <ScrollArea className="h-[300px] mt-2 pr-3 border rounded-md">
+                            <RadioGroup value={selectedItemInModal || ''} onValueChange={setSelectedItemInModal} className="space-y-2 p-2">
+                                {filteredEditaisForModal.map(edital => (<Label htmlFor={edital.id} key={edital.id} className="flex items-center space-x-3 p-3 border rounded-md hover:bg-muted/50 cursor-pointer has-[:checked]:bg-accent has-[:checked]:text-accent-foreground has-[:checked]:border-primary transition-colors"><RadioGroupItem value={edital.id} id={edital.id} className="border-muted-foreground"/><span className="font-medium">{edital.title} <span className="text-xs text-muted-foreground/80">({edital.organization})</span></span></Label>))}
+                            </RadioGroup>
+                        </ScrollArea>
+                    ) : (<p className="text-muted-foreground text-sm text-center py-8">{editalSearchTerm ? "Nenhum edital encontrado." : "Nenhum edital disponível."}</p>)}
+                </div>
+            )}
+            
+            <Separator />
+            <AlertDialogFooter className="pt-4">
+                <AlertDialogCancel onClick={() => setIsChangeModalOpen(false)} disabled={isProcessingChange}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmChange} disabled={!selectedItemInModal || isProcessingChange}>
+                    {isProcessingChange && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Confirmar Troca
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </PageWrapper>
   );
 }

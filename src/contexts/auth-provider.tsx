@@ -10,15 +10,15 @@ import {
   sendPasswordResetEmail,
   signOut,
   updateProfile,
-  deleteUser,
   type User as FirebaseUser 
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase'; 
-import { ref, set, get, update, remove, onValue, type Unsubscribe } from "firebase/database";
+import { ref, update, onValue, get, type Unsubscribe, remove } from "firebase/database";
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
-import { registerUser } from '@/actions/auth-actions';
+import { registerUser, registerUsedTrialByCpf } from '@/actions/auth-actions';
+import { isWithinGracePeriod } from '@/lib/utils';
 
 const TRIAL_DURATION_DAYS = 7;
 
@@ -49,8 +49,7 @@ interface AuthContextType {
   deleteNote: (noteId: string) => Promise<void>;
   cancelSubscription: () => Promise<void>;
   startFreeTrial: () => Promise<void>;
-  changeCargoForPlanoCargo: (newCargoCompositeId: string) => Promise<void>;
-  isPlanoCargoWithinGracePeriod: () => boolean;
+  changeItemForPlan: (paymentIntentId: string, newItemId: string) => Promise<void>;
   setRankingParticipation: (participate: boolean) => Promise<void>;
   requestPlanRefund: (paymentIntentId: string) => Promise<void>;
   deleteUserAccount: () => Promise<void>;
@@ -106,17 +105,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         dbUnsubscribeRef.current = onValue(userRef, async (snapshot) => {
           try {
             if (!snapshot.exists()) {
-              const temporaryUser: AppUser = {
-                  id: firebaseUser.uid,
-                  name: firebaseUser.displayName || 'Usuário',
-                  email: firebaseUser.email || '',
-                  avatarUrl: firebaseUser.photoURL || undefined,
-                  registeredCargoIds: [], studiedTopicIds: [], studyLogs: [],
-                  questionLogs: [], revisionSchedules: [], notes: [], activePlan: null,
-                  activePlans: [], stripeCustomerId: null, hasHadFreeTrial: false,
-                  planHistory: [], isRankingParticipant: null, isAdmin: false,
-              };
-              setUser(temporaryUser);
+              // This can happen briefly after account deletion before the auth state listener fully logs the user out.
+              // We'll treat this as logged out to prevent errors.
+              console.warn(`[AuthProvider] User is authenticated with UID ${firebaseUser.uid}, but no data found in Realtime Database. Logging out.`);
+              await signOut(auth); // Force client logout to sync state
+              setUser(null);
               setLoading(false);
               return;
             }
@@ -489,14 +482,53 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
-  const isPlanoCargoWithinGracePeriod = (): boolean => {
-    return false;
-  };
+    const changeItemForPlan = async (paymentIntentId: string, newItemId: string) => {
+        if (!user || !user.activePlans || !db) throw new Error("Usuário ou planos não encontrados.");
+        
+        const planIndex = user.activePlans.findIndex(p => p.stripePaymentIntentId === paymentIntentId);
+        if (planIndex === -1) {
+            toast({ title: "Erro", description: "Plano original não encontrado para realizar a troca.", variant: "destructive" });
+            throw new Error("Plano não encontrado.");
+        }
 
-  const changeCargoForPlanoCargo = async (newCargoCompositeId: string) => {
-    toast({ title: "Função Indisponível", description: "A troca de cargo para planos existentes não está disponível no momento.", variant: "destructive" });
-    return;
-  };
+        const planToChange = user.activePlans[planIndex];
+        if (!isWithinGracePeriod(planToChange.startDate, 7)) {
+            toast({ title: "Período Expirado", description: "O período de 7 dias para troca já passou.", variant: "destructive" });
+            throw new Error("Período de troca expirou.");
+        }
+
+        const updatedPlans = [...user.activePlans];
+        const oldItemId = planToChange.planId === 'plano_cargo' ? planToChange.selectedCargoCompositeId : planToChange.selectedEditalId;
+
+        if (planToChange.planId === 'plano_cargo') {
+            updatedPlans[planIndex].selectedCargoCompositeId = newItemId;
+        } else if (planToChange.planId === 'plano_edital') {
+            updatedPlans[planIndex].selectedEditalId = newItemId;
+        }
+
+        // Limpar progresso e inscrições do item antigo e adicionar o novo
+        const updates: any = { activePlans: updatedPlans };
+        let registeredCargos = user.registeredCargoIds || [];
+
+        if (planToChange.planId === 'plano_cargo' && oldItemId) {
+            Object.assign(updates, cleanProgressForCargo(user, `${oldItemId}_`));
+            registeredCargos = registeredCargos.filter(id => id !== oldItemId);
+            registeredCargos.push(newItemId);
+        } else if (planToChange.planId === 'plano_edital' && oldItemId) {
+            // Para troca de edital, removemos todos os cargos do edital antigo
+            registeredCargos = registeredCargos.filter(id => !id.startsWith(`${oldItemId}_`));
+            Object.assign(updates, cleanProgressForCargo(user, `${oldItemId}_`));
+        }
+        updates.registeredCargoIds = Array.from(new Set(registeredCargos));
+        
+        try {
+            await update(ref(db, `users/${user.id}`), updates);
+            toast({ title: "Troca Realizada!", description: "Seu plano foi atualizado para o novo item selecionado.", variant: "default", className: "bg-accent text-accent-foreground" });
+        } catch (error) {
+            toast({ title: "Erro na Troca", description: "Não foi possível atualizar seu plano.", variant: "destructive" });
+            throw error;
+        }
+    };
 
   const cancelSubscription = async () => {
     if (!user || !user.activePlans || user.activePlans.length === 0 || !db) {
@@ -525,51 +557,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const startFreeTrial = async () => {
-    if (!user) {
-      toast({ title: "Usuário não logado", description: "Faça login para iniciar seu teste.", variant: "destructive" });
-      router.push("/login?redirect=/planos");
-      return;
-    }
-    if (!db) {
-        toast({ title: "Erro de Conexão", description: "Não foi possível se conectar ao banco de dados.", variant: "destructive" });
+    if (!user || !user.cpf) {
+        toast({ title: "Informação Faltando", description: "Usuário ou CPF não encontrado. Faça login para iniciar seu teste.", variant: "destructive" });
+        if (!user) router.push("/login?redirect=/planos");
         return;
     }
     if (user.hasHadFreeTrial) {
-      toast({ title: "Teste Já Utilizado", description: "Você já utilizou seu período de teste gratuito.", variant: "default" });
-      return;
+        toast({ title: "Teste Já Utilizado", description: "Este CPF já utilizou o período de teste gratuito.", variant: "default" });
+        return;
     }
-    if (user.activePlans?.some(p => p.planId !== 'plano_trial')) {
-      toast({ title: "Plano Ativo", description: "Você já possui um plano pago ativo.", variant: "default" });
-      return;
+    const hasPaidPlan = user.activePlans?.some(p => p.planId === 'plano_cargo' || p.planId === 'plano_edital' || p.planId === 'plano_anual');
+    if (hasPaidPlan) {
+        toast({ title: "Plano Ativo", description: "Você já possui um plano pago ativo.", variant: "default" });
+        return;
     }
-
-    const now = new Date();
-    const trialPlanDetails: PlanDetails = {
-      planId: 'plano_trial',
-      startDate: formatISO(now),
-      expiryDate: formatISO(addDays(now, TRIAL_DURATION_DAYS)),
-    };
-
-    const updatedActivePlans = [...(user.activePlans || []).filter(p => p.planId !== 'plano_trial'), trialPlanDetails];
 
     try {
-      await update(ref(db, `users/${user.id}`), { 
-        activePlan: 'plano_trial',
-        activePlans: updatedActivePlans,
-        hasHadFreeTrial: true 
-      });
-      toast({ 
-        title: "Teste Gratuito Ativado!", 
-        description: `Você tem ${TRIAL_DURATION_DAYS} dias para explorar todos os recursos. Aproveite!`, 
-        variant: "default",
-        className: "bg-accent text-accent-foreground",
-        duration: 7000 
-      });
-      router.push('/'); 
-    } catch (error) {
-      toast({ title: "Erro ao Ativar Teste", description: "Não foi possível iniciar seu período de teste.", variant: "destructive" });
-    } 
+        console.log("[startFreeTrial] Calling registerUsedTrialByCpf server action...");
+        const result = await registerUsedTrialByCpf(user.cpf);
+        if (result.error) {
+            throw new Error(result.error);
+        }
+        console.log("[startFreeTrial] Server action successful. Updating user profile on client...");
+
+        const now = new Date();
+        const trialPlanDetails: PlanDetails = {
+            planId: 'plano_trial',
+            startDate: formatISO(now),
+            expiryDate: formatISO(addDays(now, TRIAL_DURATION_DAYS)),
+        };
+        const updatedActivePlans = [...(user.activePlans || []), trialPlanDetails];
+        const userUpdates = {
+            activePlan: 'plano_trial',
+            activePlans: updatedActivePlans,
+            hasHadFreeTrial: true,
+        };
+
+        await update(ref(db, `users/${user.id}`), userUpdates);
+        console.log("[startFreeTrial] User profile updated successfully.");
+
+        toast({ 
+            title: "Teste Gratuito Ativado!", 
+            description: `Você tem ${TRIAL_DURATION_DAYS} dias para explorar todos os recursos. Aproveite!`, 
+            variant: "default",
+            className: "bg-accent text-accent-foreground",
+            duration: 7000 
+        });
+        router.push('/');
+    } catch (error: any) {
+        console.error("[startFreeTrial] CRITICAL: Error during free trial activation:", error);
+        toast({ title: "Erro ao Ativar Teste", description: error.message || "Não foi possível iniciar seu período de teste.", variant: "destructive" });
+    }
   };
+
 
   const setRankingParticipation = async (participate: boolean) => {
     if (user && db) {
@@ -623,33 +663,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const deleteUserAccount = async () => {
+    console.log('[AuthProvider] Iniciando deleteUserAccount...');
     const firebaseCurrentUser = auth.currentUser;
-    if (!firebaseCurrentUser || !user || !db) {
+    if (!firebaseCurrentUser) {
+      console.error('[AuthProvider] Tentativa de exclusão sem usuário logado.');
       toast({ title: "Erro", description: "Nenhuma sessão de usuário encontrada para exclusão.", variant: "destructive" });
       throw new Error("Usuário não encontrado para exclusão.");
     }
   
     try {
-      // 1. Deletar dados do Realtime Database
-      const userDbRef = ref(db, `users/${user.id}`);
-      await remove(userDbRef);
+      console.log('[AuthProvider] Obtendo ID token para a requisição de exclusão...');
+      const idToken = await firebaseCurrentUser.getIdToken(true);
+      console.log('[AuthProvider] ID token obtido. Fazendo a requisição para a API /api/account/delete...');
+      const response = await fetch('/api/account/delete', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+        },
+      });
+
+      console.log(`[AuthProvider] Resposta da API recebida com status: ${response.status}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`[AuthProvider] Erro da API: ${errorData.error || 'Erro desconhecido do servidor.'}`);
+        throw new Error(errorData.error || "Falha ao excluir conta no servidor.");
+      }
   
-      // 2. Deletar o usuário do Firebase Authentication
-      await deleteUser(firebaseCurrentUser);
-  
+      console.log('[AuthProvider] Exclusão bem-sucedida no servidor. Exibindo toast de sucesso.');
       toast({
         title: "Conta Excluída",
         description: "Sua conta e todos os seus dados foram excluídos com sucesso.",
         variant: "default",
         className: "bg-accent text-accent-foreground",
       });
-      // O onAuthStateChanged irá lidar com o redirecionamento após a exclusão bem-sucedida.
+      // onAuthStateChanged irá lidar com o logout e redirecionamento automaticamente.
   
     } catch (error: any) {
-      console.error("Erro ao excluir conta:", error);
+      console.error("[AuthProvider] Erro CRÍTICO durante a exclusão da conta:", error);
       let errorMessage = "Não foi possível excluir sua conta. Tente novamente mais tarde.";
-      if (error.code === 'auth/requires-recent-login') {
-        errorMessage = "Esta é uma operação sensível. Por favor, faça login novamente antes de excluir sua conta.";
+      // A mensagem de erro da API já é bastante descritiva.
+      if (error.message) {
+        errorMessage = error.message;
       }
       toast({
         title: "Falha na Exclusão da Conta",
@@ -663,13 +717,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const contextValue: AuthContextType = {
       user, loading, login, 
-      register: (name, email, cpf, pass) => register(name, email, cpf, pass),
+      register,
       sendPasswordReset, logout, updateUser, 
       registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, 
       deleteStudyLog,
       addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
       addNote, deleteNote,
-      cancelSubscription, startFreeTrial, changeCargoForPlanoCargo, isPlanoCargoWithinGracePeriod,
+      cancelSubscription, startFreeTrial, changeItemForPlan,
       setRankingParticipation, requestPlanRefund,
       deleteUserAccount
   };

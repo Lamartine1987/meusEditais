@@ -12,7 +12,7 @@ const nextConfig = {
       },
     ],
   },
-  transpilePackages: ['recharts'],
+  transpilePackages: [],
 };
 
 module.exports = nextConfig;

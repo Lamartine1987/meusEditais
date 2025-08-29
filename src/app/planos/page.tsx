@@ -198,13 +198,14 @@ export default function PlanosPage() {
         await startFreeTrial();
     } catch (error: any) {
         console.error("Error initiating free trial from PlanosPage:", error);
+        // The toast is already handled inside startFreeTrial, no need to show another one.
     } finally {
         setIsStartingTrial(false);
     }
   };
 
-  const canStartTrial = user && !user.hasHadFreeTrial && (!user.activePlan || user.activePlan === 'plano_trial');
-  const hasActivePaidPlan = user && user.activePlan && user.activePlan !== 'plano_trial';
+  const canStartTrial = user && !user.hasHadFreeTrial;
+  const hasActivePaidPlan = user && user.activePlans?.some(p => p.planId !== 'plano_trial');
   const pageIsLoading = authLoading || dataLoading;
 
   // --- Button Logic ---

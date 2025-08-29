@@ -34,8 +34,14 @@ export async function registerUser(input: RegisterUserInput): Promise<RegisterUs
       password,
       displayName: name,
     });
+    
+    // 3. Check if this CPF has used a trial before
+    const trialUsedRef = adminDb.ref(`usedTrialsByCpf/${cpf.replace(/\D/g, '')}`);
+    const trialSnapshot = await trialUsedRef.once('value');
+    const hasHadTrialBefore = trialSnapshot.exists();
 
-    // 3. Save user data (including CPF) in Realtime Database
+
+    // 4. Save user data (including CPF) in Realtime Database
     const newUserDbData: Omit<AppUser, 'id'> = {
       name: name,
       email: email,
@@ -49,7 +55,7 @@ export async function registerUser(input: RegisterUserInput): Promise<RegisterUs
       activePlan: null,
       activePlans: [],
       stripeCustomerId: null,
-      hasHadFreeTrial: false,
+      hasHadFreeTrial: hasHadTrialBefore, // Set based on the check
       planHistory: [],
       isRankingParticipant: null,
       termsAcceptedOn: new Date().toISOString(), // Salva a data de aceite
@@ -70,4 +76,28 @@ export async function registerUser(input: RegisterUserInput): Promise<RegisterUs
     console.error('[AuthAction Register] Error:', error);
     return { error: errorMessage };
   }
+}
+
+
+export async function registerUsedTrialByCpf(cpf: string): Promise<{ success?: true, error?: string }> {
+    if (!cpf) {
+        return { error: "CPF não fornecido." };
+    }
+    const sanitizedCpf = cpf.replace(/\D/g, '');
+
+    try {
+        const trialRef = adminDb.ref(`usedTrialsByCpf/${sanitizedCpf}`);
+        const snapshot = await trialRef.once('value');
+
+        if (snapshot.exists()) {
+            return { error: 'Este CPF já utilizou o período de teste gratuito.' };
+        }
+
+        await trialRef.set(true);
+        return { success: true };
+
+    } catch (error: any) {
+        console.error("[AuthAction registerUsedTrialByCpf] Error:", error);
+        return { error: "Ocorreu um erro no servidor ao verificar o teste gratuito." };
+    }
 }
