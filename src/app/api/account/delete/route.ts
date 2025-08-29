@@ -1,10 +1,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb, auth as adminAuth } from '@/lib/firebase-admin';
+import type { User } from '@/types';
 
 export async function POST(req: NextRequest) {
+  let uid: string | null = null; 
   try {
-    // 1. Get and verify the ID token from the client
     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       console.log('[API /account/delete] LOG: Requisição recebida sem token de autorização.');
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     
     console.log('[API /account/delete] LOG: Verificando ID token...');
     const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
+    uid = decodedToken.uid;
     console.log(`[API /account/delete] LOG: Token verificado com sucesso para o UID: ${uid}`);
 
     if (!uid) {
@@ -22,31 +23,52 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Token inválido." }, { status: 401 });
     }
 
-    console.log(`[API /account/delete] LOG: Iniciando processo de exclusão para o UID: ${uid}`);
-
-    // 2. Delete user data from Realtime Database first.
-    // The `usedTrialsByCpf` record is intentionally NOT deleted to prevent abuse of the free trial.
+    // --- NOVO: LÓGICA DE LOG ANTES DA EXCLUSÃO ---
+    console.log(`[API /account/delete] LOG: Buscando dados do usuário ${uid} para registro de auditoria...`);
     const userDbRef = adminDb.ref(`users/${uid}`);
+    const userSnapshot = await userDbRef.once('value');
+    
+    if (userSnapshot.exists()) {
+      const userData: User = userSnapshot.val();
+      const logData = {
+        email: userData.email,
+        cpf: userData.cpf || 'Não informado',
+        lastActivePlan: userData.activePlan || 'Nenhum',
+        deletedOn: new Date().toISOString(),
+        originalUid: uid,
+      };
+
+      console.log(`[API /account/delete] LOG: Salvando registro de exclusão para o UID: ${uid}`);
+      const deletedLogRef = adminDb.ref(`deletedAccountsLog/${uid}`);
+      await deletedLogRef.set(logData);
+      console.log(`[API /account/delete] LOG: Registro de exclusão salvo com sucesso.`);
+    } else {
+      console.warn(`[API /account/delete] AVISO: Dados do usuário não encontrados no RTDB para o UID: ${uid} para criar o log. Continuando com a exclusão do Auth.`);
+    }
+    // --- FIM DA LÓGICA DE LOG ---
+
+    console.log(`[API /account/delete] LOG: Iniciando processo de exclusão de dados para o UID: ${uid}`);
+
+    // 2. Excluir dados do usuário do Realtime Database.
     await userDbRef.remove();
     console.log(`[API /account/delete] LOG: Dados do RTDB removidos com sucesso do caminho 'users/${uid}'.`);
     
-    // If user is an admin, remove them from the admin list as well
+    // Remover o usuário da lista de administradores, se aplicável.
     const adminRef = adminDb.ref(`admins/${uid}`);
     await adminRef.remove();
     console.log(`[API /account/delete] LOG: Verificada e removida entrada de admin (se existente) para o UID: ${uid}`);
 
-
-    // 3. After successful database cleanup, delete the user from Firebase Authentication.
+    // 3. Após a limpeza do banco de dados, excluir o usuário do Firebase Authentication.
     await adminAuth.deleteUser(uid);
     console.log(`[API /account/delete] LOG: Usuário do Auth removido com sucesso para o UID: ${uid}`);
 
-    return NextResponse.json({ success: true, message: "Conta excluída com sucesso." });
+    return NextResponse.json({ success: true, message: "Conta e dados associados excluídos com sucesso." });
 
   } catch (error: any) {
-    console.error("[API /account/delete] ERRO CRÍTICO ao excluir conta:", {
+    console.error(`[API /account/delete] ERRO CRÍTICO ao excluir conta para o UID: ${uid || 'desconhecido'}:`, {
         message: error.message,
         code: error.code,
-        stack: error.stack?.substring(0, 300), // Log a short stack trace
+        stack: error.stack?.substring(0, 300),
     });
 
     let errorMessage = "Ocorreu um erro interno no servidor ao excluir a conta.";
@@ -56,6 +78,7 @@ export async function POST(req: NextRequest) {
         errorMessage = "Sua sessão expirou. Por favor, faça login novamente para excluir sua conta.";
         statusCode = 401;
     } else if (error.code === 'auth/user-not-found') {
+        // Isso pode acontecer se a exclusão falhar após remover o Auth, mas antes da resposta ser enviada.
         errorMessage = "Usuário não encontrado. A conta pode já ter sido excluída.";
         statusCode = 404;
     } else if (error.code === 'auth/requires-recent-login') {
