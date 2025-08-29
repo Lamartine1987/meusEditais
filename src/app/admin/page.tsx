@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label';
 const getPlanDisplayName = (planId?: PlanId | null): string => {
     if (!planId) return "Nenhum";
     const names: Record<PlanId, string> = {
-        plano_anual: 'Anual',
+        plano_mensal: 'Mensal',
         plano_cargo: 'Cargo',
         plano_edital: 'Edital',
         plano_trial: 'Trial'
