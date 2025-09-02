@@ -167,12 +167,14 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const newPlanHistory = [...planHistory, ...currentActivePlans];
         const finalActivePlans = [newPlan];
         
+        // ** CORREÇÃO INSERIDA AQUI **
         const highestPlan = finalActivePlans.reduce((max, plan) => {
           return planRank[plan.planId] > planRank[max.planId] ? plan : max;
         }, { planId: 'plano_trial' } as PlanDetails);
+        // ** FIM DA CORREÇÃO **
 
         const updatePayload: any = {
-          activePlan: highestPlan.planId,
+          activePlan: highestPlan.planId, // Garante que o plano mais alto seja definido
           activePlans: finalActivePlans,
           planHistory: newPlanHistory,
           stripeCustomerId: stripeCustomerId,
