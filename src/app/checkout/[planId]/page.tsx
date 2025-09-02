@@ -38,7 +38,7 @@ const planDisplayMap: Record<PlanId, PlanDisplayDetails> = {
   plano_mensal: {
     id: 'plano_mensal',
     name: "Plano Mensal",
-    price: "R$ 6,99/mês",
+    price: "R$ 6,90/mês",
     description: "Acesso a todos os cargos de todos os editais da plataforma. Liberdade total para explorar e se preparar para múltiplos concursos. Todas as funcionalidades premium e atualizações futuras.",
   },
   plano_trial: {

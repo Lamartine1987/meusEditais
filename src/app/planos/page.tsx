@@ -387,7 +387,7 @@ export default function PlanosPage() {
               </CardHeader>
               <CardContent className="flex-grow space-y-4 pt-2">
                 <p className="text-center text-3xl font-bold text-primary">
-                  R$ 6<span className="text-xl font-normal">,99/mês</span>
+                  R$ 6<span className="text-xl font-normal">,90/mês</span>
                 </p>
                 <ul className="space-y-2 text-sm">
                   <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>todos os editais</strong> da plataforma.</PlanFeature>
