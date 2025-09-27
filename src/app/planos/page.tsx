@@ -77,7 +77,11 @@ export default function PlanosPage() {
   const [isProcessingModalSelection, setIsProcessingModalSelection] = useState(false);
   const [isStartingTrial, setIsStartingTrial] = useState(false);
 
-  const currentUserPlanRank = useMemo(() => user?.activePlan ? planRank[user.activePlan] : -1, [user]);
+  const currentUserPlanRank = useMemo(() => {
+    if (!user || !user.activePlans || user.activePlans.length === 0) return -1;
+    // Find the highest rank among all active plans
+    return Math.max(...user.activePlans.map(p => planRank[p.planId]));
+  }, [user]);
 
   useEffect(() => {
     const fetchAllEditais = async () => {
@@ -207,6 +211,7 @@ export default function PlanosPage() {
   const canStartTrial = user && !user.hasHadFreeTrial;
   const hasActivePaidPlan = user && user.activePlans?.some(p => p.planId !== 'plano_trial');
   const pageIsLoading = authLoading || dataLoading;
+  const hasMonthlyPlan = user?.activePlans?.some(p => p.planId === 'plano_mensal') ?? false;
 
   // --- Button Logic ---
   const cargoButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_cargo : false);
@@ -218,9 +223,9 @@ export default function PlanosPage() {
   const editalButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_edital : false);
 
   const isAnualUpgrade = user ? currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_mensal : false;
-  const anualButtonText = user?.activePlan === 'plano_mensal' ? "Plano Máximo Ativo" : (isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Mensal");
+  const anualButtonText = hasMonthlyPlan ? "Plano Máximo Ativo" : (isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Mensal");
   const anualButtonIcon = isAnualUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <Gem className="mr-2 h-5 w-5" />;
-  const anualButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_mensal : false);
+  const anualButtonDisabled = pageIsLoading || hasMonthlyPlan;
 
 
   return (
