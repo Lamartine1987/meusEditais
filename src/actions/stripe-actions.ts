@@ -163,18 +163,14 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
         const planHistory = currentUserData.planHistory || [];
 
-        // O plano mensal substitui todos os outros
+        // --- CORREÇÃO DE LÓGICA DE UPGRADE ---
+        // O plano mensal substitui todos os outros planos ativos, que são movidos para o histórico.
         const newPlanHistory = [...planHistory, ...currentActivePlans];
-        const finalActivePlans = [newPlan];
-        
-        // ** CORREÇÃO INSERIDA AQUI **
-        const highestPlan = finalActivePlans.reduce((max, plan) => {
-          return planRank[plan.planId] > planRank[max.planId] ? plan : max;
-        }, { planId: 'plano_trial' } as PlanDetails);
-        // ** FIM DA CORREÇÃO **
+        const finalActivePlans = [newPlan]; // O novo plano mensal é o único plano ativo.
+        // --- FIM DA CORREÇÃO ---
 
         const updatePayload: any = {
-          activePlan: highestPlan.planId, // Garante que o plano mais alto seja definido
+          activePlan: newPlan.planId, // Garante que o plano mais alto (mensal) seja definido
           activePlans: finalActivePlans,
           planHistory: newPlanHistory,
           stripeCustomerId: stripeCustomerId,
