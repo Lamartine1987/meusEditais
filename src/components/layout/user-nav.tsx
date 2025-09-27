@@ -67,7 +67,7 @@ export function UserNav() {
     return nameParts.slice(0, 2).join(' ');
   }
 
-  const getPlanDisplayName = (planId: PlanId | null): string => {
+  const getPlanDisplayName = (planId: PlanId | null | undefined): string => {
     if (!planId) return "Nenhum Plano";
     switch (planId) {
       case 'plano_cargo': return "Plano Cargo";
