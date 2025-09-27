@@ -218,7 +218,7 @@ export default function PlanosPage() {
   const editalButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_edital : false);
 
   const isAnualUpgrade = user ? currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_mensal : false;
-  const anualButtonText = isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Mensal";
+  const anualButtonText = user?.activePlan === 'plano_mensal' ? "Plano Máximo Ativo" : (isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Mensal");
   const anualButtonIcon = isAnualUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <Gem className="mr-2 h-5 w-5" />;
   const anualButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_mensal : false);
 
