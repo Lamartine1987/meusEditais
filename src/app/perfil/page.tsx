@@ -495,7 +495,7 @@ export default function ProfilePage() {
                                   ) : (
                                     <TooltipProvider>
                                       <Tooltip delayDuration={0}>
-                                        <TooltipTrigger asChild>
+                                        <TooltipTrigger asChild disabled={!canRequestRefund}>
                                           <span tabIndex={0}>
                                             <Button 
                                               variant="destructive" 
@@ -726,7 +726,3 @@ export default function ProfilePage() {
     </PageWrapper>
   );
 }
-
-    
-
-    
