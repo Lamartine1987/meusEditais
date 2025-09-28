@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package, DollarSign, Clock, Trash2, Repeat, Search as SearchIcon } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package, DollarSign, Clock, Trash2, Repeat, Search as SearchIcon, CalendarPlus } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import type { PlanId, Edital as EditalType, Cargo as CargoType, PlanDetails } from '@/types';
@@ -471,6 +471,12 @@ export default function ProfilePage() {
                                 <p className="text-sm text-muted-foreground mt-1 pl-7">
                                   {getPlanDetailsDescription(plan)}
                                 </p>
+                                {plan.startDate && (
+                                    <p className="text-xs text-muted-foreground mt-2 pl-7 flex items-center">
+                                        <CalendarPlus className="mr-1.5 h-3 w-3" />
+                                        Assinado em: {new Date(plan.startDate).toLocaleDateString('pt-BR')}
+                                    </p>
+                                )}
                             </div>
                              {plan.expiryDate && <Badge variant="outline">Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>}
                           </div>
