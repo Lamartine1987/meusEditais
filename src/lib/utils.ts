@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { differenceInDays, parseISO } from 'date-fns';
+import { differenceInCalendarDays, parseISO } from 'date-fns';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -19,10 +19,11 @@ export function isWithinGracePeriod(startDateIso: string | undefined, gracePerio
   try {
     const startDate = parseISO(startDateIso);
     const today = new Date();
-    // We use differenceInDays which returns the number of full days.
-    // If the difference is less than the grace period, it's valid.
-    // e.g., Day 0-6 are valid for a 7-day period.
-    return differenceInDays(today, startDate) < gracePeriodInDays;
+    // Use differenceInCalendarDays to correctly handle the day of purchase.
+    // Day of purchase is day 0, so we check if the difference is less than the grace period.
+    // e.g., for a 7-day period, days 0, 1, 2, 3, 4, 5, 6 are valid.
+    const daysSincePurchase = differenceInCalendarDays(today, startDate);
+    return daysSincePurchase < gracePeriodInDays;
   } catch (error) {
     console.error("Error parsing date for grace period check:", error);
     return false;
