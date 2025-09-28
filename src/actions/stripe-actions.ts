@@ -128,9 +128,10 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const subscription = event.data.object as Stripe.Subscription;
         console.log(`[handleStripeWebhook] Evento 'customer.subscription.created'. Assinatura ID: ${subscription.id}`);
         
+        const stripe = await getStripeClient();
+        
         // A metadata relevante está no item da assinatura
         const priceId = subscription.items.data[0]?.price.id;
-        const stripe = await getStripeClient();
         const price = await stripe.prices.retrieve(priceId, { expand: ['product'] });
         const product = price.product as Stripe.Product;
         
@@ -142,6 +143,20 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             console.error('[handleStripeWebhook] ERRO CRÍTICO: Metadados (userId, planId) ausentes na assinatura.', { subscription: subscription.id, product: product.id });
             return new Response('Erro: Metadados críticos ausentes na assinatura.', { status: 400 });
         }
+
+        // --- CORREÇÃO: Buscar o Payment Intent da primeira fatura ---
+        let paymentIntentId: string | null = null;
+        if (subscription.latest_invoice) {
+          try {
+            const invoiceId = typeof subscription.latest_invoice === 'string' ? subscription.latest_invoice : subscription.latest_invoice.id;
+            const invoice = await stripe.invoices.retrieve(invoiceId);
+            paymentIntentId = typeof invoice.payment_intent === 'string' ? invoice.payment_intent : null;
+             console.log(`[handleStripeWebhook] Payment Intent ID da fatura recuperado: ${paymentIntentId}`);
+          } catch(invoiceError) {
+             console.error('[handleStripeWebhook] Erro ao buscar o Payment Intent da fatura:', invoiceError);
+          }
+        }
+        // --- FIM DA CORREÇÃO ---
 
         const userFirebaseRef = adminDb.ref(`users/${userId}`);
         const userSnapshot = await userFirebaseRef.get();
@@ -155,25 +170,21 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           startDate: formatISO(startDate),
           expiryDate: formatISO(expiryDate),
           stripeSubscriptionId: subscription.id,
-          stripePaymentIntentId: null,
+          stripePaymentIntentId: paymentIntentId, // Salva o ID do pagamento
           stripeCustomerId: stripeCustomerId,
           status: 'active',
         };
 
         const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
-        // --- CORREÇÃO DE LÓGICA ---
-        // Adiciona o novo plano à lista de planos ativos existentes.
         const finalActivePlans = [...currentActivePlans, newPlan];
 
-        // Recalcula o plano mais alto para definir como o plano ativo principal.
         const highestPlan = finalActivePlans.reduce((max, plan) => {
           return planRank[plan.planId] > planRank[max.planId] ? plan : max;
         }, { planId: 'plano_trial' } as PlanDetails);
-        // --- FIM DA CORREÇÃO ---
 
 
         const updatePayload: any = {
-          activePlan: highestPlan.planId, // Garante que o plano mais alto (mensal) seja definido
+          activePlan: highestPlan.planId,
           activePlans: finalActivePlans,
           stripeCustomerId: stripeCustomerId,
           hasHadFreeTrial: true,
