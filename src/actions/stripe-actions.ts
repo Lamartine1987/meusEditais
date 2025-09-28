@@ -177,16 +177,8 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         };
 
         const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
-        // Lógica de Upgrade: Se o novo plano é o mensal, ele substitui os outros
-        let finalActivePlans: PlanDetails[];
-        if (planId === 'plano_mensal') {
-            const plansToKeepInHistory = currentActivePlans.filter(p => p.planId !== 'plano_trial');
-            const newHistory = [...(currentUserData.planHistory || []), ...plansToKeepInHistory];
-            finalActivePlans = [newPlan]; // Apenas o novo plano mensal fica ativo
-             await userFirebaseRef.update({ planHistory: newHistory }); // Atualiza o histórico primeiro
-        } else {
-            finalActivePlans = [...currentActivePlans, newPlan];
-        }
+        // Mantém os planos anteriores ativos, apenas adiciona o novo
+        const finalActivePlans = [...currentActivePlans, newPlan];
 
         const highestPlan = finalActivePlans.reduce((max, plan) => {
           return planRank[plan.planId] > planRank[max.planId] ? plan : max;
