@@ -80,7 +80,8 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         
         const now = new Date();
         const startDateISO = formatISO(now);
-        const expiryDateISO = formatISO(new Date(new Date().setFullYear(now.getFullYear() + 1)));
+        // Os planos de pagamento único agora duram 365 dias (1 ano)
+        const expiryDateISO = formatISO(new Date(new Date().setDate(now.getDate() + 365)));
         
         const newPlan: PlanDetails = {
           planId: planIdFromMetadata,
@@ -89,7 +90,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           ...(selectedCargoCompositeId && { selectedCargoCompositeId }),
           ...(selectedEditalId && { selectedEditalId }),
           stripeSubscriptionId: null,
-          stripePaymentIntentId: paymentIntentId,
+          stripePaymentIntentId: paymentIntentId, // GARANTE que o ID do pagamento seja salvo
           stripeCustomerId: stripeCustomerIdFromSession,
           status: 'active',
         };
@@ -176,7 +177,16 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         };
 
         const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
-        const finalActivePlans = [...currentActivePlans, newPlan];
+        // Lógica de Upgrade: Se o novo plano é o mensal, ele substitui os outros
+        let finalActivePlans: PlanDetails[];
+        if (planId === 'plano_mensal') {
+            const plansToKeepInHistory = currentActivePlans.filter(p => p.planId !== 'plano_trial');
+            const newHistory = [...(currentUserData.planHistory || []), ...plansToKeepInHistory];
+            finalActivePlans = [newPlan]; // Apenas o novo plano mensal fica ativo
+             await userFirebaseRef.update({ planHistory: newHistory }); // Atualiza o histórico primeiro
+        } else {
+            finalActivePlans = [...currentActivePlans, newPlan];
+        }
 
         const highestPlan = finalActivePlans.reduce((max, plan) => {
           return planRank[plan.planId] > planRank[max.planId] ? plan : max;
