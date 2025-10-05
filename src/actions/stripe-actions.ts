@@ -130,23 +130,31 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         console.log(`[handleStripeWebhook] Evento 'customer.subscription.created'. Assinatura ID: ${subscription.id}`);
         
         const stripe = await getStripeClient();
-        
+        const userId = subscription.metadata.userId; 
+        const stripeCustomerId = subscription.customer as string;
+
+        if (!userId) {
+            console.error(`[handleStripeWebhook] ERRO CRÍTICO: 'userId' ausente nos metadados da assinatura ${subscription.id}`);
+            return new Response('Erro: userId ausente nos metadados da assinatura.', { status: 400 });
+        }
+
         const priceId = subscription.items.data[0]?.price.id;
         if (!priceId) {
             console.error(`[handleStripeWebhook] ERRO CRÍTICO: Price ID não encontrado nos itens da assinatura ${subscription.id}`);
             return new Response('Erro: Price ID ausente na assinatura.', { status: 400 });
         }
+
         const price = await stripe.prices.retrieve(priceId, { expand: ['product'] });
         const product = price.product as Stripe.Product;
         
-        const planId = product.metadata.planId as PlanId;
-        const userId = subscription.metadata.userId; 
-        const stripeCustomerId = subscription.customer as string;
-
-        if (!userId || !planId) {
-            console.error('[handleStripeWebhook] ERRO CRÍTICO: Metadados (userId, planId) ausentes na assinatura.', { subscriptionId: subscription.id, metadata: subscription.metadata });
-            return new Response('Erro: Metadados críticos ausentes na assinatura.', { status: 400 });
+        const planId = product.metadata.planId as PlanId | undefined;
+        
+        if (!planId) {
+            console.error(`[handleStripeWebhook] ERRO CRÍTICO: 'planId' ausente nos metadados do produto ${product.id} associado à assinatura ${subscription.id}.`);
+            return new Response('Erro: planId ausente nos metadados do produto.', { status: 400 });
         }
+        
+        console.log(`[handleStripeWebhook] Informações recuperadas: userId=${userId}, planId=${planId}, customerId=${stripeCustomerId}`);
 
         let paymentIntentId: string | null = null;
         if (subscription.latest_invoice) {
@@ -165,6 +173,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const userFirebaseRef = adminDb.ref(`users/${userId}`);
         const userSnapshot = await userFirebaseRef.get();
         const currentUserData = userSnapshot.val() || {};
+        console.log('[handleStripeWebhook] Dados atuais do usuário carregados para assinatura.');
 
         const startDate = new Date(subscription.created * 1000);
         const expiryDate = new Date(subscription.current_period_end * 1000);
@@ -174,10 +183,12 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           startDate: formatISO(startDate),
           expiryDate: formatISO(expiryDate),
           stripeSubscriptionId: subscription.id,
-          stripePaymentIntentId: paymentIntentId, // **CORREÇÃO APLICADA AQUI**
+          stripePaymentIntentId: paymentIntentId, 
           stripeCustomerId: stripeCustomerId,
           status: 'active',
         };
+
+        console.log('[handleStripeWebhook] Novo plano de assinatura a ser adicionado:', newPlan);
 
         const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
         const finalActivePlans = [...currentActivePlans, newPlan];
@@ -185,6 +196,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const highestPlan = finalActivePlans.reduce((max, plan) => {
           return planRank[plan.planId] > planRank[max.planId] ? plan : max;
         }, { planId: 'plano_trial' } as PlanDetails);
+        console.log(`[handleStripeWebhook] Plano mais alto de assinatura calculado: ${highestPlan.planId}`);
 
         const updatePayload: any = {
           activePlan: highestPlan.planId,

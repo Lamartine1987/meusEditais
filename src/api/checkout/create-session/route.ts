@@ -64,14 +64,17 @@ export async function POST(req: NextRequest) {
         }
 
         try {
-            console.log(`[API create-session] Validando existência do Price ID no Stripe: ${priceId}`);
+            console.log(`[API create-session] Validando existência e status do Price ID no Stripe: ${priceId}`);
             const price = await stripe.prices.retrieve(priceId);
-            console.log('[API create-session] Price validado com sucesso:', { id: price.id, livemode: price.livemode, currency: price.currency, unit_amount: price.unit_amount });
+            console.log('[API create-session] Price validado com sucesso:', { id: price.id, active: price.active, livemode: price.livemode, currency: price.currency, unit_amount: price.unit_amount });
+            if (!price.active) {
+                console.error(`[API create-session] ERRO CRÍTICO: O preço com ID '${priceId}' está INATIVO no Stripe.`);
+                return NextResponse.json({ error: `O plano selecionado não está mais disponível para compra. Por favor, contate o suporte.` }, { status: 400 });
+            }
         } catch (priceError: any) {
             console.error(`[API create-session] ERRO CRÍTICO: Falha ao validar o Price ID '${priceId}' com o Stripe.`, priceError);
             return NextResponse.json({ error: `O Price ID '${priceId}' configurado no servidor é inválido ou não existe no Stripe.`, details: priceError.message }, { status: 500 });
         }
-
 
         let stripeCustomerId: string | undefined;
         const userRefDb = adminDb.ref(`users/${userId}`);
@@ -124,8 +127,9 @@ export async function POST(req: NextRequest) {
         };
 
         if (isSubscription) {
+            // CORREÇÃO: Adicionar metadados ao objeto de assinatura
             sessionParams.subscription_data = {
-                metadata: { userId }, // Passa o userId para o objeto de assinatura também
+                metadata: { userId }, 
             };
         }
 
