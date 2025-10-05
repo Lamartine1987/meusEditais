@@ -12,7 +12,7 @@ const nextConfig = {
       },
     ],
   },
-  transpilePackages: ['lucide-react'],
+  transpilePackages: ['lucide-react', 'recharts', 'class-variance-authority'],
 };
 
 module.exports = nextConfig;

@@ -3,7 +3,6 @@
 
 import { getStripeClient } from '@/lib/stripe';
 import type { PlanId, PlanDetails } from '@/types';
-import { headers } from 'next/headers';
 import { adminDb } from '@/lib/firebase-admin';
 import { formatISO } from 'date-fns';
 import type Stripe from 'stripe';
@@ -25,9 +24,22 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         return;
     }
 
-    // Ignorar sessões de assinatura aqui; elas serão tratadas por 'customer.subscription.created'
+    // Ignorar sessões de assinatura aqui; elas serão tratadas por 'customer.subscription.created' ou pelo backup no próprio checkout
     if (session.mode === 'subscription') {
-        console.log(`[handleCheckoutSessionCompleted] Sessão de assinatura (ID: ${session.id}) para o usuário ${userId}. Ignorando e aguardando evento de assinatura.`);
+        // Backup opcional: Se a assinatura for confirmada aqui, podemos processá-la.
+        if (session.subscription) {
+            console.log(`[handleCheckoutSessionCompleted] Sessão de assinatura (ID: ${session.id}) detectada com objeto de assinatura. Tentando processar antecipadamente...`);
+            const stripe = await getStripeClient();
+            const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
+            try {
+                const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+                await handleSubscriptionCreated(subscription);
+            } catch (error) {
+                console.error(`[handleCheckoutSessionCompleted] Erro ao processar assinatura antecipadamente para ${subscriptionId}:`, error);
+            }
+        } else {
+             console.log(`[handleCheckoutSessionCompleted] Sessão de assinatura (ID: ${session.id}) para o usuário ${userId}. Ignorando e aguardando evento de assinatura principal.`);
+        }
         return;
     }
     
@@ -142,7 +154,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   let event: Stripe.Event;
   try {
     const stripe = await getStripeClient();
-    const signature = headers().get('stripe-signature');
+    const signature = req.headers.get('stripe-signature');
     const webhookSecret = await getEnvOrSecret('STRIPE_WEBHOOK_SECRET_PROD');
 
     if (!signature) throw new Error("Cabeçalho stripe-signature ausente.");
@@ -176,5 +188,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
+
+    
 
     

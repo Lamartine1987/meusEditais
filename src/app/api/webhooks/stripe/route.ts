@@ -3,6 +3,9 @@
 import { NextResponse } from 'next/server';
 import { handleStripeWebhook } from '@/actions/stripe-actions';
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function POST(req: Request) {
   try {
     return await handleStripeWebhook(req);
@@ -22,3 +25,5 @@ export async function GET() {
     headers: { 'Content-Type': 'application/json' },
   });
 }
+
+    
