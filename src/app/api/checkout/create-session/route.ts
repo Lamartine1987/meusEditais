@@ -125,5 +125,3 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: error?.raw?.message || error?.message || 'Falha interna ao criar sessão de pagamento.' }, { status: 500 });
     }
 }
-
-    

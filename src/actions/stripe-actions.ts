@@ -114,7 +114,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
       startDate: formatISO(new Date(subscription.current_period_start * 1000)),
       expiryDate: formatISO(new Date(subscription.current_period_end * 1000)),
       stripeSubscriptionId: subscription.id,
-      stripePaymentIntentId: paymentIntentId, // Corrigido para incluir o ID do pagamento
+      stripePaymentIntentId: paymentIntentId,
       stripeCustomerId: customerId,
       status: 'active',
     };
