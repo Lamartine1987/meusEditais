@@ -183,18 +183,19 @@ export default function PlanosPage() {
     }
   };
 
-  const handleSelectAnualPlan = () => {
+  const handleSelectMonthlyPlan = () => {
     if (!user) {
      toast({ title: "Login Necessário", description: "Você precisa estar logado para selecionar um plano.", variant: "destructive" });
      router.push('/login?redirect=/planos');
      return;
-   }
-    if (currentUserPlanRank >= planRank.plano_mensal) {
+    }
+    const hasMonthlyPlan = user.activePlans?.some(p => p.planId === 'plano_mensal') ?? false;
+    if (hasMonthlyPlan) {
        toast({ title: "Plano Já Ativo", description: `Você já está inscrito no Plano Mensal.`, variant: "default" });
        return;
-   }
-   router.push('/checkout/plano_mensal');
- };
+    }
+    router.push('/checkout/plano_mensal');
+  };
 
   const handleInitiateFreeTrial = async () => {
     setIsStartingTrial(true);
@@ -405,7 +406,7 @@ export default function PlanosPage() {
                 <Button 
                   size="lg" 
                   className="w-full text-base" 
-                  onClick={handleSelectAnualPlan}
+                  onClick={handleSelectMonthlyPlan}
                   disabled={anualButtonDisabled}
                 >
                   {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : anualButtonIcon}
@@ -578,3 +579,5 @@ export default function PlanosPage() {
     </PageWrapper>
   );
 }
+
+    
