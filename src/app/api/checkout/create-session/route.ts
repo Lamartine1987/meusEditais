@@ -14,9 +14,9 @@ async function getPlanToPriceMap(): Promise<Record<Exclude<PlanId, 'plano_trial'
     const priceMap = {
       plano_cargo: await getEnvOrSecret('STRIPE_PRICE_ID_PLANO_CARGO'),
       plano_edital: await getEnvOrSecret('STRIPE_PRICE_ID_PLANO_EDITAL'),
-      plano_anual: await getEnvOrSecret('STRIPE_PRICE_ID_PLANO_ANUAL'),
+      plano_mensal: await getEnvOrSecret('STRIPE_PRICE_ID_PLANO_MENSAL_RECORRENTE'),
     };
-    console.log(`[API getPlanToPriceMap] Price IDs carregados: Cargo=${!!priceMap.plano_cargo}, Edital=${!!priceMap.plano_edital}, Anual=${!!priceMap.plano_anual}`);
+    console.log(`[API getPlanToPriceMap] Price IDs carregados: Cargo=${!!priceMap.plano_cargo}, Edital=${!!priceMap.plano_edital}, Mensal=${!!priceMap.plano_mensal}`);
     return priceMap;
 };
 
@@ -64,9 +64,13 @@ export async function POST(req: NextRequest) {
         }
 
         try {
-            console.log(`[API create-session] Validando existência do Price ID no Stripe: ${priceId}`);
+            console.log(`[API create-session] Validando existência e status do Price ID no Stripe: ${priceId}`);
             const price = await stripe.prices.retrieve(priceId);
-            console.log('[API create-session] Price validado com sucesso:', { id: price.id, livemode: price.livemode, currency: price.currency, unit_amount: price.unit_amount });
+            console.log('[API create-session] Price validado com sucesso:', { id: price.id, active: price.active, livemode: price.livemode, currency: price.currency, unit_amount: price.unit_amount });
+            if (!price.active) {
+                console.error(`[API create-session] ERRO CRÍTICO: O preço com ID '${priceId}' está INATIVO no Stripe.`);
+                return NextResponse.json({ error: `O plano selecionado não está mais disponível para compra. Por favor, contate o suporte.` }, { status: 400 });
+            }
         } catch (priceError: any) {
             console.error(`[API create-session] ERRO CRÍTICO: Falha ao validar o Price ID '${priceId}' com o Stripe.`, priceError);
             return NextResponse.json({ error: `O Price ID '${priceId}' configurado no servidor é inválido ou não existe no Stripe.`, details: priceError.message }, { status: 500 });
@@ -97,6 +101,9 @@ export async function POST(req: NextRequest) {
              await userRefDb.update({ stripeCustomerId });
         }
 
+        const isSubscription = planId === 'plano_mensal';
+        console.log(`[API create-session] O plano é uma assinatura? ${isSubscription}`);
+        
         const metadata = {
             userId,
             planId,
@@ -109,17 +116,25 @@ export async function POST(req: NextRequest) {
         const success_url = `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
         const cancel_url = `${appUrl}/checkout/cancel`;
         console.log(`[API create-session] URLs de redirecionamento: success_url=${success_url}, cancel_url=${cancel_url}`);
-
-        console.log('[API create-session] Criando sessão de checkout no Stripe...');
-        const session = await stripe.checkout.sessions.create({
+        
+        const sessionParams: any = {
             payment_method_types: ['card'],
-            mode: 'payment',
+            mode: isSubscription ? 'subscription' : 'payment',
             customer: stripeCustomerId,
             line_items: [{ price: priceId, quantity: 1 }],
             success_url: success_url,
             cancel_url: cancel_url,
             metadata: metadata,
-        });
+        };
+
+        if (isSubscription) {
+            sessionParams.subscription_data = {
+                metadata: { userId }, // Passa o userId para o objeto de assinatura também
+            };
+        }
+
+        console.log('[API create-session] Criando sessão de checkout no Stripe...');
+        const session = await stripe.checkout.sessions.create(sessionParams);
 
         console.log(`[API create-session] SUCESSO: Sessão de checkout criada. ID: ${session.id}, URL: ${session.url}`);
         return NextResponse.json({ url: session.url });

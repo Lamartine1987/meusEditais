@@ -67,15 +67,19 @@ export function UserNav() {
     return nameParts.slice(0, 2).join(' ');
   }
 
-  const getPlanDisplayName = (planId: PlanId): string => {
+  const getPlanDisplayName = (planId: PlanId | null | undefined): string => {
+    if (!planId) return "Nenhum Plano";
     switch (planId) {
       case 'plano_cargo': return "Plano Cargo";
       case 'plano_edital': return "Plano Edital";
-      case 'plano_anual': return "Plano Anual";
+      case 'plano_mensal': return "Plano Mensal";
       case 'plano_trial': return "Teste Gratuito";
       default: return "Plano";
     }
   };
+
+  const activePlanDisplayName = getPlanDisplayName(user.activePlan);
+  const otherActivePlans = user.activePlans?.filter(p => p.planId !== user.activePlan) || [];
 
   return (
     <DropdownMenu>
@@ -83,7 +87,8 @@ export function UserNav() {
         <Button variant="ghost" className="relative h-auto py-1 px-2 space-x-2 rounded-full flex items-center">
             <div className="hidden sm:flex flex-col items-end text-right">
                 {user.name && <span className="text-sm font-medium leading-none">{getDisplayName(user.name)}</span>}
-                {user.activePlan && <span className="text-xs font-semibold leading-none bg-gradient-to-r from-purple-500 to-pink-500 text-transparent bg-clip-text">{getPlanDisplayName(user.activePlan)}</span>}
+                {user.activePlan && <span className="text-xs font-semibold leading-none bg-gradient-to-r from-purple-500 to-pink-500 text-transparent bg-clip-text">{activePlanDisplayName}</span>}
+                 {otherActivePlans.length > 0 && <span className="text-xs leading-none text-muted-foreground">+ {otherActivePlans.length}</span>}
             </div>
           <Avatar className="h-8 w-8">
             <AvatarImage src={user.avatarUrl} alt={user.name || 'Avatar'} data-ai-hint="user avatar" />

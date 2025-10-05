@@ -35,7 +35,7 @@ export default function CargoDetailPage() {
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
     let canAccess = false;
 
-    if (user.activePlans?.some(p => p.planId === 'plano_anual' || p.planId === 'plano_trial')) {
+    if (user.activePlans?.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
         canAccess = true;
     } else if (user.activePlans?.some(p => p.planId === 'plano_edital' && p.selectedEditalId === editalId)) {
         canAccess = true;

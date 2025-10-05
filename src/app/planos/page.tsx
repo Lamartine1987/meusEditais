@@ -45,7 +45,7 @@ interface PlanDisplayInfo {
 const planDisplayMap: Record<PlanId, PlanDisplayInfo> = {
   plano_cargo: { id: 'plano_cargo', name: "Plano Cargo"},
   plano_edital: { id: 'plano_edital', name: "Plano Edital"},
-  plano_anual: { id: 'plano_anual', name: "Plano Anual"},
+  plano_mensal: { id: 'plano_mensal', name: "Plano Mensal"},
   plano_trial: { id: 'plano_trial', name: "Teste Gratuito"},
 };
 
@@ -53,7 +53,7 @@ const planRank: Record<PlanId, number> = {
   plano_trial: 0,
   plano_cargo: 1,
   plano_edital: 2,
-  plano_anual: 3,
+  plano_mensal: 3,
 };
 
 
@@ -77,7 +77,11 @@ export default function PlanosPage() {
   const [isProcessingModalSelection, setIsProcessingModalSelection] = useState(false);
   const [isStartingTrial, setIsStartingTrial] = useState(false);
 
-  const currentUserPlanRank = useMemo(() => user?.activePlan ? planRank[user.activePlan] : -1, [user]);
+  const currentUserPlanRank = useMemo(() => {
+    if (!user || !user.activePlans || user.activePlans.length === 0) return -1;
+    // Find the highest rank among all active plans
+    return Math.max(...user.activePlans.map(p => planRank[p.planId]));
+  }, [user]);
 
   useEffect(() => {
     const fetchAllEditais = async () => {
@@ -179,18 +183,19 @@ export default function PlanosPage() {
     }
   };
 
-  const handleSelectAnualPlan = () => {
+  const handleSelectMonthlyPlan = () => {
     if (!user) {
      toast({ title: "Login Necessário", description: "Você precisa estar logado para selecionar um plano.", variant: "destructive" });
      router.push('/login?redirect=/planos');
      return;
-   }
-    if (currentUserPlanRank >= planRank.plano_anual) {
-       toast({ title: "Plano Já Ativo", description: `Você já está inscrito no Plano Anual.`, variant: "default" });
+    }
+    const hasMonthlyPlan = user.activePlans?.some(p => p.planId === 'plano_mensal') ?? false;
+    if (hasMonthlyPlan) {
+       toast({ title: "Plano Já Ativo", description: `Você já está inscrito no Plano Mensal.`, variant: "default" });
        return;
-   }
-   router.push('/checkout/plano_anual');
- };
+    }
+    router.push('/checkout/plano_mensal');
+  };
 
   const handleInitiateFreeTrial = async () => {
     setIsStartingTrial(true);
@@ -207,6 +212,7 @@ export default function PlanosPage() {
   const canStartTrial = user && !user.hasHadFreeTrial;
   const hasActivePaidPlan = user && user.activePlans?.some(p => p.planId !== 'plano_trial');
   const pageIsLoading = authLoading || dataLoading;
+  const hasMonthlyPlan = user?.activePlans?.some(p => p.planId === 'plano_mensal') ?? false;
 
   // --- Button Logic ---
   const cargoButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_cargo : false);
@@ -217,10 +223,10 @@ export default function PlanosPage() {
   const editalButtonIcon = isEditalUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <ArrowRight className="mr-2 h-5 w-5" />;
   const editalButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_edital : false);
 
-  const isAnualUpgrade = user ? currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_anual : false;
-  const anualButtonText = isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Anual";
+  const isAnualUpgrade = user ? currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_mensal : false;
+  const anualButtonText = hasMonthlyPlan ? "Plano Máximo Ativo" : (isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Mensal");
   const anualButtonIcon = isAnualUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <Gem className="mr-2 h-5 w-5" />;
-  const anualButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_anual : false);
+  const anualButtonDisabled = pageIsLoading || hasMonthlyPlan;
 
 
   return (
@@ -378,16 +384,16 @@ export default function PlanosPage() {
                {!user && !pageIsLoading && <p className="text-xs text-center text-muted-foreground px-6 pb-2 -mt-4">É preciso estar logado para assinar.</p>}
             </Card>
 
-            {/* Plano Anual */}
+            {/* Plano Mensal */}
             <Card className="shadow-lg rounded-xl flex flex-col transform hover:scale-105 transition-transform duration-300">
               <CardHeader className="items-center text-center pb-4">
                 <Zap className="h-12 w-12 text-primary mb-3" />
-                <CardTitle className="text-2xl font-semibold">Plano Anual</CardTitle>
-                <CardDescription className="text-base text-muted-foreground">Acesso total e ilimitado!</CardDescription>
+                <CardTitle className="text-2xl font-semibold">Plano Mensal</CardTitle>
+                <CardDescription className="text-base text-muted-foreground">Acesso total e recorrente!</CardDescription>
               </CardHeader>
               <CardContent className="flex-grow space-y-4 pt-2">
                 <p className="text-center text-3xl font-bold text-primary">
-                  R$ 59<span className="text-xl font-normal">,90/ano</span>
+                  R$ 6<span className="text-xl font-normal">,90/mês</span>
                 </p>
                 <ul className="space-y-2 text-sm">
                   <PlanFeature>Acesso a <strong>todos os cargos</strong> de <strong>todos os editais</strong> da plataforma.</PlanFeature>
@@ -400,7 +406,7 @@ export default function PlanosPage() {
                 <Button 
                   size="lg" 
                   className="w-full text-base" 
-                  onClick={handleSelectAnualPlan}
+                  onClick={handleSelectMonthlyPlan}
                   disabled={anualButtonDisabled}
                 >
                   {authLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : anualButtonIcon}
@@ -553,7 +559,7 @@ export default function PlanosPage() {
             </CardHeader>
             <CardContent className="text-center text-muted-foreground space-y-3">
                 <p><strong>Plano Teste Gratuito:</strong> Crie uma conta para iniciar seu teste gratuito e ter acesso imediato por 7 dias.</p>
-                <p>Para os <strong>Planos Cargo, Edital e Anual</strong>, é necessário estar logado para prosseguir ao checkout via Stripe.</p>
+                <p>Para os <strong>Planos Cargo, Edital e Mensal</strong>, é necessário estar logado para prosseguir ao checkout via Stripe.</p>
                  <p className="font-semibold text-primary">Todos os planos pagos também incluem 7 dias de teste gratuito no primeiro pagamento!</p>
             </CardContent>
              <CardFooter className="justify-center pt-4">
@@ -573,3 +579,5 @@ export default function PlanosPage() {
     </PageWrapper>
   );
 }
+
+    
