@@ -56,7 +56,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         
         // Se for uma assinatura, o evento 'customer.subscription.created' cuidará da lógica.
         if (session.mode === 'subscription') {
-            console.log(`[handleStripeWebhook] Sessão de assinatura detectada. Ignorando 'checkout.session.completed' e aguardando 'customer.subscription.created'.`);
+            console.log(`[handleStripeWebhook] Sessão de assinatura detectada. Ignorando 'checkout.session.completed' e aguardando 'customer.subscription.created' ou 'customer.subscription.updated'.`);
             break;
         }
 
@@ -132,11 +132,15 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const stripe = await getStripeClient();
         
         const priceId = subscription.items.data[0]?.price.id;
+        if (!priceId) {
+            console.error(`[handleStripeWebhook] ERRO CRÍTICO: Price ID não encontrado nos itens da assinatura ${subscription.id}`);
+            return new Response('Erro: Price ID ausente na assinatura.', { status: 400 });
+        }
         const price = await stripe.prices.retrieve(priceId, { expand: ['product'] });
         const product = price.product as Stripe.Product;
         
         const planId = product.metadata.planId as PlanId;
-        const userId = subscription.metadata.userId; // CORREÇÃO: Pegar o userId dos metadados da assinatura
+        const userId = subscription.metadata.userId; 
         const stripeCustomerId = subscription.customer as string;
 
         if (!userId || !planId) {
@@ -154,6 +158,8 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           } catch(invoiceError) {
              console.error('[handleStripeWebhook] Erro ao buscar o Payment Intent da fatura:', invoiceError);
           }
+        } else {
+            console.warn(`[handleStripeWebhook] AVISO: Assinatura ${subscription.id} não possui 'latest_invoice'. O Payment Intent ID não será salvo.`);
         }
 
         const userFirebaseRef = adminDb.ref(`users/${userId}`);
@@ -168,7 +174,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           startDate: formatISO(startDate),
           expiryDate: formatISO(expiryDate),
           stripeSubscriptionId: subscription.id,
-          stripePaymentIntentId: paymentIntentId,
+          stripePaymentIntentId: paymentIntentId, // **CORREÇÃO APLICADA AQUI**
           stripeCustomerId: stripeCustomerId,
           status: 'active',
         };
