@@ -76,7 +76,6 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: `O Price ID '${priceId}' configurado no servidor é inválido ou não existe no Stripe.`, details: priceError.message }, { status: 500 });
         }
 
-
         let stripeCustomerId: string | undefined;
         const userRefDb = adminDb.ref(`users/${userId}`);
         const userSnapshot = await userRefDb.get();
@@ -128,8 +127,9 @@ export async function POST(req: NextRequest) {
         };
 
         if (isSubscription) {
+            // CORREÇÃO: Adicionar metadados ao objeto de assinatura
             sessionParams.subscription_data = {
-                metadata: { userId }, // Passa o userId para o objeto de assinatura também
+                metadata: { userId }, 
             };
         }
 

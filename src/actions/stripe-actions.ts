@@ -90,7 +90,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           ...(selectedCargoCompositeId && { selectedCargoCompositeId }),
           ...(selectedEditalId && { selectedEditalId }),
           stripeSubscriptionId: null,
-          stripePaymentIntentId: paymentIntentId, // GARANTE que o ID do pagamento seja salvo
+          stripePaymentIntentId: paymentIntentId,
           stripeCustomerId: stripeCustomerIdFromSession,
           status: 'active',
         };
@@ -131,21 +131,19 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         
         const stripe = await getStripeClient();
         
-        // A metadata relevante está no item da assinatura
         const priceId = subscription.items.data[0]?.price.id;
         const price = await stripe.prices.retrieve(priceId, { expand: ['product'] });
         const product = price.product as Stripe.Product;
         
         const planId = product.metadata.planId as PlanId;
-        const userId = subscription.metadata.userId;
+        const userId = subscription.metadata.userId; // CORREÇÃO: Pegar o userId dos metadados da assinatura
         const stripeCustomerId = subscription.customer as string;
 
         if (!userId || !planId) {
-            console.error('[handleStripeWebhook] ERRO CRÍTICO: Metadados (userId, planId) ausentes na assinatura.', { subscription: subscription.id, product: product.id });
+            console.error('[handleStripeWebhook] ERRO CRÍTICO: Metadados (userId, planId) ausentes na assinatura.', { subscriptionId: subscription.id, metadata: subscription.metadata });
             return new Response('Erro: Metadados críticos ausentes na assinatura.', { status: 400 });
         }
 
-        // --- CORREÇÃO: Buscar o Payment Intent da primeira fatura ---
         let paymentIntentId: string | null = null;
         if (subscription.latest_invoice) {
           try {
@@ -157,7 +155,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
              console.error('[handleStripeWebhook] Erro ao buscar o Payment Intent da fatura:', invoiceError);
           }
         }
-        // --- FIM DA CORREÇÃO ---
 
         const userFirebaseRef = adminDb.ref(`users/${userId}`);
         const userSnapshot = await userFirebaseRef.get();
@@ -171,19 +168,17 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           startDate: formatISO(startDate),
           expiryDate: formatISO(expiryDate),
           stripeSubscriptionId: subscription.id,
-          stripePaymentIntentId: paymentIntentId, // Salva o ID do pagamento
+          stripePaymentIntentId: paymentIntentId,
           stripeCustomerId: stripeCustomerId,
           status: 'active',
         };
 
         const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
-        // Mantém os planos anteriores ativos, apenas adiciona o novo
         const finalActivePlans = [...currentActivePlans, newPlan];
 
         const highestPlan = finalActivePlans.reduce((max, plan) => {
           return planRank[plan.planId] > planRank[max.planId] ? plan : max;
         }, { planId: 'plano_trial' } as PlanDetails);
-
 
         const updatePayload: any = {
           activePlan: highestPlan.planId,
