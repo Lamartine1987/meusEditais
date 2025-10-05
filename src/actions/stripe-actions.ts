@@ -16,7 +16,6 @@ const planRank: Record<PlanId, number> = {
   plano_mensal: 3,
 };
 
-
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
     const userId = session.metadata?.userId;
     const planId = session.metadata?.planId as PlanId | undefined;
@@ -77,33 +76,23 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
 async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
     const userId = subscription.metadata.userId;
+    const planId = subscription.metadata.planId as PlanId | undefined;
     const customerId = typeof subscription.customer === 'string' ? subscription.customer : null;
 
     if (!userId) {
         console.error(`[handleSubscriptionCreated] ERRO CRÍTICO: 'userId' ausente nos metadados da assinatura ${subscription.id}`);
         return;
     }
-
-    console.log(`[handleSubscriptionCreated] Processando assinatura ${subscription.id} para o usuário ${userId}.`);
-
-    const priceId = subscription.items.data[0]?.price.id;
-    if (!priceId) {
-        console.error(`[handleSubscriptionCreated] ERRO CRÍTICO: Price ID não encontrado para a assinatura ${subscription.id}.`);
-        return;
-    }
-
-    const stripe = await getStripeClient();
-    const price = await stripe.prices.retrieve(priceId, { expand: ['product'] });
-    const product = price.product as Stripe.Product;
-    const planId = product.metadata.planId as PlanId | undefined;
-
     if (!planId) {
-        console.error(`[handleSubscriptionCreated] ERRO CRÍTICO: 'planId' ausente nos metadados do produto ${product.id}.`);
+        console.error(`[handleSubscriptionCreated] ERRO CRÍTICO: 'planId' ausente nos metadados da assinatura ${subscription.id}`);
         return;
     }
+
+    console.log(`[handleSubscriptionCreated] Processando assinatura ${subscription.id} para o usuário ${userId} com plano ${planId}.`);
     
     let paymentIntentId: string | null = null;
     if (subscription.latest_invoice) {
+        const stripe = await getStripeClient();
         const invoiceId = typeof subscription.latest_invoice === 'string' ? subscription.latest_invoice : subscription.latest_invoice.id;
         try {
             const invoice = await stripe.invoices.retrieve(invoiceId);
@@ -147,7 +136,6 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
     console.log(`[handleSubscriptionCreated] SUCESSO: Usuário ${userId} atualizado com plano de assinatura.`);
 }
 
-
 export async function handleStripeWebhook(req: Request): Promise<Response> {
   console.log('[handleStripeWebhook] Requisição de webhook recebida.');
   
@@ -188,4 +176,3 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
-

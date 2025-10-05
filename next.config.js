@@ -12,7 +12,7 @@ const nextConfig = {
       },
     ],
   },
-  transpilePackages: [],
+  transpilePackages: ['lucide-react', 'recharts'],
 };
 
 module.exports = nextConfig;

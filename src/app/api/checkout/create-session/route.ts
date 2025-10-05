@@ -5,6 +5,7 @@ import { adminDb, auth as adminAuth } from '@/lib/firebase-admin';
 import type { PlanId } from '@/types';
 import { headers } from 'next/headers';
 import { getEnvOrSecret } from '@/lib/secrets';
+import type Stripe from 'stripe';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
                 stripeCustomerId = existingCustomers.data[0].id;
                 console.log(`[API create-session] Cliente Stripe existente encontrado via API: ${stripeCustomerId}`);
             } else {
-                const customer = await stripe.customers.create({ email: userEmail, name: decodedToken.name, metadata: { firebaseUID: userId } });
+                const customer = await stripe.customers.create({ email: userEmail, name: decodedToken.name || '', metadata: { firebaseUID: userId } });
                 stripeCustomerId = customer.id;
                 console.log(`[API create-session] Novo cliente Stripe criado: ${stripeCustomerId}`);
             }
