@@ -41,7 +41,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const newPlan: PlanDetails = {
       planId,
       startDate: formatISO(now),
-      expiryDate: formatISO(new Date(new Date().setDate(now.getDate() + 365))), // 1 ano de validade
+      expiryDate: formatISO(new Date(new Date().setFullYear(now.getFullYear() + 1))), // 1 ano de validade
       stripeSubscriptionId: null,
       stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
       stripeCustomerId: typeof session.customer === 'string' ? session.customer : null,
@@ -69,7 +69,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       }
     }
 
-    console.log(`[handleCheckoutSessionCompleted] Payload final para ${userId}:`, updatePayload);
+    console.log(`[handleCheckoutSessionCompleted] Payload final para ${userId}:`, JSON.stringify(updatePayload));
     await userFirebaseRef.update(updatePayload);
     console.log(`[handleCheckoutSessionCompleted] SUCESSO: Usuário ${userId} atualizado com plano de pagamento único.`);
 }
@@ -114,7 +114,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
       startDate: formatISO(new Date(subscription.current_period_start * 1000)),
       expiryDate: formatISO(new Date(subscription.current_period_end * 1000)),
       stripeSubscriptionId: subscription.id,
-      stripePaymentIntentId: paymentIntentId,
+      stripePaymentIntentId: paymentIntentId, // Corrigido para incluir o ID do pagamento
       stripeCustomerId: customerId,
       status: 'active',
     };
@@ -131,7 +131,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
       hasHadFreeTrial: true, // Assinaturas contam como tendo usado o trial
     };
 
-    console.log(`[handleSubscriptionCreated] Payload final para ${userId}:`, updatePayload);
+    console.log(`[handleSubscriptionCreated] Payload final para ${userId}:`, JSON.stringify(updatePayload));
     await userFirebaseRef.update(updatePayload);
     console.log(`[handleSubscriptionCreated] SUCESSO: Usuário ${userId} atualizado com plano de assinatura.`);
 }
@@ -176,3 +176,5 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
+
+    
