@@ -230,6 +230,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const register = async (name: string, email: string, cpf: string, pass: string) => {
     // This now delegates to the server action
+    await signInWithEmailAndPassword(auth, email, pass);
   };
   
   const sendPasswordReset = async (email: string) => {
