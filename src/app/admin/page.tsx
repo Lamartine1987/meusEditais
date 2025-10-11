@@ -7,7 +7,7 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, AlertTriangle, ShieldCheck, Users, BadgeHelp, CheckCircle, Filter } from 'lucide-react';
+import { Loader2, AlertTriangle, ShieldCheck, Users, CheckCircle, Filter, XCircle, Clock, CalendarX, Info } from 'lucide-react';
 import type { User, PlanId, PlanDetails } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import { processRefund } from '@/actions/admin-actions';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 const getPlanDisplayName = (planId?: PlanId | null): string => {
     if (!planId) return "Nenhum";
@@ -31,9 +32,21 @@ const getPlanDisplayName = (planId?: PlanId | null): string => {
     return names[planId] || 'Desconhecido';
 };
 
+const PlanStatusBadge = ({ status }: { status: PlanDetails['status'] }) => {
+    switch (status) {
+        case 'refundRequested':
+            return <Badge variant="destructive" className="cursor-pointer self-start"><Clock className="mr-1.5 h-3 w-3"/> Reembolso Solicitado</Badge>;
+        case 'canceled':
+             return <Badge variant="secondary" className="cursor-pointer self-start"><CalendarX className="mr-1.5 h-3 w-3"/> Cancelado</Badge>;
+        case 'past_due':
+             return <Badge variant="destructive" className="cursor-pointer self-start"><Clock className="mr-1.5 h-3 w-3"/> Pag. Pendente</Badge>;
+        default:
+             return null;
+    }
+}
 
 export default function AdminPage() {
-    const { user, loading: authLoading } = useAuth();
+    const { user: adminUser, loading: authLoading } = useAuth();
     const router = useRouter();
     const [users, setUsers] = useState<User[]>([]);
     const [loadingData, setLoadingData] = useState(true);
@@ -78,13 +91,13 @@ export default function AdminPage() {
 
     useEffect(() => {
         if (!authLoading) {
-            if (!user) {
+            if (!adminUser) {
                 router.push('/login?redirect=/admin');
                 return;
             }
             fetchUsers();
         }
-    }, [user, authLoading, router]);
+    }, [adminUser, authLoading, router]);
 
     const filteredUsers = useMemo(() => {
         if (refundFilter === 'all') {
@@ -196,26 +209,23 @@ export default function AdminPage() {
                                                 <TableCell>{u.email}</TableCell>
                                                 <TableCell>
                                                     {u.activePlans && u.activePlans.length > 0 ? (
-                                                        <div className="flex flex-col gap-1.5">
+                                                        <div className="flex flex-col gap-2">
                                                             {u.activePlans.map((plan: PlanDetails) => (
-                                                                <div key={plan.stripePaymentIntentId || plan.startDate} className="flex flex-col gap-1">
+                                                                <div key={plan.stripePaymentIntentId || plan.stripeSubscriptionId || plan.startDate} className="flex flex-col gap-1">
                                                                     <TooltipProvider>
                                                                         <Tooltip>
-                                                                            <TooltipTrigger asChild>
-                                                                                <Badge
-                                                                                    variant={plan.status === 'refundRequested' ? 'destructive' : 'secondary'}
-                                                                                    className="cursor-pointer self-start"
-                                                                                >
-                                                                                    {getPlanDisplayName(plan.planId)}
-                                                                                    {plan.status === 'refundRequested' && <BadgeHelp className="ml-1.5 h-3 w-3"/>}
-                                                                                </Badge>
+                                                                            <TooltipTrigger>
+                                                                                <div className='flex items-center gap-2'>
+                                                                                    <Badge variant={plan.status === 'active' ? 'default' : 'secondary'} className={cn(plan.planId === 'plano_trial' && 'bg-green-500/10 text-green-700 border-green-500/30')}>{getPlanDisplayName(plan.planId)}</Badge>
+                                                                                    <PlanStatusBadge status={plan.status}/>
+                                                                                </div>
                                                                             </TooltipTrigger>
-                                                                            <TooltipContent>
-                                                                                <p>ID do Pagamento: {plan.stripePaymentIntentId || 'N/A'}</p>
+                                                                            <TooltipContent className='text-sm'>
+                                                                                <p>ID Assinatura: {plan.stripeSubscriptionId || 'N/A'}</p>
+                                                                                <p>ID Pagamento: {plan.stripePaymentIntentId || 'N/A'}</p>
                                                                                 {plan.startDate && <p>Início: {format(parseISO(plan.startDate), 'dd/MM/yy', {locale: ptBR})}</p>}
                                                                                 {plan.expiryDate && <p>Expira: {format(parseISO(plan.expiryDate), 'dd/MM/yy', {locale: ptBR})}</p>}
-                                                                                {plan.status === 'refundRequested' && <p className="font-bold text-destructive">REEMBOLSO SOLICITADO</p>}
-                                                                                {plan.requestDate && <p>Data Solicitação: {format(parseISO(plan.requestDate), 'dd/MM/yy HH:mm', {locale: ptBR})}</p>}
+                                                                                {plan.status === 'refundRequested' && plan.requestDate && <p>Solicitado em: {format(parseISO(plan.requestDate), 'dd/MM/yy HH:mm', {locale: ptBR})}</p>}
                                                                             </TooltipContent>
                                                                         </Tooltip>
                                                                     </TooltipProvider>
@@ -245,15 +255,19 @@ export default function AdminPage() {
                                                                 const adminProcessor = plan.refundedBy ? users.find(adm => adm.id === plan.refundedBy) : null;
                                                                 return (
                                                                     <div key={plan.stripePaymentIntentId || plan.startDate} className="p-2 border rounded-md bg-muted/50">
-                                                                        <p className="font-semibold">
-                                                                            {plan.status === 'refunded' ? 'Reembolsado' : 'Expirado'}: {getPlanDisplayName(plan.planId)}
-                                                                        </p>
+                                                                        <div className="font-semibold flex items-center gap-2">
+                                                                            {plan.status === 'refunded' ? <XCircle className="h-3 w-3 text-destructive"/> : <Info className="h-3 w-3 text-muted-foreground"/>}
+                                                                            <span>{plan.status === 'refunded' ? 'Reembolsado' : 'Expirado'}: {getPlanDisplayName(plan.planId)}</span>
+                                                                        </div>
                                                                         {plan.status === 'refunded' && (
                                                                             <>
                                                                                 {plan.refundedDate && <p>Data: {format(parseISO(plan.refundedDate), 'dd/MM/yy HH:mm', { locale: ptBR })}</p>}
                                                                                 {adminProcessor && <p>Por: {adminProcessor.name}</p>}
                                                                             </>
                                                                         )}
+                                                                         {plan.status !== 'refunded' && plan.expiryDate && (
+                                                                             <p>Expirou em: {format(parseISO(plan.expiryDate), 'dd/MM/yy', { locale: ptBR })}</p>
+                                                                         )}
                                                                     </div>
                                                                 );
                                                             })}
