@@ -368,5 +368,4 @@ export default function AdminPage() {
             </div>
         </PageWrapper>
     );
-
-    
+}
