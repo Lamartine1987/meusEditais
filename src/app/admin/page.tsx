@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
@@ -7,7 +8,7 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, AlertTriangle, ShieldCheck, Users, CheckCircle, Filter, XCircle, Clock, CalendarX, Info } from 'lucide-react';
+import { Loader2, AlertTriangle, ShieldCheck, Users, CheckCircle, Filter, XCircle, Clock, CalendarX, Info, CreditCard, Search as SearchIcon } from 'lucide-react';
 import type { User, PlanId, PlanDetails } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
 
 const getPlanDisplayName = (planId?: PlanId | null): string => {
     if (!planId) return "Nenhum";
@@ -54,6 +56,7 @@ export default function AdminPage() {
     const [processingRefundId, setProcessingRefundId] = useState<string | null>(null);
     const { toast } = useToast();
     const [refundFilter, setRefundFilter] = useState('all');
+    const [searchTerm, setSearchTerm] = useState('');
 
     const fetchUsers = async () => {
         try {
@@ -66,7 +69,6 @@ export default function AdminPage() {
             }
             
             const idToken = await currentUser.getIdToken();
-            console.log("[AdminPage] Fetching users with token:", idToken ? "Token present" : "Token MISSING");
 
             const res = await fetch('/api/admin/users', {
                 headers: {
@@ -76,13 +78,11 @@ export default function AdminPage() {
 
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({ error: 'Falha ao analisar a resposta de erro.' }));
-                 console.error("[AdminPage] Error response from API:", res.status, errorData);
                 throw new Error(errorData.error || `Falha ao buscar dados dos usuários. Status: ${res.status}`);
             }
             const data = await res.json();
             setUsers(data);
         } catch (err: any) {
-            console.error("[AdminPage] Error in fetchUsers:", err);
             setError(err.message);
         } finally {
             setLoadingData(false);
@@ -98,12 +98,33 @@ export default function AdminPage() {
             fetchUsers();
         }
     }, [adminUser, authLoading, router]);
+    
+    const dashboardMetrics = useMemo(() => {
+        const totalUsers = users.length;
+        const activeSubscriptions = users.reduce((acc, user) => {
+            const activePaidPlans = user.activePlans?.filter(p => p.planId !== 'plano_trial' && p.status === 'active').length ?? 0;
+            return acc + activePaidPlans;
+        }, 0);
+        const pendingRefunds = users.filter(u => u.activePlans?.some(p => p.status === 'refundRequested')).length;
+
+        return { totalUsers, activeSubscriptions, pendingRefunds };
+    }, [users]);
+
 
     const filteredUsers = useMemo(() => {
-        if (refundFilter === 'all') {
-            return users;
-        }
+        const lowercasedSearchTerm = searchTerm.toLowerCase();
+        
         return users.filter(u => {
+            // Search filter
+            const matchesSearch = searchTerm === '' ||
+                (u.name && u.name.toLowerCase().includes(lowercasedSearchTerm)) ||
+                (u.email && u.email.toLowerCase().includes(lowercasedSearchTerm));
+            if (!matchesSearch) return false;
+
+            // Refund status filter
+            if (refundFilter === 'all') {
+                return true;
+            }
             if (refundFilter === 'refundRequested') {
                 return u.activePlans?.some(p => p.status === 'refundRequested');
             }
@@ -112,7 +133,7 @@ export default function AdminPage() {
             }
             return false;
         });
-    }, [users, refundFilter]);
+    }, [users, refundFilter, searchTerm]);
     
     const handleProcessRefund = async (userId: string, paymentIntentId: string) => {
         setProcessingRefundId(paymentIntentId);
@@ -157,6 +178,37 @@ export default function AdminPage() {
                     description="Gerencie e visualize os usuários e suas assinaturas."
                 />
 
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{dashboardMetrics.totalUsers}</div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Assinaturas Ativas</CardTitle>
+                            <CreditCard className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold">{dashboardMetrics.activeSubscriptions}</div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                            <CardTitle className="text-sm font-medium">Reembolsos Pendentes</CardTitle>
+                            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-destructive">{dashboardMetrics.pendingRefunds}</div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+
                 <Card>
                     <CardHeader>
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -169,18 +221,29 @@ export default function AdminPage() {
                                     Exibindo {filteredUsers.length} de {users.length} usuário(s) cadastrado(s).
                                 </CardDescription>
                             </div>
-                            <div className="w-full sm:w-auto">
-                                <Label htmlFor="refund-filter" className="text-xs text-muted-foreground">Filtrar por reembolso</Label>
-                                <Select value={refundFilter} onValueChange={setRefundFilter}>
-                                    <SelectTrigger id="refund-filter" className="w-full sm:w-[200px]">
-                                        <SelectValue placeholder="Filtrar por status..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todos os Usuários</SelectItem>
-                                        <SelectItem value="refundRequested">Reembolsos Pendentes</SelectItem>
-                                        <SelectItem value="refunded">Reembolsados</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                             <div className="w-full sm:w-auto flex flex-col sm:flex-row gap-4">
+                                <div className="relative w-full sm:w-64">
+                                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input 
+                                        placeholder="Buscar por nome ou email..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="pl-9"
+                                    />
+                                </div>
+                                <div className="w-full sm:w-auto">
+                                    <Label htmlFor="refund-filter" className="text-xs text-muted-foreground sr-only">Filtrar por reembolso</Label>
+                                    <Select value={refundFilter} onValueChange={setRefundFilter}>
+                                        <SelectTrigger id="refund-filter" className="w-full sm:w-[200px]">
+                                            <SelectValue placeholder="Filtrar por status..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos os Usuários</SelectItem>
+                                            <SelectItem value="refundRequested">Reembolsos Pendentes</SelectItem>
+                                            <SelectItem value="refunded">Reembolsados</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
                         </div>
                     </CardHeader>
@@ -305,4 +368,5 @@ export default function AdminPage() {
             </div>
         </PageWrapper>
     );
-}
+
+    
