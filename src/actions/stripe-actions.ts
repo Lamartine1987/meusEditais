@@ -191,7 +191,11 @@ async function handleSubscriptionCreated(
     const otherPlans = currentActivePlans.filter(p => p.stripeSubscriptionId !== subscription.id);
     const finalActivePlans = [...otherPlans, newPlan];
 
-    const highestPlan = [...finalActivePlans].sort((a, b) => planRank[b.planId] - planRank[a.planId])[0] ?? null;
+    const highestPlan = [...finalActivePlans].sort((a, b) => {
+        const rankA = planRank[a.planId as PlanId] ?? 0;
+        const rankB = planRank[b.planId as PlanId] ?? 0;
+        return rankB - rankA;
+    })[0] ?? null;
 
     const updatePayload: any = {
       activePlan: highestPlan.planId,
@@ -244,7 +248,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
         console.log(`[Webhook] Assinatura ${subscription.id} foi atualizada. Novo status: ${subscription.status}`);
-        await handleSubscriptionCreated(subscription); // A função handleSubscriptionCreated já lida com 'upsert'
+        await handleSubscriptionCreated(subscription);
         break;
       }
 
@@ -270,7 +274,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             console.warn(`[Webhook] Pagamento da fatura falhou para a assinatura ${subscriptionId}. Marcando plano como 'past_due'.`);
             const stripe = await getStripeClient();
             const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-            await handleSubscriptionCreated(subscription); // Reutilizamos para atualizar o status para past_due
+            await handleSubscriptionCreated(subscription);
         }
         break;
       }
@@ -286,7 +290,12 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
                 const userData = userSnapshot.val();
                 const updatedActivePlans = (userData.activePlans || []).filter((p: PlanDetails) => p.stripeSubscriptionId !== subscription.id);
                 
-                const highestPlan = [...updatedActivePlans].sort((a, b) => planRank[b.planId] - planRank[a.planId])[0] ?? null;
+                const highestPlan = [...updatedActivePlans].sort((a, b) => {
+                    const rankA = planRank[a.planId as PlanId] ?? 0;
+                    const rankB = planRank[b.planId as PlanId] ?? 0;
+                    return rankB - rankA;
+                })[0] ?? null;
+
                 const newActivePlanId = highestPlan ? highestPlan.planId : null;
                 
                 await userRef.update({
