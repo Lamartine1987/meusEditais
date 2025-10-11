@@ -63,11 +63,11 @@ export async function processRefund(input: ProcessRefundInput): Promise<{ succes
     const updatedPlanHistory = [...(userData.planHistory || []), refundedPlan];
 
     // Recalcula o plano ativo de maior nível
-    const planRank: Record<string, number> = { plano_trial: 0, plano_cargo: 1, plano_edital: 2, plano_anual: 3 };
+    const planRank: Record<string, number> = { plano_trial: 0, plano_cargo: 1, plano_edital: 2, plano_mensal: 3 };
     let highestPlan: PlanDetails | null = null;
     if (updatedActivePlans.length > 0) {
         highestPlan = updatedActivePlans.reduce((max, plan) => 
-            planRank[plan.planId] > planRank[max.planId] ? plan : max
+            planRank[plan.planId] > planRank[max.planId] ? plan : max, { planId: 'plano_trial' } as PlanDetails
         );
     }
     const newActivePlanId = highestPlan ? highestPlan.planId : null;

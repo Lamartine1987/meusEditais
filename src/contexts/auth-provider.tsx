@@ -49,7 +49,7 @@ interface AuthContextType {
   toggleRevisionReviewedStatus: (revisionId: string) => Promise<void>;
   addNote: (compositeTopicId: string, text: string) => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
-  cancelSubscription: () => Promise<void>;
+  cancelSubscription: (subscriptionId: string) => Promise<void>;
   startFreeTrial: () => Promise<void>;
   changeItemForPlan: (paymentIntentId: string, newItemId: string) => Promise<void>;
   setRankingParticipation: (participate: boolean) => Promise<void>;
@@ -528,29 +528,60 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
-  const cancelSubscription = async () => {
-    if (!user || !user.activePlans || user.activePlans.length === 0 || !db) {
-      toast({ title: "Nenhuma Assinatura Ativa", description: "Você não possui um plano ativo para cancelar.", variant: "default" });
-      return;
-    }
-   
-    const trialPlan = user.activePlans.find(p => p.planId === 'plano_trial');
-    if (trialPlan) {
-        const updatedActivePlans = user.activePlans.filter(p => p.planId !== 'plano_trial');
+  const cancelSubscription = async (subscriptionId: string) => {
+    if (!user || !db) throw new Error("Usuário não está logado ou o DB não está disponível.");
+
+    if (subscriptionId === 'plano_trial') {
+        const updatedActivePlans = user.activePlans?.filter(p => p.planId !== 'plano_trial') || [];
         const updates: any = { activePlans: updatedActivePlans };
-
-        if (updatedActivePlans.length === 0) {
-            updates.activePlan = null;
-        }
-
+        if (updatedActivePlans.length === 0) updates.activePlan = null;
+        
         try {
             await update(ref(db, `users/${user.id}`), updates);
-            toast({ title: "Teste Cancelado", description: "Seu teste gratuito foi cancelado.", variant: "default" });
+            toast({ title: "Teste Cancelado", description: "Seu teste gratuito foi cancelado." });
         } catch(e) {
             toast({ title: "Erro", description: "Não foi possível cancelar o teste.", variant: "destructive" });
+            throw e;
         }
-    } else {
-       toast({ title: "Ação Indisponível", description: "O cancelamento de planos pagos deve ser gerenciado através do suporte.", variant: "default" });
+        return;
+    }
+    
+    // For paid subscriptions
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Token de autenticação não encontrado.");
+
+      const response = await fetch('/api/subscriptions/cancel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ subscriptionId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Falha ao cancelar a assinatura no servidor.');
+      }
+      
+      // The local state will be updated via the onValue listener from the webhook,
+      // but we can give immediate feedback.
+      toast({
+        title: "Cancelamento Agendado",
+        description: "Sua assinatura será cancelada no final do período de cobrança. O acesso continuará até lá.",
+        variant: "default",
+        className: "bg-accent text-accent-foreground",
+        duration: 9000,
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "Erro ao Cancelar",
+        description: error.message || "Não foi possível processar o cancelamento da assinatura.",
+        variant: "destructive",
+      });
+      throw error;
     }
   };
 
