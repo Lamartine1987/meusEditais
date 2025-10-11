@@ -34,9 +34,6 @@ async function mapPriceToPlan(priceId: string | null | undefined): Promise<PlanI
 
 
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
-    const userId = session.metadata?.userId;
-    const planId = session.metadata?.planId as PlanId | undefined;
-    
     // --- NOVO: Lógica de Backup para Assinaturas ---
     if (session.mode === 'subscription') {
         if (session.subscription) {
@@ -54,12 +51,15 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
                 console.error(`[handleCheckoutSessionCompleted] Erro ao processar assinatura antecipadamente para ${subscriptionId}:`, error);
             }
         } else {
-             console.log(`[handleCheckoutSessionCompleted] Sessão de assinatura (ID: ${session.id}) para o usuário ${userId}. Ignorando e aguardando evento 'customer.subscription.created'.`);
+             console.log(`[handleCheckoutSessionCompleted] Sessão de assinatura (ID: ${session.id}) para o usuário ${session.metadata?.userId}. Ignorando e aguardando evento 'customer.subscription.created'.`);
         }
         return;
     }
     // --- FIM: Lógica de Backup ---
     
+    const userId = session.metadata?.userId;
+    const planId = session.metadata?.planId as PlanId | undefined;
+
     if (!userId || !planId) {
         console.error(`[handleCheckoutSessionCompleted] ERRO CRÍTICO: Metadados (userId ou planId) ausentes para pagamento único. Session ID: ${session.id}`, session.metadata);
         return;
@@ -185,7 +185,9 @@ async function handleSubscriptionCreated(
     };
     
     const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
-    const finalActivePlans = [...currentActivePlans, newPlan];
+    // Remove o plano de assinatura antigo, se houver, para substituí-lo pelo novo com a data atualizada
+    const otherPlans = currentActivePlans.filter(p => p.stripeSubscriptionId !== subscription.id);
+    const finalActivePlans = [...otherPlans, newPlan];
 
     const highestPlan = finalActivePlans.reduce((max, p) => (planRank[p.planId] > planRank[max.planId] ? p : max), { planId: 'plano_trial' } as PlanDetails);
 
@@ -224,38 +226,86 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   
   try {
     switch (event.type) {
-  case 'checkout.session.completed': {
-    const session = event.data.object as Stripe.Checkout.Session;
-    await handleCheckoutSessionCompleted(session);
-    break;
-  }
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        await handleCheckoutSessionCompleted(session);
+        break;
+      }
 
-  case 'customer.subscription.created':
-  case 'customer.subscription.updated': {
-    const subscription = event.data.object as Stripe.Subscription;
-    await handleSubscriptionCreated(subscription);
-    break;
-  }
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object as Stripe.Subscription;
+        console.log(`[Webhook] Assinatura ${subscription.id} foi criada/atualizada. Status: ${subscription.status}`);
+        // Apenas processamos se a assinatura estiver ativa ou em teste para evitar atualizações em estados intermediários
+        if (subscription.status === 'active' || subscription.status === 'trialing') {
+            await handleSubscriptionCreated(subscription);
+        }
+        break;
+      }
 
-  case 'invoice.payment_succeeded': {
-    // Renovação: pega a assinatura da fatura e reaplica a persistência
-    const invoice = event.data.object as Stripe.Invoice;
-    const subscriptionId = typeof invoice.subscription === 'string'
-      ? invoice.subscription
-      : invoice.subscription?.id;
-    if (subscriptionId) {
-      const stripe = await getStripeClient();
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-      await handleSubscriptionCreated(subscription);
-    } else {
-      console.warn('[handleStripeWebhook] invoice.payment_succeeded sem subscription vinculada.');
+      case 'invoice.payment_succeeded': {
+        // Este evento é crucial para renovações.
+        const invoice = event.data.object as Stripe.Invoice;
+        // billing_reason pode ser 'subscription_create' ou 'subscription_cycle'
+        if (invoice.billing_reason === 'subscription_cycle' || invoice.billing_reason === 'subscription_update') {
+            const subscriptionId = typeof invoice.subscription === 'string'
+              ? invoice.subscription
+              : invoice.subscription?.id;
+            
+            if (subscriptionId) {
+              console.log(`[Webhook] Fatura de renovação paga para assinatura ${subscriptionId}. Atualizando período do plano.`);
+              const stripe = await getStripeClient();
+              const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+              await handleSubscriptionCreated(subscription); // Reutilizamos a função para atualizar as datas
+            }
+        }
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subscriptionId = typeof invoice.subscription === 'string'
+          ? invoice.subscription
+          : invoice.subscription?.id;
+        
+        if (subscriptionId) {
+            console.warn(`[Webhook] Pagamento da fatura falhou para a assinatura ${subscriptionId}. A assinatura pode ser cancelada em breve pelo Stripe.`);
+            // Aqui você poderia, por exemplo, enviar um e-mail para o usuário informando sobre a falha no pagamento.
+            // O Stripe geralmente tenta cobrar novamente algumas vezes antes de cancelar a assinatura.
+            // O cancelamento final seria tratado pelo evento 'customer.subscription.deleted'.
+        }
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription;
+        const userId = subscription.metadata.userId;
+        if (userId) {
+            console.log(`[Webhook] Assinatura ${subscription.id} do usuário ${userId} foi cancelada/expirada. Removendo plano ativo.`);
+            const userRef = adminDb.ref(`users/${userId}`);
+            const userSnapshot = await userRef.get();
+            if (userSnapshot.exists()) {
+                const userData = userSnapshot.val();
+                const updatedActivePlans = (userData.activePlans || []).filter((p: PlanDetails) => p.stripeSubscriptionId !== subscription.id);
+                
+                let highestPlan: PlanDetails | null = null;
+                if (updatedActivePlans.length > 0) {
+                    highestPlan = updatedActivePlans.reduce((max, plan) => planRank[plan.planId] > planRank[max.planId] ? plan : max);
+                }
+                const newActivePlanId = highestPlan ? highestPlan.planId : null;
+                
+                await userRef.update({
+                    activePlans: updatedActivePlans,
+                    activePlan: newActivePlanId,
+                });
+            }
+        }
+        break;
+      }
+
+      default:
+        console.log(`[handleStripeWebhook] Evento não tratado: ${event.type}.`);
     }
-    break;
-  }
-
-  default:
-    console.log(`[handleStripeWebhook] Evento não tratado: ${event.type}.`);
-}
 
   } catch (processingError: any) {
       console.error(`[handleStripeWebhook] ERRO CRÍTICO ao processar o evento ${event.type}:`, processingError);
@@ -264,5 +314,3 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
-
-  
