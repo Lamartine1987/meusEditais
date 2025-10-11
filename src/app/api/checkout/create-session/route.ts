@@ -91,15 +91,16 @@ export async function POST(req: NextRequest) {
             line_items: [{ price: priceId, quantity: 1 }],
             success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${appUrl}/checkout/cancel`,
+            // Metadados da sessão de checkout.
             metadata: {
-                userId, // Sempre incluir userId nos metadados da sessão
+                userId,
                 planId,
                 ...(selectedCargoCompositeId && { selectedCargoCompositeId }),
                 ...(selectedEditalId && { selectedEditalId }),
             },
         };
         
-        // **CORREÇÃO CRÍTICA**: Adicionar metadados à assinatura para que o webhook possa acessá-los
+        // **CORREÇÃO CRÍTICA**: Adicionar metadados à assinatura para que o webhook 'customer.subscription.created' possa acessá-los.
         if (isSubscription) {
             sessionParams.subscription_data = {
                 metadata: { userId, planId },
@@ -125,3 +126,5 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: error?.raw?.message || error?.message || 'Falha interna ao criar sessão de pagamento.' }, { status: 500 });
     }
 }
+
+  

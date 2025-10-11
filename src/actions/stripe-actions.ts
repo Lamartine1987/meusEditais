@@ -15,34 +15,56 @@ const planRank: Record<PlanId, number> = {
   plano_mensal: 3,
 };
 
+async function getPlanToPriceMap(): Promise<Record<PlanId, string>> {
+  return {
+    plano_cargo:  await getEnvOrSecret('STRIPE_PRICE_ID_PLANO_CARGO'),
+    plano_edital: await getEnvOrSecret('STRIPE_PRICE_ID_PLANO_EDITAL'),
+    plano_mensal: await getEnvOrSecret('STRIPE_PRICE_ID_PLANO_MENSAL_RECORRENTE'),
+    plano_trial:  '' // Não tem preço
+  };
+}
+
+async function mapPriceToPlan(priceId: string | null | undefined): Promise<PlanId | undefined> {
+  if (!priceId) return undefined;
+  const map = await getPlanToPriceMap();
+  const entry = (Object.entries(map) as [PlanId, string][])
+    .find(([, id]) => id === priceId);
+  return entry?.[0];
+}
+
+
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
     const userId = session.metadata?.userId;
     const planId = session.metadata?.planId as PlanId | undefined;
     
-    if (!userId || !planId) {
-        console.error(`[handleCheckoutSessionCompleted] ERRO CRÍTICO: Metadados (userId ou planId) ausentes. Session ID: ${session.id}`, session.metadata);
-        return;
-    }
-
-    // Ignorar sessões de assinatura aqui; elas serão tratadas por 'customer.subscription.created' ou pelo backup no próprio checkout
+    // --- NOVO: Lógica de Backup para Assinaturas ---
     if (session.mode === 'subscription') {
-        // Backup opcional: Se a assinatura for confirmada aqui, podemos processá-la.
         if (session.subscription) {
-            console.log(`[handleCheckoutSessionCompleted] Sessão de assinatura (ID: ${session.id}) detectada com objeto de assinatura. Tentando processar antecipadamente...`);
+            console.log(`[handleCheckoutSessionCompleted] Sessão de assinatura (ID: ${session.id}) detectada. Tentando processar antecipadamente...`);
             const stripe = await getStripeClient();
             const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
             try {
                 const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-                await handleSubscriptionCreated(subscription);
+                // Passa os metadados da sessão como um fallback
+                await handleSubscriptionCreated(subscription, {
+                    userId: session.metadata?.userId,
+                    planId: session.metadata?.planId as PlanId | undefined,
+                });
             } catch (error) {
                 console.error(`[handleCheckoutSessionCompleted] Erro ao processar assinatura antecipadamente para ${subscriptionId}:`, error);
             }
         } else {
-             console.log(`[handleCheckoutSessionCompleted] Sessão de assinatura (ID: ${session.id}) para o usuário ${userId}. Ignorando e aguardando evento de assinatura principal.`);
+             console.log(`[handleCheckoutSessionCompleted] Sessão de assinatura (ID: ${session.id}) para o usuário ${userId}. Ignorando e aguardando evento 'customer.subscription.created'.`);
         }
         return;
     }
+    // --- FIM: Lógica de Backup ---
     
+    if (!userId || !planId) {
+        console.error(`[handleCheckoutSessionCompleted] ERRO CRÍTICO: Metadados (userId ou planId) ausentes para pagamento único. Session ID: ${session.id}`, session.metadata);
+        return;
+    }
+
     console.log(`[handleCheckoutSessionCompleted] Processando pagamento único para o usuário ${userId}, plano ${planId}.`);
 
     const userFirebaseRef = adminDb.ref(`users/${userId}`);
@@ -53,7 +75,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const newPlan: PlanDetails = {
       planId,
       startDate: formatISO(now),
-      expiryDate: formatISO(new Date(new Date().setFullYear(now.getFullYear() + 1))), // 1 ano de validade
+      expiryDate: formatISO(new Date(new Date().setFullYear(now.getFullYear() + 1))),
       stripeSubscriptionId: null,
       stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
       stripeCustomerId: typeof session.customer === 'string' ? session.customer : null,
@@ -86,17 +108,48 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     console.log(`[handleCheckoutSessionCompleted] SUCESSO: Usuário ${userId} atualizado com plano de pagamento único.`);
 }
 
-async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
-    const userId = subscription.metadata.userId;
-    const planId = subscription.metadata.planId as PlanId | undefined;
-    const customerId = typeof subscription.customer === 'string' ? subscription.customer : null;
+async function handleSubscriptionCreated(
+    subscription: Stripe.Subscription,
+    fallback?: { userId?: string; planId?: PlanId }
+) {
+    // 1. Resolver userId e planId com cascata de fontes
+    let userId = subscription.metadata?.userId || fallback?.userId;
+    let planId = (subscription.metadata?.planId as PlanId | undefined) || fallback?.planId;
+
+    console.log(`[handleSubscriptionCreated] Iniciando processamento para Sub ID: ${subscription.id}. Metadata inicial:`, { userId, planId });
+
+    // 2. Se o planId ainda estiver faltando, inferir pelo price ID
+    if (!planId) {
+        const priceId = subscription.items?.data?.[0]?.price?.id;
+        console.log(`[handleSubscriptionCreated] planId ausente. Tentando inferir a partir do Price ID: ${priceId}`);
+        planId = await mapPriceToPlan(priceId);
+        if (planId) console.log(`[handleSubscriptionCreated] planId inferido com sucesso: ${planId}`);
+    }
+
+    // 3. Como último recurso, buscar a sessão de checkout para "roubar" os metadados
+    if (!userId || !planId) {
+        console.warn(`[handleSubscriptionCreated] userId ou planId ainda ausentes. Tentando buscar sessão de checkout...`);
+        try {
+            const stripe = await getStripeClient();
+            const sessions = await stripe.checkout.sessions.list({ subscription: subscription.id, limit: 1 });
+            const session = sessions.data[0];
+            if (session) {
+                console.log(`[handleSubscriptionCreated] Sessão de checkout encontrada (ID: ${session.id}). Recuperando metadados...`);
+                userId = userId || (session.metadata?.userId as string | undefined);
+                planId = planId || (session.metadata?.planId as PlanId | undefined);
+                console.log(`[handleSubscriptionCreated] Metadados recuperados da sessão:`, { userId, planId });
+            }
+        } catch (e: any) {
+            console.error('[handleSubscriptionCreated] Falha crítica ao buscar sessão para recuperar metadados:', e.message);
+        }
+    }
 
     if (!userId) {
-        console.error(`[handleSubscriptionCreated] ERRO CRÍTICO: 'userId' ausente nos metadados da assinatura ${subscription.id}`);
+        console.error(`[handleSubscriptionCreated] ERRO CRÍTICO: 'userId' ausente e não recuperável para a assinatura ${subscription.id}`);
         return;
     }
     if (!planId) {
-        console.error(`[handleSubscriptionCreated] ERRO CRÍTICO: 'planId' ausente nos metadados da assinatura ${subscription.id}`);
+        console.error(`[handleSubscriptionCreated] ERRO CRÍTICO: 'planId' ausente e não recuperável para a assinatura ${subscription.id}`);
         return;
     }
 
@@ -110,8 +163,8 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
             const invoice = await stripe.invoices.retrieve(invoiceId);
             paymentIntentId = typeof invoice.payment_intent === 'string' ? invoice.payment_intent : null;
             console.log(`[handleSubscriptionCreated] Payment Intent ID recuperado da fatura ${invoiceId}: ${paymentIntentId}`);
-        } catch (invoiceError) {
-            console.error(`[handleSubscriptionCreated] Erro ao buscar Payment Intent da fatura ${invoiceId}:`, invoiceError);
+        } catch (invoiceError: any) {
+            console.error(`[handleSubscriptionCreated] Erro ao buscar Payment Intent da fatura ${invoiceId}:`, invoiceError.message);
         }
     } else {
         console.warn(`[handleSubscriptionCreated] AVISO: A assinatura ${subscription.id} não possui 'latest_invoice'. O Payment Intent ID não será salvo.`);
@@ -127,7 +180,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
       expiryDate: formatISO(new Date(subscription.current_period_end * 1000)),
       stripeSubscriptionId: subscription.id,
       stripePaymentIntentId: paymentIntentId,
-      stripeCustomerId: customerId,
+      stripeCustomerId: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id,
       status: 'active',
     };
     
@@ -139,8 +192,8 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
     const updatePayload: any = {
       activePlan: highestPlan.planId,
       activePlans: finalActivePlans,
-      stripeCustomerId: customerId,
-      hasHadFreeTrial: true, // Assinaturas contam como tendo usado o trial
+      stripeCustomerId: newPlan.stripeCustomerId,
+      hasHadFreeTrial: true,
     };
 
     console.log(`[handleSubscriptionCreated] Payload final para ${userId}:`, JSON.stringify(updatePayload));
@@ -177,7 +230,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
       case 'customer.subscription.created':
         await handleSubscriptionCreated(event.data.object as Stripe.Subscription);
         break;
-      // Adicione outros eventos aqui conforme necessário (ex: customer.subscription.updated, invoice.payment_failed)
       default:
         console.log(`[handleStripeWebhook] Evento não tratado recebido: ${event.type}. Ignorando.`);
     }
@@ -189,6 +241,4 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
 
-    
-
-    
+  
