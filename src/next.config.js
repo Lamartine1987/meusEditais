@@ -5,7 +5,7 @@ const nextConfig = {
       { protocol: 'https', hostname: 'placehold.co', port: '', pathname: '/**' },
     ],
   },
-  transpilePackages: ['lucide-react', 'recharts', 'class-variance-authority'],
+  transpilePackages: ['lucide-react', 'recharts', 'class-variance-authority', 'react-day-picker'],
 };
 
 module.exports = nextConfig;

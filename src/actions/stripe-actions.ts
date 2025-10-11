@@ -83,7 +83,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
     const finalActivePlans = [...currentActivePlans, newPlan];
 
-    const highestPlan = finalActivePlans.reduce((max, p) => (planRank[p.planId] > planRank[max.planId] ? p : max), { planId: 'plano_trial' } as PlanDetails);
+    const highestPlan = [...finalActivePlans].sort((a, b) => planRank[b.planId] - planRank[a.planId])[0] ?? null;
 
     const updatePayload: any = {
       activePlan: highestPlan.planId,
@@ -120,8 +120,8 @@ async function handleSubscriptionCreated(
         if (planId) console.log(`[handleSubscriptionCreated] planId inferido com sucesso: ${planId}`);
     }
 
-    if (!userId || !planId) {
-        console.warn(`[handleSubscriptionCreated] userId ou planId ainda ausentes. Tentando buscar sessão de checkout...`);
+    if (!userId) {
+        console.warn(`[handleSubscriptionCreated] userId ainda ausente. Tentando buscar sessão de checkout...`);
         try {
             const stripe = await getStripeClient();
             const sessions = await stripe.checkout.sessions.list({ subscription: subscription.id, limit: 1 });
@@ -129,8 +129,7 @@ async function handleSubscriptionCreated(
             if (session) {
                 console.log(`[handleSubscriptionCreated] Sessão de checkout encontrada (ID: ${session.id}). Recuperando metadados...`);
                 userId = userId || (session.metadata?.userId as string | undefined);
-                planId = planId || (session.metadata?.planId as PlanId | undefined);
-                console.log(`[handleSubscriptionCreated] Metadados recuperados da sessão:`, { userId, planId });
+                if(userId) console.log(`[handleSubscriptionCreated] userId recuperado da sessão: ${userId}`);
             }
         } catch (e: any) {
             console.error('[handleSubscriptionCreated] Falha crítica ao buscar sessão para recuperar metadados:', e.message);
@@ -192,7 +191,7 @@ async function handleSubscriptionCreated(
     const otherPlans = currentActivePlans.filter(p => p.stripeSubscriptionId !== subscription.id);
     const finalActivePlans = [...otherPlans, newPlan];
 
-    const highestPlan = finalActivePlans.reduce((max, p) => (planRank[p.planId] > planRank[max.planId] ? p : max), { planId: 'plano_trial' } as PlanDetails);
+    const highestPlan = [...finalActivePlans].sort((a, b) => planRank[b.planId] - planRank[a.planId])[0] ?? null;
 
     const updatePayload: any = {
       activePlan: highestPlan.planId,
@@ -287,10 +286,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
                 const userData = userSnapshot.val();
                 const updatedActivePlans = (userData.activePlans || []).filter((p: PlanDetails) => p.stripeSubscriptionId !== subscription.id);
                 
-                let highestPlan: PlanDetails | null = null;
-                if (updatedActivePlans.length > 0) {
-                    highestPlan = updatedActivePlans.reduce((max, plan) => (planRank[plan.planId] > planRank[max.planId] ? plan : max), { planId: 'plano_trial' } as PlanDetails);
-                }
+                const highestPlan = [...updatedActivePlans].sort((a, b) => planRank[b.planId] - planRank[a.planId])[0] ?? null;
                 const newActivePlanId = highestPlan ? highestPlan.planId : null;
                 
                 await userRef.update({
@@ -313,5 +309,3 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
-
-    
