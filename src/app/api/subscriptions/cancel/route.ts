@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripeClient } from '@/lib/stripe';
 import { adminDb, auth as adminAuth } from '@/lib/firebase-admin';
+import type { PlanDetails } from '@/types';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -30,21 +31,33 @@ export async function POST(req: NextRequest) {
     }
     const userData = snapshot.val();
     
-    const plan = userData.activePlans?.find((p: any) => p.stripeSubscriptionId === subscriptionId);
-    if (!plan) {
+    const currentActivePlans: PlanDetails[] = userData.activePlans || [];
+    const planIndex = currentActivePlans.findIndex((p: any) => p.stripeSubscriptionId === subscriptionId);
+    
+    if (planIndex === -1) {
       return NextResponse.json({ error: 'Assinatura não encontrada para este usuário.' }, { status: 404 });
     }
 
     const stripe = await getStripeClient();
     
-    // O cancelamento é agendado para o fim do período de cobrança.
-    await stripe.subscriptions.update(subscriptionId, {
+    // 1. Agenda o cancelamento no Stripe
+    const cancelledSubscription = await stripe.subscriptions.update(subscriptionId, {
       cancel_at_period_end: true,
     });
     
-    // O webhook 'customer.subscription.updated' irá lidar com a atualização do status no DB.
-    // Apenas confirmamos que a solicitação foi enviada.
-    console.log(`[API /subscriptions/cancel] Cancelamento agendado para a assinatura ${subscriptionId} do usuário ${userId}.`);
+    // 2. Atualiza o status no banco de dados IMEDIATAMENTE
+    const updatedPlan: PlanDetails = {
+      ...currentActivePlans[planIndex],
+      status: 'canceled', // Define o status como cancelado
+      // O expiryDate já está correto (fim do período atual), então não precisa ser alterado aqui.
+    };
+
+    const finalActivePlans = [...currentActivePlans];
+    finalActivePlans[planIndex] = updatedPlan;
+
+    await userRef.update({ activePlans: finalActivePlans });
+
+    console.log(`[API /subscriptions/cancel] Cancelamento agendado para a assinatura ${subscriptionId} e status atualizado no DB.`);
 
     return NextResponse.json({ success: true, message: 'Cancelamento da assinatura agendado com sucesso.' });
 
