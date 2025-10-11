@@ -180,8 +180,15 @@ async function handleSubscriptionCreated(
         unpaid: 'unpaid',
         incomplete: 'incomplete',
         incomplete_expired: 'incomplete',
-        paused: 'paused' as any, // Se você usar pause_collection
+        paused: 'paused' as any,
     };
+    
+    let effectiveStatus: PlanDetails['status'] = statusMap[subscription.status] ?? 'active';
+    // If cancel_at_period_end is true, the plan is effectively 'canceled' from a user management perspective
+    if (subscription.cancel_at_period_end) {
+        effectiveStatus = 'canceled';
+    }
+
 
     const newPlan: PlanDetails = {
       planId,
@@ -190,7 +197,7 @@ async function handleSubscriptionCreated(
       stripeSubscriptionId: subscription.id,
       stripePaymentIntentId: paymentIntentId,
       stripeCustomerId: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id,
-      status: statusMap[subscription.status] ?? 'active',
+      status: effectiveStatus,
     };
     
     const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];

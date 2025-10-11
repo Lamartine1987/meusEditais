@@ -467,7 +467,6 @@ export default function ProfilePage() {
                                   {getPlanDisplayName(plan.planId)}
                                    {plan.status === 'refundRequested' && <Badge variant="destructive" className="ml-2 animate-pulse"><Clock className="mr-1.5 h-3 w-3" /> Reembolso em Processamento</Badge>}
                                    {plan.status === 'past_due' && <Badge variant="destructive" className="ml-2 animate-pulse"><Clock className="mr-1.5 h-3 w-3" /> Pagamento Pendente</Badge>}
-                                   {plan.status === 'canceled' && <Badge variant="secondary" className="ml-2">Cancelado</Badge>}
                                 </h3>
                                 <p className="text-sm text-muted-foreground mt-1 pl-7">
                                   {getPlanDetailsDescription(plan)}
@@ -479,7 +478,11 @@ export default function ProfilePage() {
                                     </p>
                                 )}
                             </div>
-                             {plan.expiryDate && (plan.status !== 'canceled' || plan.planId === 'plano_trial') && <Badge variant={plan.planId === 'plano_trial' ? 'outline' : 'default'}>Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>}
+                             {plan.status === 'canceled' && plan.expiryDate ? (
+                                <Badge variant="secondary">Cancelado. Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>
+                             ) : plan.expiryDate && (
+                                <Badge variant={plan.planId === 'plano_trial' ? 'outline' : 'default'}>Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>
+                             )}
                           </div>
                           <div className="mt-4 pt-4 border-t border-muted-foreground/10 flex flex-col sm:flex-row justify-end gap-2">
                                {canChangeItem && plan.status === 'active' && (
