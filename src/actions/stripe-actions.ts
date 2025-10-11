@@ -224,15 +224,39 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   
   try {
     switch (event.type) {
-      case 'checkout.session.completed':
-        await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
-        break;
-      case 'customer.subscription.created':
-        await handleSubscriptionCreated(event.data.object as Stripe.Subscription);
-        break;
-      default:
-        console.log(`[handleStripeWebhook] Evento não tratado recebido: ${event.type}. Ignorando.`);
+  case 'checkout.session.completed': {
+    const session = event.data.object as Stripe.Checkout.Session;
+    await handleCheckoutSessionCompleted(session);
+    break;
+  }
+
+  case 'customer.subscription.created':
+  case 'customer.subscription.updated': {
+    const subscription = event.data.object as Stripe.Subscription;
+    await handleSubscriptionCreated(subscription);
+    break;
+  }
+
+  case 'invoice.payment_succeeded': {
+    // Renovação: pega a assinatura da fatura e reaplica a persistência
+    const invoice = event.data.object as Stripe.Invoice;
+    const subscriptionId = typeof invoice.subscription === 'string'
+      ? invoice.subscription
+      : invoice.subscription?.id;
+    if (subscriptionId) {
+      const stripe = await getStripeClient();
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      await handleSubscriptionCreated(subscription);
+    } else {
+      console.warn('[handleStripeWebhook] invoice.payment_succeeded sem subscription vinculada.');
     }
+    break;
+  }
+
+  default:
+    console.log(`[handleStripeWebhook] Evento não tratado: ${event.type}.`);
+}
+
   } catch (processingError: any) {
       console.error(`[handleStripeWebhook] ERRO CRÍTICO ao processar o evento ${event.type}:`, processingError);
       return new Response(`Erro interno do servidor ao processar o evento.`, { status: 500 });

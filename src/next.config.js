@@ -1,17 +1,11 @@
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'placehold.co',
-        port: '',
-        pathname: '/**',
-      },
+      { protocol: 'https', hostname: 'placehold.co', port: '', pathname: '/**' },
     ],
   },
+  // Unifica os pacotes das duas versões
   transpilePackages: ['lucide-react', 'recharts', 'class-variance-authority'],
 };
 
