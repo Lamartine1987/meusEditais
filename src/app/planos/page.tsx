@@ -189,9 +189,10 @@ export default function PlanosPage() {
      router.push('/login?redirect=/planos');
      return;
     }
-    const hasMonthlyPlan = user.activePlans?.some(p => p.planId === 'plano_mensal') ?? false;
-    if (hasMonthlyPlan) {
-       toast({ title: "Plano Já Ativo", description: `Você já está inscrito no Plano Mensal.`, variant: "default" });
+    // Allow re-subscription if the current monthly plan is already set to be canceled
+    const hasActiveMonthlyPlan = user.activePlans?.some(p => p.planId === 'plano_mensal' && p.status !== 'canceled') ?? false;
+    if (hasActiveMonthlyPlan) {
+       toast({ title: "Plano Já Ativo", description: `Você já tem uma assinatura mensal ativa.`, variant: "default" });
        return;
     }
     router.push('/checkout/plano_mensal');
@@ -226,7 +227,7 @@ export default function PlanosPage() {
   const isAnualUpgrade = user ? currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_mensal : false;
   const anualButtonText = hasMonthlyPlan ? "Plano Máximo Ativo" : (isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Mensal");
   const anualButtonIcon = isAnualUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <Gem className="mr-2 h-5 w-5" />;
-  const anualButtonDisabled = pageIsLoading || hasMonthlyPlan;
+  const anualButtonDisabled = pageIsLoading || (user ? user.activePlans?.some(p => p.planId === 'plano_mensal' && p.status !== 'canceled') : false);
 
 
   return (
@@ -579,5 +580,7 @@ export default function PlanosPage() {
     </PageWrapper>
   );
 }
+
+    
 
     
