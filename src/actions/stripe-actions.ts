@@ -92,7 +92,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     })[0] ?? null;
 
     const updatePayload: any = {
-      activePlan: highestPlan.planId,
+      activePlan: highestPlan?.planId,
       activePlans: finalActivePlans,
       stripeCustomerId: newPlan.stripeCustomerId,
       hasHadFreeTrial: currentUserData.hasHadFreeTrial || true,
@@ -204,7 +204,7 @@ async function handleSubscriptionCreated(
     })[0] ?? null;
 
     const updatePayload: any = {
-      activePlan: highestPlan.planId,
+      activePlan: highestPlan?.planId,
       activePlans: finalActivePlans,
       stripeCustomerId: newPlan.stripeCustomerId,
       hasHadFreeTrial: true,

@@ -55,7 +55,7 @@ export default function ProfilePage() {
   const { user, updateUser, sendPasswordReset, cancelSubscription, loading: authLoading, setRankingParticipation, requestPlanRefund, deleteUserAccount, changeItemForPlan } = useAuth();
   const { toast } = useToast();
   const [isPasswordResetting, setIsPasswordResetting] = useState(false);
-  const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
+  const [isCancellingSubscription, setIsCancellingSubscription] = useState<string | null>(null);
   const [isRequestingRefund, setIsRequestingRefund] = useState<string | null>(null);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   
@@ -251,14 +251,14 @@ export default function ProfilePage() {
     }
   };
 
-  const handleConfirmCancel = async () => {
-    setIsCancellingSubscription(true);
+  const handleConfirmCancel = async (subscriptionId: string) => {
+    setIsCancellingSubscription(subscriptionId);
     try {
-      await cancelSubscription();
+      await cancelSubscription(subscriptionId);
     } catch (error) {
       // Error already handled in cancelSubscription
     } finally {
-      setIsCancellingSubscription(false);
+      setIsCancellingSubscription(null);
     }
   };
   
@@ -326,8 +326,6 @@ export default function ProfilePage() {
           </PageWrapper>
       )
   }
-
-  const showCancelTrialButton = user.activePlans?.some(p => p.planId === 'plano_trial');
 
   return (
     <PageWrapper>
@@ -456,17 +454,20 @@ export default function ProfilePage() {
                 <ul className="space-y-4">
                   {user.activePlans.map((plan, index) => {
                     const isPlanRefunding = plan.stripePaymentIntentId ? isRequestingRefund === plan.stripePaymentIntentId : false;
+                    const isPlanCancelling = plan.stripeSubscriptionId ? isCancellingSubscription === plan.stripeSubscriptionId : false;
                     const canRequestRefund = isWithinGracePeriod(plan.startDate, 7);
                     const canChangeItem = (plan.planId === 'plano_cargo' || plan.planId === 'plano_edital') && isWithinGracePeriod(plan.startDate, 7);
 
                     return (
-                        <li key={plan.stripePaymentIntentId || index} className="p-4 border rounded-lg bg-muted/50">
+                        <li key={plan.stripePaymentIntentId || plan.stripeSubscriptionId || index} className="p-4 border rounded-lg bg-muted/50">
                           <div className="flex justify-between items-start gap-2">
                             <div>
                                 <h3 className="text-lg font-semibold text-foreground flex items-center">
                                   <Package className="mr-2 h-5 w-5" />
                                   {getPlanDisplayName(plan.planId)}
                                    {plan.status === 'refundRequested' && <Badge variant="destructive" className="ml-2 animate-pulse"><Clock className="mr-1.5 h-3 w-3" /> Reembolso em Processamento</Badge>}
+                                   {plan.status === 'past_due' && <Badge variant="destructive" className="ml-2 animate-pulse"><Clock className="mr-1.5 h-3 w-3" /> Pagamento Pendente</Badge>}
+                                   {plan.status === 'canceled' && <Badge variant="secondary" className="ml-2">Cancelado</Badge>}
                                 </h3>
                                 <p className="text-sm text-muted-foreground mt-1 pl-7">
                                   {getPlanDetailsDescription(plan)}
@@ -478,46 +479,62 @@ export default function ProfilePage() {
                                     </p>
                                 )}
                             </div>
-                             {plan.expiryDate && <Badge variant="outline">Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>}
+                             {plan.expiryDate && (plan.status !== 'canceled' || plan.planId === 'plano_trial') && <Badge variant={plan.planId === 'plano_trial' ? 'outline' : 'default'}>Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>}
                           </div>
-                          {plan.planId !== 'plano_trial' && (
-                              <div className="mt-4 pt-4 border-t border-muted-foreground/10 flex flex-col sm:flex-row justify-end gap-2">
-                                  {canChangeItem && plan.status !== 'refundRequested' && (
-                                      <Button variant="secondary" size="sm" onClick={() => handleOpenChangeModal(plan)}>
-                                          <Repeat className="mr-2 h-4 w-4" />
-                                          Trocar Cargo/Edital
+                          <div className="mt-4 pt-4 border-t border-muted-foreground/10 flex flex-col sm:flex-row justify-end gap-2">
+                               {canChangeItem && plan.status === 'active' && (
+                                  <Button variant="secondary" size="sm" onClick={() => handleOpenChangeModal(plan)}>
+                                      <Repeat className="mr-2 h-4 w-4" />
+                                      Trocar Cargo/Edital
+                                  </Button>
+                              )}
+
+                              {plan.planId !== 'plano_trial' && plan.status === 'active' && canRequestRefund && (
+                                <TooltipProvider>
+                                  <Tooltip delayDuration={0}>
+                                    <TooltipTrigger asChild><span tabIndex={0}>
+                                      <Button variant="destructive" size="sm" onClick={() => handleRequestRefund(plan)} disabled={isPlanRefunding || !plan.stripePaymentIntentId}>
+                                        {isPlanRefunding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Solicitar Reembolso
                                       </Button>
-                                  )}
-                                  {plan.status === 'refundRequested' ? (
-                                    <Button variant="outline" disabled>
-                                        Reembolso Solicitado
-                                    </Button>
-                                  ) : (
-                                    <TooltipProvider>
-                                      <Tooltip delayDuration={0}>
-                                        <TooltipTrigger asChild>
-                                          <span tabIndex={0}>
-                                            <Button 
-                                              variant="destructive" 
-                                              size="sm"
-                                              onClick={() => handleRequestRefund(plan)}
-                                              disabled={isPlanRefunding || !plan.stripePaymentIntentId || !canRequestRefund}
-                                            >
-                                              {isPlanRefunding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                              Solicitar Reembolso
-                                            </Button>
-                                          </span>
-                                        </TooltipTrigger>
-                                        {!canRequestRefund && (
-                                          <TooltipContent>
-                                            <p>O período de 7 dias para solicitar o reembolso expirou.</p>
-                                          </TooltipContent>
-                                        )}
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
-                              </div>
-                          )}
+                                    </span></TooltipTrigger>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                              
+                              {plan.planId === 'plano_mensal' && plan.status === 'active' && plan.stripeSubscriptionId && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" size="sm" disabled={isPlanCancelling}>
+                                            {isPlanCancelling ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4"/>}
+                                            Cancelar Assinatura
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Tem certeza de que deseja cancelar sua assinatura mensal? Seu acesso continuará ativo até o final do período já pago ({new Date(plan.expiryDate).toLocaleDateString('pt-BR')}), e você não será cobrado novamente.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel disabled={isPlanCancelling}>Manter Assinatura</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => handleConfirmCancel(plan.stripeSubscriptionId!)} disabled={isPlanCancelling} className="bg-destructive hover:bg-destructive/90">
+                                                {isPlanCancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                Sim, Cancelar
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                              )}
+
+                              {plan.planId === 'plano_trial' && plan.status === 'active' && (
+                                  <Button variant="destructive" size="sm" onClick={() => handleConfirmCancel('plano_trial')} disabled={isCancellingSubscription === 'plano_trial'}>
+                                    {isCancellingSubscription === 'plano_trial' ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <XCircle className="mr-2 h-4 w-4"/>}
+                                    Cancelar Teste Gratuito
+                                  </Button>
+                              )}
+                          </div>
                         </li>
                     )
                   })}
@@ -535,40 +552,6 @@ export default function ProfilePage() {
                 <ExternalLink className="ml-2 h-4 w-4"/>
               </Link>
             </Button>
-            
-            {showCancelTrialButton && (
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                    <Button 
-                        variant="destructive" 
-                        className="w-full sm:w-auto h-11 text-base"
-                        disabled={isCancellingSubscription || authLoading}
-                    >
-                        {isCancellingSubscription ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <XCircle className="mr-2 h-5 w-5" />}
-                        Cancelar Teste Gratuito
-                    </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Confirmar Cancelamento do Teste</AlertDialogTitle>
-                        <AlertDialogDescription>
-                        Você tem certeza que deseja cancelar seu período de Teste Gratuito? Seu acesso à plataforma será limitado.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isCancellingSubscription}>Continuar Teste</AlertDialogCancel>
-                        <AlertDialogAction 
-                        onClick={handleConfirmCancel}
-                        disabled={isCancellingSubscription || authLoading}
-                        className="bg-destructive hover:bg-destructive/90"
-                        >
-                        {isCancellingSubscription && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Sim, Cancelar Teste
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            )}
           </CardFooter>
         </Card>
 
