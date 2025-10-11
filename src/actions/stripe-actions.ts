@@ -32,9 +32,7 @@ async function mapPriceToPlan(priceId: string | null | undefined): Promise<PlanI
   return entry?.[0];
 }
 
-
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
-    // --- NOVO: Lógica de Backup para Assinaturas ---
     if (session.mode === 'subscription') {
         if (session.subscription) {
             console.log(`[handleCheckoutSessionCompleted] Sessão de assinatura (ID: ${session.id}) detectada. Tentando processar antecipadamente...`);
@@ -42,7 +40,6 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
             const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
             try {
                 const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-                // Passa os metadados da sessão como um fallback
                 await handleSubscriptionCreated(subscription, {
                     userId: session.metadata?.userId,
                     planId: session.metadata?.planId as PlanId | undefined,
@@ -55,7 +52,6 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         }
         return;
     }
-    // --- FIM: Lógica de Backup ---
     
     const userId = session.metadata?.userId;
     const planId = session.metadata?.planId as PlanId | undefined;
@@ -112,13 +108,11 @@ async function handleSubscriptionCreated(
     subscription: Stripe.Subscription,
     fallback?: { userId?: string; planId?: PlanId }
 ) {
-    // 1. Resolver userId e planId com cascata de fontes
     let userId = subscription.metadata?.userId || fallback?.userId;
     let planId = (subscription.metadata?.planId as PlanId | undefined) || fallback?.planId;
 
     console.log(`[handleSubscriptionCreated] Iniciando processamento para Sub ID: ${subscription.id}. Metadata inicial:`, { userId, planId });
 
-    // 2. Se o planId ainda estiver faltando, inferir pelo price ID
     if (!planId) {
         const priceId = subscription.items?.data?.[0]?.price?.id;
         console.log(`[handleSubscriptionCreated] planId ausente. Tentando inferir a partir do Price ID: ${priceId}`);
@@ -126,7 +120,6 @@ async function handleSubscriptionCreated(
         if (planId) console.log(`[handleSubscriptionCreated] planId inferido com sucesso: ${planId}`);
     }
 
-    // 3. Como último recurso, buscar a sessão de checkout para "roubar" os metadados
     if (!userId || !planId) {
         console.warn(`[handleSubscriptionCreated] userId ou planId ainda ausentes. Tentando buscar sessão de checkout...`);
         try {
@@ -173,6 +166,17 @@ async function handleSubscriptionCreated(
     const userFirebaseRef = adminDb.ref(`users/${userId}`);
     const userSnapshot = await userFirebaseRef.get();
     const currentUserData = userSnapshot.val() || {};
+    
+    const statusMap: Record<Stripe.Subscription.Status, PlanDetails['status']> = {
+        active: 'active',
+        trialing: 'active',
+        past_due: 'past_due',
+        canceled: 'canceled',
+        unpaid: 'unpaid',
+        incomplete: 'incomplete',
+        incomplete_expired: 'incomplete',
+        paused: 'paused' as any, // Se você usar pause_collection
+    };
 
     const newPlan: PlanDetails = {
       planId,
@@ -181,11 +185,10 @@ async function handleSubscriptionCreated(
       stripeSubscriptionId: subscription.id,
       stripePaymentIntentId: paymentIntentId,
       stripeCustomerId: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id,
-      status: 'active',
+      status: statusMap[subscription.status] ?? 'active',
     };
     
     const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
-    // Remove o plano de assinatura antigo, se houver, para substituí-lo pelo novo com a data atualizada
     const otherPlans = currentActivePlans.filter(p => p.stripeSubscriptionId !== subscription.id);
     const finalActivePlans = [...otherPlans, newPlan];
 
@@ -232,31 +235,29 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         break;
       }
 
-      case 'customer.subscription.created':
+      case 'customer.subscription.created': {
+        const subscription = event.data.object as Stripe.Subscription;
+        console.log(`[Webhook] Assinatura ${subscription.id} foi criada. Status: ${subscription.status}`);
+        await handleSubscriptionCreated(subscription);
+        break;
+      }
+
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
-        console.log(`[Webhook] Assinatura ${subscription.id} foi criada/atualizada. Status: ${subscription.status}`);
-        // Apenas processamos se a assinatura estiver ativa ou em teste para evitar atualizações em estados intermediários
-        if (subscription.status === 'active' || subscription.status === 'trialing') {
-            await handleSubscriptionCreated(subscription);
-        }
+        console.log(`[Webhook] Assinatura ${subscription.id} foi atualizada. Novo status: ${subscription.status}`);
+        await handleSubscriptionCreated(subscription); // A função handleSubscriptionCreated já lida com 'upsert'
         break;
       }
 
       case 'invoice.payment_succeeded': {
-        // Este evento é crucial para renovações.
         const invoice = event.data.object as Stripe.Invoice;
-        // billing_reason pode ser 'subscription_create' ou 'subscription_cycle'
-        if (invoice.billing_reason === 'subscription_cycle' || invoice.billing_reason === 'subscription_update') {
-            const subscriptionId = typeof invoice.subscription === 'string'
-              ? invoice.subscription
-              : invoice.subscription?.id;
-            
+        if (invoice.billing_reason === 'subscription_cycle' || invoice.billing_reason === 'subscription_create' || invoice.billing_reason === 'subscription_update') {
+            const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
             if (subscriptionId) {
-              console.log(`[Webhook] Fatura de renovação paga para assinatura ${subscriptionId}. Atualizando período do plano.`);
+              console.log(`[Webhook] Fatura de renovação/criação paga para assinatura ${subscriptionId}. Atualizando período do plano.`);
               const stripe = await getStripeClient();
               const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-              await handleSubscriptionCreated(subscription); // Reutilizamos a função para atualizar as datas
+              await handleSubscriptionCreated(subscription);
             }
         }
         break;
@@ -264,15 +265,13 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId = typeof invoice.subscription === 'string'
-          ? invoice.subscription
-          : invoice.subscription?.id;
+        const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
         
         if (subscriptionId) {
-            console.warn(`[Webhook] Pagamento da fatura falhou para a assinatura ${subscriptionId}. A assinatura pode ser cancelada em breve pelo Stripe.`);
-            // Aqui você poderia, por exemplo, enviar um e-mail para o usuário informando sobre a falha no pagamento.
-            // O Stripe geralmente tenta cobrar novamente algumas vezes antes de cancelar a assinatura.
-            // O cancelamento final seria tratado pelo evento 'customer.subscription.deleted'.
+            console.warn(`[Webhook] Pagamento da fatura falhou para a assinatura ${subscriptionId}. Marcando plano como 'past_due'.`);
+            const stripe = await getStripeClient();
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+            await handleSubscriptionCreated(subscription); // Reutilizamos para atualizar o status para past_due
         }
         break;
       }
@@ -314,3 +313,5 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
+
+    

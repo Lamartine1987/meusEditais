@@ -1,3 +1,4 @@
+
 export interface NoteEntry {
   id: string; // Unique ID for the note
   compositeTopicId: string;
@@ -46,8 +47,8 @@ export interface PlanDetails {
   stripeSubscriptionId?: string | null;
   stripePaymentIntentId?: string | null;
   stripeCustomerId?: string | null;
-  // Refund status
-  status?: 'active' | 'refundRequested' | 'refunded';
+  // Plan status, mirroring Stripe for subscriptions
+  status?: 'active' | 'past_due' | 'unpaid' | 'canceled' | 'incomplete' | 'refundRequested' | 'refunded' | 'paused';
   requestDate?: string; // ISO date when refund was requested
   refundedDate?: string; // ISO date when refund was processed
   refundedBy?: string; // UID of the admin who processed the refund
@@ -112,3 +113,5 @@ export interface Edital {
   status: 'open' | 'closed' | 'upcoming';
   state?: string; // e.g., 'SP', 'RJ', 'Nacional'
 }
+
+    
