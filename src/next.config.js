@@ -5,7 +5,6 @@ const nextConfig = {
       { protocol: 'https', hostname: 'placehold.co', port: '', pathname: '/**' },
     ],
   },
-  // Unifica os pacotes das duas versões
   transpilePackages: ['lucide-react', 'recharts', 'class-variance-authority'],
 };
 

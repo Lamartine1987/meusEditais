@@ -289,7 +289,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
                 
                 let highestPlan: PlanDetails | null = null;
                 if (updatedActivePlans.length > 0) {
-                    highestPlan = updatedActivePlans.reduce((max, plan) => planRank[plan.planId] > planRank[max.planId] ? plan : max, { planId: 'plano_trial' } as PlanDetails);
+                    highestPlan = updatedActivePlans.reduce((max, plan) => (planRank[plan.planId] > planRank[max.planId] ? plan : max), { planId: 'plano_trial' } as PlanDetails);
                 }
                 const newActivePlanId = highestPlan ? highestPlan.planId : null;
                 
