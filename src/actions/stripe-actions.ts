@@ -4,7 +4,7 @@
 import { getStripeClient } from '@/lib/stripe';
 import type { PlanId, PlanDetails } from '@/types';
 import { adminDb } from '@/lib/firebase-admin';
-import { formatISO } from 'date-fns';
+import { add, formatISO } from 'date-fns';
 import type Stripe from 'stripe';
 import { getEnvOrSecret } from '@/lib/secrets';
 
@@ -68,10 +68,12 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const currentUserData = userSnapshot.val() || {};
     
     const now = new Date();
+    const expiryDate = add(now, { years: 1 }); // **CORREÇÃO: Define 1 ano de expiração para pagamentos únicos**
+
     const newPlan: PlanDetails = {
       planId,
       startDate: formatISO(now),
-      expiryDate: formatISO(new Date(new Date().setFullYear(now.getFullYear() + 1))),
+      expiryDate: formatISO(expiryDate), // **CORREÇÃO: Usa a data de expiração correta**
       stripeSubscriptionId: null,
       stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
       stripeCustomerId: typeof session.customer === 'string' ? session.customer : null,
@@ -83,7 +85,11 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
     const finalActivePlans = [...currentActivePlans, newPlan];
 
-    const highestPlan = [...finalActivePlans].sort((a, b) => planRank[b.planId] - planRank[a.planId])[0] ?? null;
+    const highestPlan = [...finalActivePlans].sort((a, b) => {
+        const rankA = planRank[a.planId as PlanId] ?? 0;
+        const rankB = planRank[b.planId as PlanId] ?? 0;
+        return rankB - rankA;
+    })[0] ?? null;
 
     const updatePayload: any = {
       activePlan: highestPlan.planId,
