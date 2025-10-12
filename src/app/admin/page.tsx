@@ -8,8 +8,8 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, AlertTriangle, ShieldCheck, Users, CheckCircle, Filter, XCircle, Clock, CalendarX, Info, CreditCard, Search as SearchIcon } from 'lucide-react';
-import type { User, PlanId, PlanDetails } from '@/types';
+import { Loader2, AlertTriangle, ShieldCheck, Users, CheckCircle, Filter, XCircle, Clock, CalendarX, Info, CreditCard, Search as SearchIcon, DollarSign } from 'lucide-react';
+import type { User, PlanId, PlanDetails, PaymentRecord } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -312,30 +312,36 @@ export default function AdminPage() {
                                                     )}
                                                 </TableCell>
                                                 <TableCell>
-                                                    {u.planHistory && u.planHistory.length > 0 ? (
-                                                        <div className="flex flex-col gap-2 text-xs">
-                                                            {u.planHistory.map((plan: PlanDetails) => {
-                                                                const adminProcessor = plan.refundedBy ? users.find(adm => adm.id === plan.refundedBy) : null;
-                                                                return (
-                                                                    <div key={plan.stripePaymentIntentId || plan.startDate} className="p-2 border rounded-md bg-muted/50">
-                                                                        <div className="font-semibold flex items-center gap-2">
-                                                                            {plan.status === 'refunded' ? <XCircle className="h-3 w-3 text-destructive"/> : <Info className="h-3 w-3 text-muted-foreground"/>}
-                                                                            <span>{plan.status === 'refunded' ? 'Reembolsado' : 'Expirado'}: {getPlanDisplayName(plan.planId)}</span>
-                                                                        </div>
-                                                                        {plan.status === 'refunded' && (
-                                                                            <>
-                                                                                {plan.refundedDate && <p>Data: {format(parseISO(plan.refundedDate), 'dd/MM/yy HH:mm', { locale: ptBR })}</p>}
-                                                                                {adminProcessor && <p>Por: {adminProcessor.name}</p>}
-                                                                            </>
-                                                                        )}
-                                                                         {plan.status !== 'refunded' && plan.expiryDate && (
-                                                                             <p>Expirou em: {format(parseISO(plan.expiryDate), 'dd/MM/yy', { locale: ptBR })}</p>
-                                                                         )}
+                                                    <div className="flex flex-col gap-2 text-xs">
+                                                        {(u.paymentHistory || []).map((payment: PaymentRecord) => (
+                                                            <div key={payment.id} className="p-2 border rounded-md bg-muted/50">
+                                                                <div className="font-semibold flex items-center justify-between gap-2">
+                                                                    <span className="flex items-center gap-2">
+                                                                        <DollarSign className="h-3 w-3 text-green-600"/>
+                                                                        <span>{payment.description}</span>
+                                                                    </span>
+                                                                    <span className="font-mono">
+                                                                        R$ {(payment.amount / 100).toFixed(2).replace('.', ',')}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-muted-foreground mt-1">Data: {format(parseISO(payment.date), 'dd/MM/yy HH:mm', { locale: ptBR })}</p>
+                                                            </div>
+                                                        ))}
+                                                        {(u.planHistory || []).map((plan: PlanDetails) => {
+                                                            if (plan.status !== 'refunded') return null;
+                                                            const adminProcessor = plan.refundedBy ? users.find(adm => adm.id === plan.refundedBy) : null;
+                                                            return (
+                                                                <div key={plan.stripePaymentIntentId || plan.startDate} className="p-2 border rounded-md bg-destructive/10">
+                                                                    <div className="font-semibold flex items-center gap-2 text-destructive">
+                                                                        <XCircle className="h-3 w-3"/>
+                                                                        <span>Reembolsado: {getPlanDisplayName(plan.planId)}</span>
                                                                     </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    ) : null}
+                                                                    {plan.refundedDate && <p>Data: {format(parseISO(plan.refundedDate), 'dd/MM/yy HH:mm', { locale: ptBR })}</p>}
+                                                                    {adminProcessor && <p>Por: {adminProcessor.name}</p>}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="text-center">
                                                     {u.isAdmin && (

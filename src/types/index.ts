@@ -55,6 +55,14 @@ export interface PlanDetails {
   itemChanged?: boolean; // True if the cargo/edital was changed
 }
 
+export interface PaymentRecord {
+    id: string; // Stripe Invoice ID or Payment Intent ID
+    date: string; // ISO date
+    amount: number; // in cents
+    planId: PlanId;
+    description: string; // e.g., "Renovação Mensal" or "Compra Plano Cargo"
+}
+
 export interface User {
   id: string;
   name: string;
@@ -72,6 +80,7 @@ export interface User {
   stripeCustomerId?: string | null; 
   hasHadFreeTrial?: boolean; // Tracks if the user has used the free trial
   planHistory?: PlanDetails[];
+  paymentHistory?: PaymentRecord[]; // New field for payment history
   isRankingParticipant?: boolean | null; // null = undecided, true = yes, false = no
   isAdmin?: boolean; // Flag to indicate if user is an admin
   termsAcceptedOn?: string; // ISO date string for when terms were accepted
@@ -79,7 +88,7 @@ export interface User {
 
 export interface Topic {
   id: string;
-  name: string;
+  name:string;
 }
 
 export interface Subject {
@@ -113,5 +122,3 @@ export interface Edital {
   status: 'open' | 'closed' | 'upcoming';
   state?: string; // e.g., 'SP', 'RJ', 'Nacional'
 }
-
-    
