@@ -12,6 +12,7 @@
       "fullTextUrl": "https://www.csjt.jus.br/web/csjt/concurso-nacional",
       "imageUrl": "https://placehold.co/600x400.png",
       "state": "Nacional",
+      "area": "Tribunais",
       "status": "upcoming",
       "cargos": [
         {
@@ -133,6 +134,7 @@
       "fullTextUrl": "https://www.gov.br/gestao/pt-br/concursonacional/",
       "imageUrl": "https://placehold.co/600x400.png",
       "state": "Nacional",
+      "area": "Federal",
       "status": "closed",
       "cargos": [
         {

@@ -6,7 +6,7 @@ import type { Edital } from '@/types';
 import { Input } from '@/components/ui/input';
 import { EditalCard } from '@/components/edital-card';
 import { PageWrapper } from '@/components/layout/page-wrapper';
-import { Search, Filter, NewspaperIcon, MapPin, Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
+import { Search, Filter, NewspaperIcon, MapPin, Sparkles, ArrowRight, AlertCircle, Briefcase } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,6 +27,7 @@ export default function HomePage() {
   const [allEditais, setAllEditais] = useState<Edital[]>([]);
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed' | 'upcoming'>('all');
   const [stateFilter, setStateFilter] = useState<string>(specialFilters[0]); // Default to 'Todos'
+  const [areaFilter, setAreaFilter] = useState<string>('all'); // New state for area filter
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -114,6 +115,12 @@ export default function HomePage() {
       });
   }, [allEditais]);
 
+  const uniqueAreas = useMemo(() => {
+    if (!processedEditais) return [];
+    const areas = new Set(processedEditais.map(edital => edital.area).filter((area): area is string => !!area));
+    return ['all', ...Array.from(areas).sort()];
+  }, [processedEditais]);
+
   const filteredEditais = useMemo(() => {
     if (!processedEditais) return [];
     return processedEditais
@@ -136,8 +143,13 @@ export default function HomePage() {
         if (stateFilter === specialFilters[0]) return true; // 'Todos'
         if (stateFilter === specialFilters[1]) return edital?.state === specialFilters[1]; // 'Nacional'
         return edital?.state === stateFilter;
+      })
+      .filter(edital => {
+        // Area filter
+        if (areaFilter === 'all') return true;
+        return edital?.area === areaFilter;
       });
-  }, [processedEditais, searchTerm, statusFilter, stateFilter]);
+  }, [processedEditais, searchTerm, statusFilter, stateFilter, areaFilter]);
 
   return (
     <PageWrapper>
@@ -168,20 +180,21 @@ export default function HomePage() {
             <CardTitle className="text-2xl md:text-3xl font-bold text-center text-primary">Encontre seu Próximo Edital</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-grow">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Buscar por título, organização ou palavra-chave..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 py-3 text-base focus:animate-subtle-focus rounded-lg shadow-sm h-12"
-                  aria-label="Buscar editais"
-                />
-              </div>
+            <div className="relative flex-grow">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Buscar por título, organização ou palavra-chave..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 py-3 text-base focus:animate-subtle-focus rounded-lg shadow-sm h-12"
+                aria-label="Buscar editais"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Select value={statusFilter} onValueChange={(value: 'all' | 'open' | 'closed' | 'upcoming') => setStatusFilter(value)}>
-                <SelectTrigger className="w-full sm:w-[200px] py-3 text-base rounded-lg shadow-sm h-12">
+                <SelectTrigger className="w-full py-3 text-base rounded-lg shadow-sm h-12">
                   <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
                   <SelectValue placeholder="Filtrar por status" />
                 </SelectTrigger>
@@ -190,6 +203,19 @@ export default function HomePage() {
                   <SelectItem value="open">Abertos</SelectItem>
                   <SelectItem value="closed">Encerrados</SelectItem>
                   <SelectItem value="upcoming">Próximos</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={areaFilter} onValueChange={(value: string) => setAreaFilter(value)}>
+                <SelectTrigger className="w-full py-3 text-base rounded-lg shadow-sm h-12">
+                  <Briefcase className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Filtrar por área" />
+                </SelectTrigger>
+                <SelectContent>
+                  {uniqueAreas.map((area) => (
+                    <SelectItem key={area} value={area}>
+                      {area === 'all' ? 'Todas as Áreas' : area}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
