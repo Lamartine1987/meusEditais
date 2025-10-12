@@ -117,7 +117,7 @@ export default function HomePage() {
 
   const uniqueAreas = useMemo(() => {
     if (!processedEditais) return [];
-    const areas = new Set(processedEditais.map(edital => edital.area).filter(Boolean));
+    const areas = new Set(processedEditais.map(edital => edital.area).filter((area): area is string => !!area));
     return ['all', ...Array.from(areas).sort()];
   }, [processedEditais]);
 
