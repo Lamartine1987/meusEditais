@@ -121,4 +121,5 @@ export interface Edital {
   cargos?: Cargo[]; 
   status: 'open' | 'closed' | 'upcoming';
   state?: string; // e.g., 'SP', 'RJ', 'Nacional'
+  area?: string; // e.g., 'Fiscal', 'Policial', 'Tribunais'
 }
