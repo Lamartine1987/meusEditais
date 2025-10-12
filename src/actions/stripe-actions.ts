@@ -2,7 +2,7 @@
 'use server';
 
 import { getStripeClient } from '@/lib/stripe';
-import type { PlanId, PlanDetails } from '@/types';
+import type { PlanId, PlanDetails, PaymentRecord } from '@/types';
 import { adminDb } from '@/lib/firebase-admin';
 import { add, formatISO } from 'date-fns';
 import type Stripe from 'stripe';
@@ -68,18 +68,26 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const currentUserData = userSnapshot.val() || {};
     
     const now = new Date();
-    const expiryDate = add(now, { years: 1 }); // **CORREÇÃO: Define 1 ano de expiração para pagamentos únicos**
+    const expiryDate = add(now, { years: 1 });
 
     const newPlan: PlanDetails = {
       planId,
       startDate: formatISO(now),
-      expiryDate: formatISO(expiryDate), // **CORREÇÃO: Usa a data de expiração correta**
+      expiryDate: formatISO(expiryDate),
       stripeSubscriptionId: null,
       stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : null,
       stripeCustomerId: typeof session.customer === 'string' ? session.customer : null,
       status: 'active',
       ...(session.metadata?.selectedCargoCompositeId && { selectedCargoCompositeId: session.metadata.selectedCargoCompositeId }),
       ...(session.metadata?.selectedEditalId && { selectedEditalId: session.metadata.selectedEditalId }),
+    };
+
+    const newPaymentRecord: PaymentRecord = {
+        id: session.id, // Checkout Session ID
+        date: formatISO(now),
+        amount: session.amount_total || 0,
+        planId: planId,
+        description: `Compra ${planId}`,
     };
 
     const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
@@ -90,10 +98,14 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         const rankB = planRank[b.planId as PlanId] ?? 0;
         return rankB - rankA;
     })[0] ?? null;
+    
+    const currentPaymentHistory: PaymentRecord[] = currentUserData.paymentHistory || [];
+    const finalPaymentHistory = [newPaymentRecord, ...currentPaymentHistory];
 
     const updatePayload: any = {
       activePlan: highestPlan?.planId,
       activePlans: finalActivePlans,
+      paymentHistory: finalPaymentHistory, // Add to payload
       stripeCustomerId: newPlan.stripeCustomerId,
       hasHadFreeTrial: currentUserData.hasHadFreeTrial || true,
     };
@@ -184,7 +196,6 @@ async function handleSubscriptionCreated(
     };
     
     let effectiveStatus: PlanDetails['status'] = statusMap[subscription.status] ?? 'active';
-    // If cancel_at_period_end is true, the plan is effectively 'canceled' from a user management perspective
     if (subscription.cancel_at_period_end) {
         effectiveStatus = 'canceled';
     }
@@ -192,7 +203,7 @@ async function handleSubscriptionCreated(
 
     const newPlan: PlanDetails = {
       planId,
-      startDate: formatISO(new Date(subscription.current_period_start * 1000)),
+      startDate: formatISO(new Date(subscription.created * 1000)),
       expiryDate: formatISO(new Date(subscription.current_period_end * 1000)),
       stripeSubscriptionId: subscription.id,
       stripePaymentIntentId: paymentIntentId,
@@ -267,17 +278,46 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
 
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice;
-        if (invoice.billing_reason === 'subscription_cycle' || invoice.billing_reason === 'subscription_create' || invoice.billing_reason === 'subscription_update') {
-            const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
-            if (subscriptionId) {
-              console.log(`[Webhook] Fatura de renovação/criação paga para assinatura ${subscriptionId}. Atualizando período do plano.`);
-              const stripe = await getStripeClient();
-              const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-              await handleSubscriptionCreated(subscription);
+        const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
+        
+        if (subscriptionId) {
+            const stripe = await getStripeClient();
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+            
+            // This is a renewal or initial payment for a subscription
+            if (invoice.billing_reason === 'subscription_cycle' || invoice.billing_reason === 'subscription_create') {
+                const userId = subscription.metadata.userId;
+                const planId = await mapPriceToPlan(invoice.lines.data[0]?.price?.id) || 'plano_mensal';
+
+                if (userId) {
+                    console.log(`[Webhook] Pagamento de fatura bem-sucedido para assinatura ${subscriptionId} do usuário ${userId}.`);
+
+                    const newPaymentRecord: PaymentRecord = {
+                        id: invoice.id,
+                        date: formatISO(new Date(invoice.created * 1000)),
+                        amount: invoice.amount_paid,
+                        planId: planId,
+                        description: invoice.billing_reason === 'subscription_cycle' ? 'Renovação Mensal' : 'Início de Assinatura',
+                    };
+
+                    const userRef = adminDb.ref(`users/${userId}`);
+                    const userSnapshot = await userRef.get();
+                    const userData = userSnapshot.val() || {};
+                    const currentPaymentHistory: PaymentRecord[] = userData.paymentHistory || [];
+                    const finalPaymentHistory = [newPaymentRecord, ...currentPaymentHistory];
+                    
+                    // Update payment history AND plan validity period
+                    await userRef.update({ paymentHistory: finalPaymentHistory });
+                    await handleSubscriptionCreated(subscription); 
+                }
+            } else {
+                 console.log(`[Webhook] Fatura paga para assinatura ${subscriptionId}, mas motivo não é ciclo ou criação. Atualizando apenas o período do plano.`);
+                 await handleSubscriptionCreated(subscription);
             }
         }
         break;
       }
+
 
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
