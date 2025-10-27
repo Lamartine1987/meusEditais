@@ -52,7 +52,7 @@ export default function SubjectTopicsPage() {
   const cargoId = params.cargoId as string;
   const subjectId = params.subjectId as string;
 
-  const { user, toggleTopicStudyStatus, addStudyLog, deleteStudyLog, addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus, addNote, deleteNote, loading: authLoading, setRankingParticipation } = useAuth();
+  const { user, toggleTopicStudyStatus, addStudyLog, deleteStudyLog, addQuestionLog, deleteQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus, addNote, deleteNote, loading: authLoading, setRankingParticipation } = useAuth();
   const { toast } = useToast();
 
   const [edital, setEdital] = useState<Edital | null>(null);
@@ -78,6 +78,8 @@ export default function SubjectTopicsPage() {
   const [noteText, setNoteText] = useState('');
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [logToDelete, setLogToDelete] = useState<string | null>(null);
+  const [questionLogToDelete, setQuestionLogToDelete] = useState<string | null>(null);
+
 
   const [hasAccess, setHasAccess] = useState(false);
 
@@ -363,14 +365,24 @@ export default function SubjectTopicsPage() {
     }
   };
 
-  const getLatestQuestionLogForTopic = useCallback((topicId: string): QuestionLogEntry | null => {
-    if (!user?.questionLogs) return null;
+  const getQuestionLogsForTopic = useCallback((topicId: string): QuestionLogEntry[] => {
+    if (!user?.questionLogs) return [];
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
-    const logsForTopic = user.questionLogs
+    return user.questionLogs
       .filter(log => log.compositeTopicId === compositeTopicId)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    return logsForTopic.length > 0 ? logsForTopic[0] : null;
   }, [user, editalId, cargoId, subjectId]);
+
+  const handleDeleteQuestionLogConfirm = async () => {
+    if (!questionLogToDelete || !user || !hasAccess) return;
+    try {
+      await deleteQuestionLog(questionLogToDelete);
+    } catch (error) {
+      // toast is handled in useAuth
+    } finally {
+      setQuestionLogToDelete(null);
+    }
+  };
 
   const handleOpenRevisionModal = (topicId: string) => {
     if (!hasAccess) return;
@@ -593,11 +605,7 @@ export default function SubjectTopicsPage() {
                   const topicStudyLogs = getTopicStudyLogs(topic.id);
                   const totalStudiedSeconds = calculateTotalStudiedTimeForTopic(topic.id);
                   const totalStudiedTimeDisplay = totalStudiedSeconds > 0 ? formatDuration(totalStudiedSeconds) : null;
-                  const latestQuestionLog = getLatestQuestionLogForTopic(topic.id);
-                  let performancePercentage = 0;
-                  if (latestQuestionLog && latestQuestionLog.totalQuestions > 0) {
-                    performancePercentage = (latestQuestionLog.correctQuestions / latestQuestionLog.totalQuestions) * 100;
-                  }
+                  const questionLogs = getQuestionLogsForTopic(topic.id);
                   const revisionSchedules = getRevisionSchedulesForTopic(topic.id);
                   const topicNotes = getNotesForTopic(topic.id);
                   const isRevisionDue = revisionSchedules.some(r => !r.isReviewed && (isToday(parseISO(r.scheduledDate)) || isPast(parseISO(r.scheduledDate))));
@@ -692,18 +700,36 @@ export default function SubjectTopicsPage() {
                                 <ClipboardList className="mr-2 h-4 w-4"/>
                                 Registrar Desempenho em Questões
                             </Button>
-                            {latestQuestionLog && (
-                                <div className="text-xs p-3 border rounded-md bg-background/30 space-y-1.5 shadow-inner">
-                                    <p className="font-semibold text-muted-foreground">Último Registro de Questões ({format(parseISO(latestQuestionLog.date), "dd/MM/yy HH:mm", { locale: ptBR })}):</p>
-                                    <p>• Total: {latestQuestionLog.totalQuestions}, Acertos: {latestQuestionLog.correctQuestions} ({performancePercentage.toFixed(1)}%), Erros: {latestQuestionLog.incorrectQuestions}</p>
-                                    <p className="flex items-center">
-                                      • Meta: {latestQuestionLog.targetPercentage}% - Status: 
-                                      {performancePercentage >= latestQuestionLog.targetPercentage ? (
-                                        <span className="ml-1.5 flex items-center text-green-600 font-medium"><CheckCircle className="h-3.5 w-3.5 mr-1"/>Aprovado</span>
-                                      ) : (
-                                        <span className="ml-1.5 flex items-center text-red-600 font-medium"><XCircle className="h-3.5 w-3.5 mr-1"/>Reprovado</span>
-                                      )}
-                                    </p>
+                            {questionLogs.length > 0 && (
+                                <div className="space-y-2">
+                                    <h5 className="text-sm font-semibold text-muted-foreground">Histórico de Questões:</h5>
+                                    <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                                      {questionLogs.map(log => {
+                                        const performancePercentage = (log.correctQuestions / log.totalQuestions) * 100;
+                                        return (
+                                          <li key={log.id} className="text-xs p-2 border rounded-md bg-background/30 space-y-1.5 shadow-inner group relative">
+                                            <p className="font-semibold text-muted-foreground">{format(parseISO(log.date), "dd/MM/yy HH:mm", { locale: ptBR })}</p>
+                                            <p>• Total: {log.totalQuestions}, Acertos: {log.correctQuestions} ({performancePercentage.toFixed(1)}%), Erros: {log.incorrectQuestions}</p>
+                                            <p className="flex items-center">
+                                              • Meta: {log.targetPercentage}% - Status: 
+                                              {performancePercentage >= log.targetPercentage ? (
+                                                <span className="ml-1.5 flex items-center text-green-600 font-medium"><CheckCircle className="h-3.5 w-3.5 mr-1"/>Aprovado</span>
+                                              ) : (
+                                                <span className="ml-1.5 flex items-center text-red-600 font-medium"><XCircle className="h-3.5 w-3.5 mr-1"/>Reprovado</span>
+                                              )}
+                                            </p>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                              onClick={() => setQuestionLogToDelete(log.id)}
+                                            >
+                                              <Trash2 className="h-4 w-4 text-destructive" />
+                                            </Button>
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
                                 </div>
                             )}
                         </div>
@@ -988,6 +1014,23 @@ export default function SubjectTopicsPage() {
                 <AlertDialogAction onClick={handleDeleteLogConfirm} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
             </AlertDialogFooter>
             </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {questionLogToDelete && (
+        <AlertDialog open={!!questionLogToDelete} onOpenChange={(open) => !open && setQuestionLogToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir este registro de questões? Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setQuestionLogToDelete(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteQuestionLogConfirm} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
         </AlertDialog>
       )}
       

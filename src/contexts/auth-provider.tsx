@@ -44,7 +44,8 @@ interface AuthContextType {
   toggleTopicStudyStatus: (compositeTopicId: string) => Promise<void>;
   addStudyLog: (compositeTopicId: string, logData: { duration?: number; pdfName?: string; startPage?: number; endPage?: number; }) => Promise<void>;
   deleteStudyLog: (logId: string) => Promise<void>;
-  addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'date'>) => Promise<void>;
+  addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'id' | 'date'>) => Promise<void>;
+  deleteQuestionLog: (logId: string) => Promise<void>;
   addRevisionSchedule: (compositeTopicId: string, daysToReview: number) => Promise<void>;
   toggleRevisionReviewedStatus: (revisionId: string) => Promise<void>;
   addNote: (compositeTopicId: string, text: string) => Promise<void>;
@@ -151,6 +152,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               stripeCustomerId: dbData.stripeCustomerId || null,
               hasHadFreeTrial: dbData.hasHadFreeTrial || false,
               planHistory: dbData.planHistory || [],
+              paymentHistory: dbData.paymentHistory || [],
               isRankingParticipant: dbData.isRankingParticipant ?? null,
               isAdmin: isAdmin,
               termsAcceptedOn: dbData.termsAcceptedOn,
@@ -197,6 +199,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               id: firebaseUser.uid, name: firebaseUser.displayName || 'Usuário', email: firebaseUser.email || '',
               registeredCargoIds: [], studiedTopicIds: [], studyLogs: [], questionLogs: [], revisionSchedules: [],
               notes: [], activePlan: null, activePlans: [], stripeCustomerId: null, hasHadFreeTrial: false, planHistory: [],
+              paymentHistory: [],
               isRankingParticipant: null, isAdmin: false,
             });
           } finally {
@@ -398,15 +401,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const addQuestionLog = async (logEntryData: Omit<QuestionLogEntry, 'date'>) => {
+  const addQuestionLog = async (logEntryData: Omit<QuestionLogEntry, 'id' | 'date'>) => {
     if (user && db) {
-      const newQuestionLog: QuestionLogEntry = { ...logEntryData, date: new Date().toISOString() };
+      const newQuestionLog: QuestionLogEntry = { 
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        ...logEntryData, 
+        date: new Date().toISOString() 
+      };
       const updatedQuestionLogs = [...(user.questionLogs || []), newQuestionLog];
       try {
         await update(ref(db, `users/${user.id}`), { questionLogs: updatedQuestionLogs });
       } catch (error) {
         toast({ title: "Erro ao Salvar Desempenho", description: "Não foi possível salvar o registro de questões.", variant: "destructive" });
+        throw error;
       } 
+    }
+  };
+
+  const deleteQuestionLog = async (logId: string) => {
+    if (user && db) {
+      const updatedLogs = (user.questionLogs || []).filter(log => log.id !== logId);
+      try {
+        await update(ref(db, `users/${user.id}`), { questionLogs: updatedLogs });
+        toast({ title: "Registro Excluído", description: "O registro de questões foi removido.", variant: "default" });
+      } catch (error) {
+        toast({ title: "Erro ao Excluir", description: "Não foi possível remover o registro de questões.", variant: "destructive" });
+        throw error;
+      }
     }
   };
 
@@ -758,7 +779,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       sendPasswordReset, logout, updateUser, 
       registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, 
       deleteStudyLog,
-      addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
+      addQuestionLog, deleteQuestionLog,
+      addRevisionSchedule, toggleRevisionReviewedStatus,
       addNote, deleteNote,
       cancelSubscription, startFreeTrial, changeItemForPlan,
       setRankingParticipation, requestPlanRefund,
