@@ -707,7 +707,7 @@ export default function SubjectTopicsPage() {
                                       {questionLogs.map(log => {
                                         const performancePercentage = (log.correctQuestions / log.totalQuestions) * 100;
                                         return (
-                                          <li key={log.id} className="text-xs p-2 border rounded-md bg-background/30 space-y-1.5 shadow-inner group relative">
+                                          <li key={log.id} className="text-xs p-2 border rounded-md bg-background/30 space-y-1.5 shadow-inner relative">
                                             <p className="font-semibold text-muted-foreground">{format(parseISO(log.date), "dd/MM/yy HH:mm", { locale: ptBR })}</p>
                                             <p>• Total: {log.totalQuestions}, Acertos: {log.correctQuestions} ({performancePercentage.toFixed(1)}%), Erros: {log.incorrectQuestions}</p>
                                             <p className="flex items-center">
@@ -721,7 +721,7 @@ export default function SubjectTopicsPage() {
                                             <Button
                                               variant="ghost"
                                               size="icon"
-                                              className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                              className="absolute top-1 right-1 h-7 w-7"
                                               onClick={() => setQuestionLogToDelete(log.id)}
                                             >
                                               <Trash2 className="h-4 w-4 text-destructive" />
@@ -836,7 +836,7 @@ export default function SubjectTopicsPage() {
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            className="absolute top-1 right-1 h-7 w-7"
                                             onClick={() => setNoteToDelete(note.id)}
                                         >
                                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -856,7 +856,7 @@ export default function SubjectTopicsPage() {
                             </h4>
                             <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
                               {topicStudyLogs.map((log) => (
-                                <li key={log.id} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex flex-col gap-1.5 group">
+                                <li key={log.id} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex flex-col gap-1.5 group relative">
                                     <div className="flex justify-between items-center w-full">
                                         <span className="font-medium">{format(parseISO(log.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
                                         <div className="flex items-center">
@@ -864,7 +864,7 @@ export default function SubjectTopicsPage() {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                className="h-7 w-7"
                                                 onClick={() => setLogToDelete(log.id)}
                                             >
                                                 <Trash2 className="h-4 w-4 text-destructive" />
