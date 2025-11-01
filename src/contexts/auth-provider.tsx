@@ -143,10 +143,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               avatarUrl: dbData.avatarUrl || firebaseUser.photoURL || undefined,
               registeredCargoIds: dbData.registeredCargoIds || [],
               studiedTopicIds: dbData.studiedTopicIds || [],
-              studyLogs: Object.values(dbData.studyLogs || {}) as StudyLogEntry[],
+              studyLogs: Object.entries(dbData.studyLogs || {}).map(([id, data]: any) => ({ id, ...data })),
               questionLogs: Object.entries(dbData.questionLogs || {}).map(([id, data]: any) => ({ id, ...data })),
-              revisionSchedules: Object.values(dbData.revisionSchedules || {}) as RevisionScheduleEntry[],
-              notes: Object.values(dbData.notes || {}) as NoteEntry[],
+              revisionSchedules: Object.entries(dbData.revisionSchedules || {}).map(([id, data]: any) => ({ id, ...data })),
+              notes: Object.entries(dbData.notes || {}).map(([id, data]: any) => ({ id, ...data })),
               activePlan: dbData.activePlan || null,
               activePlans: dbData.activePlans || [],
               stripeCustomerId: dbData.stripeCustomerId || null,
@@ -486,14 +486,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     const deleteNote = async (noteId: string) => {
-        if (user && db) {
-            try {
-                await remove(ref(db, `users/${user.id}/notes/${noteId}`));
-                toast({ title: "Anotação Excluída", description: "Sua anotação foi removida.", variant: "default" });
-            } catch (error) {
-                toast({ title: "Erro ao Excluir", description: "Não foi possível remover a anotação.", variant: "destructive" });
-            }
-        }
+      console.log(`[AuthProvider] deleteNote called for ID: ${noteId}`);
+      if (!noteId) { console.error('[AuthProvider] Tentativa de exclusão com noteId vazio.'); return; }
+      if (!(user && db)) { console.error('[AuthProvider] Tentativa de exclusão sem usuário ou db disponível.'); return; }
+  
+      console.log(`[AuthProvider] Iniciando remoção para o caminho: users/${user.id}/notes/${noteId}`);
+      try {
+          await remove(ref(db, `users/${user.id}/notes/${noteId}`));
+          console.log('[AuthProvider] Anotação removida do Firebase com sucesso.');
+
+          // Otimistic UI Update
+          setUser(prevUser => {
+            if (!prevUser) return prevUser;
+            const updatedNotes = (prevUser.notes || []).filter(note => note.id !== noteId);
+            return { ...prevUser, notes: updatedNotes };
+          });
+  
+          toast({ title: "Anotação Excluída", description: "Sua anotação foi removida com sucesso." });
+      } catch (err) {
+          console.error('[AuthProvider] Erro ao tentar remover a anotação do Firebase:', err);
+          toast({ title: "Erro ao Excluir", description: "Não foi possível remover a anotação do banco de dados.", variant: "destructive" });
+      }
     };
 
     const changeItemForPlan = async (paymentIntentId: string, newItemId: string) => {
@@ -788,3 +801,5 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+    

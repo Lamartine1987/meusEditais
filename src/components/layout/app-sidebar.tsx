@@ -102,12 +102,12 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   asChild
                   isActive={pathname === '/favoritos'}
-                  tooltip={{content: "Favoritos", side:"right", align:"center"}}
+                  tooltip={{content: "Minhas Anotações", side:"right", align:"center"}}
                   onClick={closeMobileSidebar}
                 >
                   <Link href="/favoritos">
                     <Star />
-                    <span>Favoritos</span>
+                    <span>Minhas Anotações</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
