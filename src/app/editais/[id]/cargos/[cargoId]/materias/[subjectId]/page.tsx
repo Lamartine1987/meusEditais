@@ -52,7 +52,7 @@ export default function SubjectTopicsPage() {
   const cargoId = params.cargoId as string;
   const subjectId = params.subjectId as string;
 
-  const { user, toggleTopicStudyStatus, addStudyLog, deleteStudyLog, addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus, addNote, deleteNote, loading: authLoading, setRankingParticipation } = useAuth();
+  const { user, toggleTopicStudyStatus, addStudyLog, deleteStudyLog, addQuestionLog, deleteQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus, addNote, deleteNote, loading: authLoading, setRankingParticipation } = useAuth();
   const { toast } = useToast();
 
   const [edital, setEdital] = useState<Edital | null>(null);
@@ -78,6 +78,8 @@ export default function SubjectTopicsPage() {
   const [noteText, setNoteText] = useState('');
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [logToDelete, setLogToDelete] = useState<string | null>(null);
+  const [questionLogToDelete, setQuestionLogToDelete] = useState<string | null>(null);
+
 
   const [hasAccess, setHasAccess] = useState(false);
 
@@ -363,14 +365,24 @@ export default function SubjectTopicsPage() {
     }
   };
 
-  const getLatestQuestionLogForTopic = useCallback((topicId: string): QuestionLogEntry | null => {
-    if (!user?.questionLogs) return null;
+  const getQuestionLogsForTopic = useCallback((topicId: string): QuestionLogEntry[] => {
+    if (!user?.questionLogs) return [];
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
-    const logsForTopic = user.questionLogs
+    return user.questionLogs
       .filter(log => log.compositeTopicId === compositeTopicId)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    return logsForTopic.length > 0 ? logsForTopic[0] : null;
   }, [user, editalId, cargoId, subjectId]);
+
+  const handleDeleteQuestionLogConfirm = async () => {
+    if (!questionLogToDelete || !user || !hasAccess) return;
+    try {
+      await deleteQuestionLog(questionLogToDelete);
+    } catch (error) {
+      // toast is handled in useAuth
+    } finally {
+      setQuestionLogToDelete(null);
+    }
+  };
 
   const handleOpenRevisionModal = (topicId: string) => {
     if (!hasAccess) return;
@@ -434,20 +446,19 @@ export default function SubjectTopicsPage() {
   };
 
   const handleDeleteLogConfirm = async () => {
-    console.log('[handleDeleteLogConfirm] Attempting to delete log. ID:', logToDelete);
+    console.log('[SubjectPage] Confirming deletion for log ID:', logToDelete);
     if (!logToDelete || !user || !hasAccess) {
-      console.error('[handleDeleteLogConfirm] Aborting delete. Reason:', { hasLogId: !!logToDelete, hasUser: !!user, hasAccess });
+      console.error('[SubjectPage] Aborting deletion. Missing dependencies:', { hasLogId: !!logToDelete, hasUser: !!user, hasAccess });
       return;
     }
     try {
-      console.log('[handleDeleteLogConfirm] Calling deleteStudyLog from useAuth with ID:', logToDelete);
+      console.log('[SubjectPage] Calling deleteStudyLog from useAuth...');
       await deleteStudyLog(logToDelete);
-      console.log('[handleDeleteLogConfirm] deleteStudyLog call finished.');
+      console.log('[SubjectPage] deleteStudyLog call finished.');
     } catch (error) {
-      console.error('[handleDeleteLogConfirm] Error during deleteStudyLog call:', error);
-      // toast is handled in auth-provider
+      console.error('[SubjectPage] Error during deleteStudyLog call:', error);
     } finally {
-      console.log('[handleDeleteLogConfirm] Closing delete confirmation dialog.');
+      console.log('[SubjectPage] Closing delete confirmation dialog.');
       setLogToDelete(null);
     }
   };
@@ -593,11 +604,7 @@ export default function SubjectTopicsPage() {
                   const topicStudyLogs = getTopicStudyLogs(topic.id);
                   const totalStudiedSeconds = calculateTotalStudiedTimeForTopic(topic.id);
                   const totalStudiedTimeDisplay = totalStudiedSeconds > 0 ? formatDuration(totalStudiedSeconds) : null;
-                  const latestQuestionLog = getLatestQuestionLogForTopic(topic.id);
-                  let performancePercentage = 0;
-                  if (latestQuestionLog && latestQuestionLog.totalQuestions > 0) {
-                    performancePercentage = (latestQuestionLog.correctQuestions / latestQuestionLog.totalQuestions) * 100;
-                  }
+                  const questionLogs = getQuestionLogsForTopic(topic.id);
                   const revisionSchedules = getRevisionSchedulesForTopic(topic.id);
                   const topicNotes = getNotesForTopic(topic.id);
                   const isRevisionDue = revisionSchedules.some(r => !r.isReviewed && (isToday(parseISO(r.scheduledDate)) || isPast(parseISO(r.scheduledDate))));
@@ -692,18 +699,39 @@ export default function SubjectTopicsPage() {
                                 <ClipboardList className="mr-2 h-4 w-4"/>
                                 Registrar Desempenho em Questões
                             </Button>
-                            {latestQuestionLog && (
-                                <div className="text-xs p-3 border rounded-md bg-background/30 space-y-1.5 shadow-inner">
-                                    <p className="font-semibold text-muted-foreground">Último Registro de Questões ({format(parseISO(latestQuestionLog.date), "dd/MM/yy HH:mm", { locale: ptBR })}):</p>
-                                    <p>• Total: {latestQuestionLog.totalQuestions}, Acertos: {latestQuestionLog.correctQuestions} ({performancePercentage.toFixed(1)}%), Erros: {latestQuestionLog.incorrectQuestions}</p>
-                                    <p className="flex items-center">
-                                      • Meta: {latestQuestionLog.targetPercentage}% - Status: 
-                                      {performancePercentage >= latestQuestionLog.targetPercentage ? (
-                                        <span className="ml-1.5 flex items-center text-green-600 font-medium"><CheckCircle className="h-3.5 w-3.5 mr-1"/>Aprovado</span>
-                                      ) : (
-                                        <span className="ml-1.5 flex items-center text-red-600 font-medium"><XCircle className="h-3.5 w-3.5 mr-1"/>Reprovado</span>
-                                      )}
-                                    </p>
+                            {questionLogs.length > 0 && (
+                                <div className="space-y-2">
+                                    <h5 className="text-sm font-semibold text-muted-foreground">Histórico de Questões:</h5>
+                                    <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                                      {questionLogs.map(log => {
+                                        const performancePercentage = (log.correctQuestions / log.totalQuestions) * 100;
+                                        return (
+                                          <li key={log.id} className="text-xs p-2 border rounded-md bg-background/30 space-y-1.5 shadow-inner relative">
+                                            <p className="font-semibold text-muted-foreground">{format(parseISO(log.date), "dd/MM/yy HH:mm", { locale: ptBR })}</p>
+                                            <p>• Total: {log.totalQuestions}, Acertos: {log.correctQuestions} ({performancePercentage.toFixed(1)}%), Erros: {log.incorrectQuestions}</p>
+                                            <p className="flex items-center">
+                                              • Meta: {log.targetPercentage}% - Status: 
+                                              {performancePercentage >= log.targetPercentage ? (
+                                                <span className="ml-1.5 flex items-center text-green-600 font-medium"><CheckCircle className="h-3.5 w-3.5 mr-1"/>Aprovado</span>
+                                              ) : (
+                                                <span className="ml-1.5 flex items-center text-red-600 font-medium"><XCircle className="h-3.5 w-3.5 mr-1"/>Reprovado</span>
+                                              )}
+                                            </p>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="absolute top-1 right-1 h-7 w-7"
+                                              onClick={() => {
+                                                  console.log(`[SubjectPage] Delete button clicked for question log ID: ${log.id}`);
+                                                  setQuestionLogToDelete(log.id);
+                                              }}
+                                            >
+                                              <Trash2 className="h-4 w-4 text-destructive" />
+                                            </Button>
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
                                 </div>
                             )}
                         </div>
@@ -810,7 +838,7 @@ export default function SubjectTopicsPage() {
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            className="absolute top-1 right-1 h-7 w-7"
                                             onClick={() => setNoteToDelete(note.id)}
                                         >
                                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -830,7 +858,7 @@ export default function SubjectTopicsPage() {
                             </h4>
                             <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
                               {topicStudyLogs.map((log) => (
-                                <li key={log.id} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex flex-col gap-1.5 group">
+                                <li key={log.id} className="text-xs p-2 border rounded-md bg-background/70 shadow-sm flex flex-col gap-1.5 group relative">
                                     <div className="flex justify-between items-center w-full">
                                         <span className="font-medium">{format(parseISO(log.date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
                                         <div className="flex items-center">
@@ -838,8 +866,11 @@ export default function SubjectTopicsPage() {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                onClick={() => setLogToDelete(log.id)}
+                                                className="h-7 w-7"
+                                                onClick={() => {
+                                                    console.log(`[SubjectPage] Delete button clicked for study log ID: ${log.id}`);
+                                                    setLogToDelete(log.id);
+                                                }}
                                             >
                                                 <Trash2 className="h-4 w-4 text-destructive" />
                                             </Button>
@@ -990,6 +1021,26 @@ export default function SubjectTopicsPage() {
             </AlertDialogContent>
         </AlertDialog>
       )}
+
+      {questionLogToDelete && (
+        <AlertDialog open={!!questionLogToDelete} onOpenChange={(open) => !open && setQuestionLogToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir este registro de questões? Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => {
+                  console.log('[SubjectPage] Cancel delete dialog for question log.');
+                  setQuestionLogToDelete(null);
+              }}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteQuestionLogConfirm} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
       
       {isRankingModalOpen && (
         <AlertDialog open={isRankingModalOpen} onOpenChange={setIsRankingModalOpen}>
@@ -1015,3 +1066,5 @@ export default function SubjectTopicsPage() {
     </PageWrapper>
   );
 }
+
+    
