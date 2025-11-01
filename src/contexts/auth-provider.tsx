@@ -13,7 +13,7 @@ import {
   type User as FirebaseUser 
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase'; 
-import { ref, update, onValue, get, type Unsubscribe, remove } from "firebase/database";
+import { ref, update, onValue, get, type Unsubscribe, remove, push, set } from "firebase/database";
 import { addDays, formatISO, isPast, parseISO as datefnsParseISO } from 'date-fns';
 import { useRouter } from 'next/navigation'; 
 import { useToast } from '@/hooks/use-toast';
@@ -143,10 +143,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               avatarUrl: dbData.avatarUrl || firebaseUser.photoURL || undefined,
               registeredCargoIds: dbData.registeredCargoIds || [],
               studiedTopicIds: dbData.studiedTopicIds || [],
-              studyLogs: dbData.studyLogs || [],
-              questionLogs: dbData.questionLogs || [],
-              revisionSchedules: dbData.revisionSchedules || [],
-              notes: dbData.notes || [],
+              studyLogs: Object.values(dbData.studyLogs || {}) as StudyLogEntry[],
+              questionLogs: Object.entries(dbData.questionLogs || {}).map(([id, data]: any) => ({ id, ...data })),
+              revisionSchedules: Object.values(dbData.revisionSchedules || {}) as RevisionScheduleEntry[],
+              notes: Object.values(dbData.notes || {}) as NoteEntry[],
               activePlan: dbData.activePlan || null,
               activePlans: dbData.activePlans || [],
               stripeCustomerId: dbData.stripeCustomerId || null,
@@ -363,8 +363,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const addStudyLog = async (compositeTopicId: string, logData: { duration?: number, pdfName?: string, startPage?: number, endPage?: number }) => {
     if (user && db) {
+        const newLogRef = push(ref(db, `users/${user.id}/studyLogs`));
+        const newLogId = newLogRef.key!;
         const newLog: StudyLogEntry = {
-            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            id: newLogId,
             compositeTopicId,
             date: new Date().toISOString(),
             duration: logData.duration || 0,
@@ -372,9 +374,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             ...(logData.startPage !== undefined && { startPage: logData.startPage }),
             ...(logData.endPage !== undefined && { endPage: logData.endPage }),
         };
-        const updatedStudyLogs = [...(user.studyLogs || []), newLog];
         try {
-            await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
+            await set(newLogRef, newLog);
         } catch (error) {
             toast({ title: "Erro ao Salvar Log", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
         }
@@ -384,21 +385,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const deleteStudyLog = async (logId: string) => {
     console.log('[AuthProvider] deleteStudyLog called with ID:', logId);
     if (user && db) {
-        const initialLogCount = (user.studyLogs || []).length;
-        const updatedStudyLogs = (user.studyLogs || []).filter(log => log.id !== logId);
-        const finalLogCount = updatedStudyLogs.length;
-
-        console.log(`[AuthProvider] Logs to delete: initial=${initialLogCount}, final=${finalLogCount}`);
-        if (initialLogCount === finalLogCount) {
-             console.warn('[AuthProvider] Log to delete not found. It might be already deleted.');
-             toast({ title: "Atenção", description: "O registro a ser excluído não foi encontrado. A lista pode já estar atualizada.", variant: "default" });
-             return;
-        }
-
         try {
-            console.log(`[AuthProvider] Updating Firebase DB to remove study log ${logId}`);
-            await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
-            console.log(`[AuthProvider] Firebase DB update successful for study log deletion.`);
+            console.log(`[AuthProvider] Removing study log from DB at path: users/${user.id}/studyLogs/${logId}`);
+            await remove(ref(db, `users/${user.id}/studyLogs/${logId}`));
+            console.log(`[AuthProvider] Firebase DB remove successful for study log.`);
             toast({ title: "Registro Excluído", description: "O registro de estudo foi removido.", variant: "default" });
         } catch (error) {
             console.error('[AuthProvider] Error deleting study log from DB:', error);
@@ -411,14 +401,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const addQuestionLog = async (logEntryData: Omit<QuestionLogEntry, 'id' | 'date'>) => {
     if (user && db) {
-      const newQuestionLog: QuestionLogEntry = { 
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      const newQuestionLogRef = push(ref(db, `users/${user.id}/questionLogs`));
+      const newQuestionLog: Omit<QuestionLogEntry, 'id'> = { 
         ...logEntryData, 
         date: new Date().toISOString() 
       };
-      const updatedQuestionLogs = [...(user.questionLogs || []), newQuestionLog];
       try {
-        await update(ref(db, `users/${user.id}`), { questionLogs: updatedQuestionLogs });
+        await set(newQuestionLogRef, newQuestionLog);
       } catch (error) {
         toast({ title: "Erro ao Salvar Desempenho", description: "Não foi possível salvar o registro de questões.", variant: "destructive" });
         throw error;
@@ -428,9 +417,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const deleteQuestionLog = async (logId: string) => {
     if (user && db) {
-      const updatedLogs = (user.questionLogs || []).filter(log => log.id !== logId);
       try {
-        await update(ref(db, `users/${user.id}`), { questionLogs: updatedLogs });
+        await remove(ref(db, `users/${user.id}/questionLogs/${logId}`));
         toast({ title: "Registro Excluído", description: "O registro de questões foi removido.", variant: "default" });
       } catch (error) {
         toast({ title: "Erro ao Excluir", description: "Não foi possível remover o registro de questões.", variant: "destructive" });
@@ -441,17 +429,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const addRevisionSchedule = async (compositeTopicId: string, daysToReview: number) => {
     if (user && db) {
+      const newScheduleRef = push(ref(db, `users/${user.id}/revisionSchedules`));
+      const newScheduleId = newScheduleRef.key!;
       const scheduledDate = formatISO(addDays(new Date(), daysToReview));
       const newScheduleEntry: RevisionScheduleEntry = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: newScheduleId,
         compositeTopicId,
         scheduledDate,
         isReviewed: false,
         reviewedDate: null,
       };
-      const updatedRevisionSchedules = [...(user.revisionSchedules || []), newScheduleEntry];
       try {
-        await update(ref(db, `users/${user.id}`), { revisionSchedules: updatedRevisionSchedules });
+        await set(newScheduleRef, newScheduleEntry);
       } catch (error) {
         toast({ title: "Erro ao Agendar Revisão", description: "Não foi possível salvar o agendamento.", variant: "destructive" });
       }
@@ -460,36 +449,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const toggleRevisionReviewedStatus = async (revisionId: string) => {
      if (user && db) {
-      let updatedRevisionSchedules = [...(user.revisionSchedules || [])];
-      const scheduleIndex = updatedRevisionSchedules.findIndex(rs => rs.id === revisionId);
-      
-      if (scheduleIndex > -1) {
-        const currentStatus = updatedRevisionSchedules[scheduleIndex].isReviewed;
-        updatedRevisionSchedules[scheduleIndex] = {
-          ...updatedRevisionSchedules[scheduleIndex],
-          isReviewed: !currentStatus,
-          reviewedDate: !currentStatus ? new Date().toISOString() : null,
-        };
-        try {
-          await update(ref(db, `users/${user.id}`), { revisionSchedules: updatedRevisionSchedules });
-        } catch (error) {
-          toast({ title: "Erro ao Atualizar Revisão", description: "Não foi possível salvar o status da revisão.", variant: "destructive" });
+        const revisionRef = ref(db, `users/${user.id}/revisionSchedules/${revisionId}`);
+        const snapshot = await get(revisionRef);
+        if (snapshot.exists()) {
+            const currentRevision = snapshot.val() as RevisionScheduleEntry;
+            const newStatus = !currentRevision.isReviewed;
+            try {
+                await update(revisionRef, {
+                    isReviewed: newStatus,
+                    reviewedDate: newStatus ? new Date().toISOString() : null,
+                });
+            } catch(e) {
+                 toast({ title: "Erro ao Atualizar Revisão", description: "Não foi possível salvar o status da revisão.", variant: "destructive" });
+            }
         }
-      }
     }
   };
   
     const addNote = async (compositeTopicId: string, text: string) => {
         if (user && db) {
+            const newNoteRef = push(ref(db, `users/${user.id}/notes`));
+            const newNoteId = newNoteRef.key!;
             const newNote: NoteEntry = {
-                id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                id: newNoteId,
                 compositeTopicId,
                 date: new Date().toISOString(),
                 text,
             };
-            const updatedNotes = [...(user.notes || []), newNote];
             try {
-                await update(ref(db, `users/${user.id}`), { notes: updatedNotes });
+                await set(newNoteRef, newNote);
                 toast({ title: "Anotação Salva!", description: "Sua anotação foi salva com sucesso.", variant: "default", className: "bg-accent text-accent-foreground" });
             } catch (error) {
                 toast({ title: "Erro ao Salvar", description: "Não foi possível salvar sua anotação.", variant: "destructive" });
@@ -499,9 +487,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const deleteNote = async (noteId: string) => {
         if (user && db) {
-            const updatedNotes = (user.notes || []).filter(note => note.id !== noteId);
             try {
-                await update(ref(db, `users/${user.id}`), { notes: updatedNotes });
+                await remove(ref(db, `users/${user.id}/notes/${noteId}`));
                 toast({ title: "Anotação Excluída", description: "Sua anotação foi removida.", variant: "default" });
             } catch (error) {
                 toast({ title: "Erro ao Excluir", description: "Não foi possível remover a anotação.", variant: "destructive" });
