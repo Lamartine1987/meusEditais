@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useCallback, ChangeEvent } from 'react';
+import { useEffect, useState, useCallback, ChangeEvent, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { Edital, Cargo, Subject as SubjectType, Topic as TopicType, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, NoteEntry } from '@/types';
@@ -60,7 +60,12 @@ export default function SubjectTopicsPage() {
   const [subject, setSubject] = useState<SubjectType | null>(null);
   const [loadingData, setLoadingData] = useState(true);
 
+  // Refatoração do Timer
   const [timerStates, setTimerStates] = useState<Record<string, { time: number; isRunning: boolean }>>({});
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  const activeTimerTopicIdRef = useRef<string | null>(null);
+
   const [activeAccordionItem, setActiveAccordionItem] = useState<string | null>(null);
 
   const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
@@ -167,25 +172,37 @@ export default function SubjectTopicsPage() {
     fetchSubjectDetails();
   }, [editalId, cargoId, subjectId, toast]);
 
+  // Efeito do Timer refatorado
   useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
-    const activeTopicId = activeAccordionItem; 
+    const activeTopicId = activeTimerTopicIdRef.current;
+    if (activeTopicId && timerStates[activeTopicId]?.isRunning) {
+        if (!startTimeRef.current) {
+            startTimeRef.current = Date.now() - (timerStates[activeTopicId].time * 1000);
+        }
 
-    if (activeTopicId && timerStates[activeTopicId]?.isRunning && hasAccess) {
-      intervalId = setInterval(() => {
-        setTimerStates(prev => ({
-          ...prev,
-          [activeTopicId]: {
-            ...prev[activeTopicId],
-            time: prev[activeTopicId].time + 1,
-          },
-        }));
-      }, 1000);
+        timerRef.current = setInterval(() => {
+            if (startTimeRef.current) {
+                const elapsedTime = Date.now() - startTimeRef.current;
+                setTimerStates(prev => {
+                    if (prev[activeTopicId]?.isRunning) {
+                        return {
+                            ...prev,
+                            [activeTopicId]: { ...prev[activeTopicId], time: Math.floor(elapsedTime / 1000) }
+                        };
+                    }
+                    return prev;
+                });
+            }
+        }, 1000);
     }
+
     return () => {
-      if (intervalId) clearInterval(intervalId);
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
     };
-  }, [activeAccordionItem, timerStates, hasAccess]);
+  }, [timerStates]);
 
   const handleToggleTopicCheckbox = useCallback(async (topicId: string) => {
     if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
@@ -202,20 +219,45 @@ export default function SubjectTopicsPage() {
   }, [user, editalId, cargoId, subjectId, toggleTopicStudyStatus, toast, hasAccess]);
 
   const handleTimerPlayPause = (topicId: string) => {
-    if (!timerStates[topicId] || !hasAccess) return;
-     Object.keys(timerStates).forEach(id => {
-        if (id !== topicId && timerStates[id].isRunning) {
-            setTimerStates(prev => ({...prev, [id]: {...prev[id], isRunning: false}}));
-        }
-    });
-    setTimerStates(prev => ({
-      ...prev,
-      [topicId]: { ...prev[topicId], isRunning: !prev[topicId].isRunning },
-    }));
+      if (!hasAccess) return;
+  
+      // Pausar qualquer outro cronômetro que esteja rodando
+      if (activeTimerTopicIdRef.current && activeTimerTopicIdRef.current !== topicId && timerStates[activeTimerTopicIdRef.current]?.isRunning) {
+          setTimerStates(prev => ({
+              ...prev,
+              [activeTimerTopicIdRef.current!]: { ...prev[activeTimerTopicIdRef.current!], isRunning: false }
+          }));
+      }
+  
+      const isCurrentlyRunning = timerStates[topicId]?.isRunning;
+  
+      if (isCurrentlyRunning) { // Pausando
+          if (timerRef.current) clearInterval(timerRef.current);
+          timerRef.current = null;
+          startTimeRef.current = null;
+      } else { // Iniciando/Retomando
+          activeTimerTopicIdRef.current = topicId;
+          startTimeRef.current = Date.now() - (timerStates[topicId].time * 1000);
+      }
+  
+      setTimerStates(prev => ({
+          ...prev,
+          [topicId]: { ...prev[topicId], isRunning: !isCurrentlyRunning }
+      }));
   };
 
   const handleTimerReset = (topicId: string) => {
     if(!hasAccess) return;
+    
+    if (timerRef.current && activeTimerTopicIdRef.current === topicId) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+    }
+    startTimeRef.current = null;
+    if (activeTimerTopicIdRef.current === topicId) {
+        activeTimerTopicIdRef.current = null;
+    }
+
     setTimerStates(prev => ({
       ...prev,
       [topicId]: { time: 0, isRunning: false },
@@ -239,37 +281,45 @@ export default function SubjectTopicsPage() {
   const handleSaveLog = async (topicId: string) => {
     if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
 
-    const durationToSave = timerStates[topicId]?.time || 0;
-    const pdfNameToSave = pdfName.trim();
-    const startPageNum = startPage ? parseInt(startPage, 10) : undefined;
-    const endPageNum = endPage ? parseInt(endPage, 10) : undefined;
-
-    if (durationToSave === 0 && !pdfNameToSave && startPageNum === undefined && endPageNum === undefined) {
-      toast({ title: "Nada para Salvar", description: "Use o cronômetro ou preencha as informações de leitura para salvar um registro.", variant: "default" });
-      return;
+    // Pausar o timer antes de salvar para garantir o tempo mais recente
+    if (timerStates[topicId]?.isRunning) {
+      handleTimerPlayPause(topicId);
     }
-    if ((startPageNum !== undefined && isNaN(startPageNum)) || (endPageNum !== undefined && isNaN(endPageNum))) {
-      toast({ title: "Páginas Inválidas", description: "Os números das páginas de leitura devem ser válidos.", variant: "destructive" });
-      return;
-    }
-    if (startPageNum !== undefined && endPageNum !== undefined && endPageNum < startPageNum) {
-      toast({ title: "Páginas Inválidas", description: "A página final não pode ser menor que a página inicial.", variant: "destructive" });
-      return;
-    }
-
-    const logData = {
-      duration: durationToSave,
-      ...(pdfNameToSave && { pdfName: pdfNameToSave }),
-      ...(startPageNum !== undefined && { startPage: startPageNum }),
-      ...(endPageNum !== undefined && { endPage: endPageNum }),
-    };
-
-    if (user.isRankingParticipant === null && (user.studyLogs || []).length === 0) {
-      setPendingLogData({ topicId, logData });
-      setIsRankingModalOpen(true);
-    } else {
-      await saveStudyLog(topicId, logData);
-    }
+    
+    // Usar um pequeno timeout para garantir que o estado `time` seja o mais atualizado
+    setTimeout(async () => {
+        const durationToSave = timerStates[topicId]?.time || 0;
+        const pdfNameToSave = pdfName.trim();
+        const startPageNum = startPage ? parseInt(startPage, 10) : undefined;
+        const endPageNum = endPage ? parseInt(endPage, 10) : undefined;
+    
+        if (durationToSave === 0 && !pdfNameToSave && startPageNum === undefined && endPageNum === undefined) {
+          toast({ title: "Nada para Salvar", description: "Use o cronômetro ou preencha as informações de leitura para salvar um registro.", variant: "default" });
+          return;
+        }
+        if ((startPageNum !== undefined && isNaN(startPageNum)) || (endPageNum !== undefined && isNaN(endPageNum))) {
+          toast({ title: "Páginas Inválidas", description: "Os números das páginas de leitura devem ser válidos.", variant: "destructive" });
+          return;
+        }
+        if (startPageNum !== undefined && endPageNum !== undefined && endPageNum < startPageNum) {
+          toast({ title: "Páginas Inválidas", description: "A página final não pode ser menor que a página inicial.", variant: "destructive" });
+          return;
+        }
+    
+        const logData = {
+          duration: durationToSave,
+          ...(pdfNameToSave && { pdfName: pdfNameToSave }),
+          ...(startPageNum !== undefined && { startPage: startPageNum }),
+          ...(endPageNum !== undefined && { endPage: endPageNum }),
+        };
+    
+        if (user.isRankingParticipant === null && (user.studyLogs || []).length === 0) {
+          setPendingLogData({ topicId, logData });
+          setIsRankingModalOpen(true);
+        } else {
+          await saveStudyLog(topicId, logData);
+        }
+    }, 100);
   };
   
   const handleRankingChoice = async (participate: boolean) => {
@@ -581,15 +631,10 @@ export default function SubjectTopicsPage() {
                 className="w-full space-y-3"
                 onValueChange={(value) => {
                     const currentOpenTopic = activeAccordionItem;
-                    const newOpenTopic = value;
-                    if (currentOpenTopic && currentOpenTopic !== newOpenTopic && timerStates[currentOpenTopic]?.isRunning) {
-                         setTimerStates(prev => ({
-                            ...prev,
-                            [currentOpenTopic]: { ...prev[currentOpenTopic], isRunning: false },
-                        }));
+                    if (currentOpenTopic && timerStates[currentOpenTopic]?.isRunning) {
+                      handleTimerPlayPause(currentOpenTopic);
                     }
-                    setActiveAccordionItem(newOpenTopic || null);
-                    // Reset reading inputs when switching topics
+                    setActiveAccordionItem(value || null);
                     setPdfName('');
                     setStartPage('');
                     setEndPage('');
@@ -1066,5 +1111,3 @@ export default function SubjectTopicsPage() {
     </PageWrapper>
   );
 }
-
-    
