@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
@@ -14,7 +13,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import type { NoteEntry, Edital, Cargo, Subject as SubjectType, Topic } from '@/types';
 import { format, parseISO } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 
 interface NoteWithContext extends NoteEntry {
@@ -48,7 +47,6 @@ export default function FavoritosPage() {
   const { user, loading: authLoading, deleteNote } = useAuth();
   const [allEditaisData, setAllEditaisData] = useState<Edital[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
-  const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -151,10 +149,9 @@ export default function FavoritosPage() {
     }, {} as GroupedNotes);
   }, [notesWithContext]);
 
-  const handleDeleteNoteConfirm = async () => {
-    if (!noteToDelete) return;
-    await deleteNote(noteToDelete);
-    setNoteToDelete(null);
+  const handleDeleteNoteConfirm = async (noteId: string | null) => {
+    if (!noteId) return;
+    await deleteNote(noteId);
   };
 
   if (authLoading || dataLoading) {
@@ -230,14 +227,38 @@ export default function FavoritosPage() {
                                                   <small className="text-xs text-muted-foreground/80 mt-2 block">
                                                       {format(parseISO(note.date), "dd/MM/yy 'às' HH:mm")}
                                                   </small>
-                                                  <Button
-                                                      variant="ghost"
-                                                      size="icon"
-                                                      className="absolute top-1 right-1 h-7 w-7"
-                                                      onClick={() => setNoteToDelete(note.id)}
-                                                  >
-                                                      <Trash2 className="h-4 w-4 text-destructive" />
-                                                  </Button>
+                                                  
+                                                  <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                      <Button
+                                                          variant="ghost"
+                                                          size="icon"
+                                                          className="absolute top-1 right-1 h-7 w-7"
+                                                          onClick={(e) => {
+                                                              e.stopPropagation(); // Impede que o accordion feche
+                                                          }}
+                                                      >
+                                                          <Trash2 className="h-4 w-4 text-destructive" />
+                                                      </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                      <AlertDialogHeader>
+                                                        <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                          Tem certeza que deseja excluir esta anotação? Esta ação não pode ser desfeita.
+                                                        </AlertDialogDescription>
+                                                      </AlertDialogHeader>
+                                                      <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                        <AlertDialogAction 
+                                                          onClick={() => handleDeleteNoteConfirm(note.id)} 
+                                                          className="bg-destructive hover:bg-destructive/90"
+                                                        >
+                                                          Excluir
+                                                        </AlertDialogAction>
+                                                      </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                  </AlertDialog>
                                               </li>
                                           ))}
                                         </ul>
@@ -255,23 +276,6 @@ export default function FavoritosPage() {
           </Accordion>
         )}
       </div>
-
-      {noteToDelete && (
-        <AlertDialog open={!!noteToDelete} onOpenChange={(open) => !open && setNoteToDelete(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
-              <AlertDialogDescription>
-                Tem certeza que deseja excluir esta anotação? Esta ação não pode ser desfeita.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setNoteToDelete(null)}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteNoteConfirm} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
     </PageWrapper>
   );
 }

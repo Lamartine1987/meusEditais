@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { User as AppUser, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, PlanId, PlanDetails, NoteEntry } from '@/types';
@@ -483,13 +482,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     const deleteNote = async (noteId: string) => {
-        if (user && db) {
-            try {
-                await remove(ref(db, `users/${user.id}/notes/${noteId}`));
-                toast({ title: "Anotação Excluída", description: "Sua anotação foi removida.", variant: "default" });
-            } catch (error) {
-                toast({ title: "Erro ao Excluir", description: "Não foi possível remover a anotação.", variant: "destructive" });
-            }
+        if (!noteId) { console.error('[deleteNote] Tentativa de exclusão com noteId vazio.'); return; }
+        if (!(user && db)) { console.error('[deleteNote] Tentativa de exclusão sem usuário ou db disponível.'); return; }
+
+        console.log(`[deleteNote] Iniciando remoção para o caminho: users/${user.id}/notes/${noteId}`);
+        try {
+            await remove(ref(db, `users/${user.id}/notes/${noteId}`));
+            console.log('[deleteNote] Anotação removida do Firebase com sucesso.');
+            toast({ title: "Anotação Excluída", description: "Sua anotação foi removida com sucesso." });
+        } catch (err) {
+            console.error('[deleteNote] Erro ao tentar remover a anotação do Firebase:', err);
+            toast({ title: "Erro ao Excluir", description: "Não foi possível remover a anotação do banco de dados.", variant: "destructive" });
         }
     };
 
