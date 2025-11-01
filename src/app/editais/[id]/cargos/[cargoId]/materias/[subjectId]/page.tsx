@@ -1036,10 +1036,7 @@ export default function SubjectTopicsPage() {
                   console.log('[SubjectPage] Cancel delete dialog for question log.');
                   setQuestionLogToDelete(null);
               }}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={() => {
-                  console.log('[SubjectPage] Confirming deletion for question log ID:', questionLogToDelete);
-                  handleDeleteQuestionLogConfirm();
-              }} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+              <AlertDialogAction onClick={handleDeleteQuestionLogConfirm} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
@@ -1069,3 +1066,5 @@ export default function SubjectTopicsPage() {
     </PageWrapper>
   );
 }
+
+    
