@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
@@ -150,7 +151,7 @@ export default function FavoritosPage() {
     }, {} as GroupedNotes);
   }, [notesWithContext]);
 
-  const handleDeleteNote = async () => {
+  const handleDeleteNoteConfirm = async () => {
     if (!noteToDelete) return;
     await deleteNote(noteToDelete);
     setNoteToDelete(null);
@@ -190,7 +191,7 @@ export default function FavoritosPage() {
   return (
     <PageWrapper>
       <div className="container mx-auto px-0 sm:px-4 py-8">
-        <PageHeader title="Minhas Anotações Favoritas" description="Todas as suas observações de estudo em um só lugar." />
+        <PageHeader title="Minhas Anotações" description="Todas as suas observações de estudo em um só lugar." />
 
         {notesWithContext.length === 0 ? (
           <Card className="text-center py-16 shadow-lg rounded-xl">
@@ -232,7 +233,7 @@ export default function FavoritosPage() {
                                                   <Button
                                                       variant="ghost"
                                                       size="icon"
-                                                      className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                      className="absolute top-1 right-1 h-7 w-7"
                                                       onClick={() => setNoteToDelete(note.id)}
                                                   >
                                                       <Trash2 className="h-4 w-4 text-destructive" />
@@ -266,7 +267,7 @@ export default function FavoritosPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel onClick={() => setNoteToDelete(null)}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteNote} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+              <AlertDialogAction onClick={handleDeleteNoteConfirm} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

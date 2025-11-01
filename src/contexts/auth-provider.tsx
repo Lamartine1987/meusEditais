@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { User as AppUser, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, PlanId, PlanDetails, NoteEntry } from '@/types';
@@ -143,10 +144,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               avatarUrl: dbData.avatarUrl || firebaseUser.photoURL || undefined,
               registeredCargoIds: dbData.registeredCargoIds || [],
               studiedTopicIds: dbData.studiedTopicIds || [],
-              studyLogs: Object.values(dbData.studyLogs || {}) as StudyLogEntry[],
+              studyLogs: Object.entries(dbData.studyLogs || {}).map(([id, data]: any) => ({ id, ...data })),
               questionLogs: Object.entries(dbData.questionLogs || {}).map(([id, data]: any) => ({ id, ...data })),
-              revisionSchedules: Object.values(dbData.revisionSchedules || {}) as RevisionScheduleEntry[],
-              notes: Object.values(dbData.notes || {}) as NoteEntry[],
+              revisionSchedules: Object.entries(dbData.revisionSchedules || {}).map(([id, data]: any) => ({ id, ...data })),
+              notes: Object.entries(dbData.notes || {}).map(([id, data]: any) => ({ id, ...data })),
               activePlan: dbData.activePlan || null,
               activePlans: dbData.activePlans || [],
               stripeCustomerId: dbData.stripeCustomerId || null,
@@ -365,8 +366,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (user && db) {
         const newLogRef = push(ref(db, `users/${user.id}/studyLogs`));
         const newLogId = newLogRef.key!;
-        const newLog: StudyLogEntry = {
-            id: newLogId,
+        const newLog: Omit<StudyLogEntry, 'id'> = {
             compositeTopicId,
             date: new Date().toISOString(),
             duration: logData.duration || 0,
@@ -432,8 +432,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const newScheduleRef = push(ref(db, `users/${user.id}/revisionSchedules`));
       const newScheduleId = newScheduleRef.key!;
       const scheduledDate = formatISO(addDays(new Date(), daysToReview));
-      const newScheduleEntry: RevisionScheduleEntry = {
-        id: newScheduleId,
+      const newScheduleEntry: Omit<RevisionScheduleEntry, 'id'> = {
         compositeTopicId,
         scheduledDate,
         isReviewed: false,
@@ -469,9 +468,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const addNote = async (compositeTopicId: string, text: string) => {
         if (user && db) {
             const newNoteRef = push(ref(db, `users/${user.id}/notes`));
-            const newNoteId = newNoteRef.key!;
-            const newNote: NoteEntry = {
-                id: newNoteId,
+            const newNote: Omit<NoteEntry, 'id'> = {
                 compositeTopicId,
                 date: new Date().toISOString(),
                 text,
