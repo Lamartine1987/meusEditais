@@ -364,7 +364,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const addStudyLog = async (compositeTopicId: string, logData: { duration?: number, pdfName?: string, startPage?: number, endPage?: number }) => {
     if (user && db) {
         const newLogRef = push(ref(db, `users/${user.id}/studyLogs`));
-        const newLog: Omit<StudyLogEntry, 'id'> = {
+        const newLogId = newLogRef.key!;
+        const newLog: StudyLogEntry = {
+            id: newLogId,
             compositeTopicId,
             date: new Date().toISOString(),
             duration: logData.duration || 0,
@@ -430,7 +432,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const newScheduleRef = push(ref(db, `users/${user.id}/revisionSchedules`));
       const newScheduleId = newScheduleRef.key!;
       const scheduledDate = formatISO(addDays(new Date(), daysToReview));
-      const newScheduleEntry: Omit<RevisionScheduleEntry, 'id'> = {
+      const newScheduleEntry: RevisionScheduleEntry = {
+        id: newScheduleId,
         compositeTopicId,
         scheduledDate,
         isReviewed: false,
@@ -466,7 +469,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const addNote = async (compositeTopicId: string, text: string) => {
         if (user && db) {
             const newNoteRef = push(ref(db, `users/${user.id}/notes`));
-            const newNote: Omit<NoteEntry, 'id'> = {
+            const newNoteId = newNoteRef.key!;
+            const newNote: NoteEntry = {
+                id: newNoteId,
                 compositeTopicId,
                 date: new Date().toISOString(),
                 text,
