@@ -382,22 +382,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const deleteStudyLog = async (logId: string) => {
+    console.log('[AuthProvider] deleteStudyLog called with ID:', logId);
     if (user && db) {
         const initialLogCount = (user.studyLogs || []).length;
         const updatedStudyLogs = (user.studyLogs || []).filter(log => log.id !== logId);
         const finalLogCount = updatedStudyLogs.length;
 
+        console.log(`[AuthProvider] Logs to delete: initial=${initialLogCount}, final=${finalLogCount}`);
         if (initialLogCount === finalLogCount) {
+             console.warn('[AuthProvider] Log to delete not found. It might be already deleted.');
              toast({ title: "Atenção", description: "O registro a ser excluído não foi encontrado. A lista pode já estar atualizada.", variant: "default" });
              return;
         }
 
         try {
+            console.log(`[AuthProvider] Updating Firebase DB to remove study log ${logId}`);
             await update(ref(db, `users/${user.id}`), { studyLogs: updatedStudyLogs });
+            console.log(`[AuthProvider] Firebase DB update successful for study log deletion.`);
             toast({ title: "Registro Excluído", description: "O registro de estudo foi removido.", variant: "default" });
         } catch (error) {
+            console.error('[AuthProvider] Error deleting study log from DB:', error);
             toast({ title: "Erro ao Excluir", description: "Não foi possível remover o registro do banco de dados.", variant: "destructive" });
         }
+    } else {
+        console.error('[AuthProvider] deleteStudyLog aborted. User or DB not available.');
     }
   };
 

@@ -446,20 +446,19 @@ export default function SubjectTopicsPage() {
   };
 
   const handleDeleteLogConfirm = async () => {
-    console.log('[handleDeleteLogConfirm] Attempting to delete log. ID:', logToDelete);
+    console.log('[SubjectPage] Confirming deletion for log ID:', logToDelete);
     if (!logToDelete || !user || !hasAccess) {
-      console.error('[handleDeleteLogConfirm] Aborting delete. Reason:', { hasLogId: !!logToDelete, hasUser: !!user, hasAccess });
+      console.error('[SubjectPage] Aborting deletion. Missing dependencies:', { hasLogId: !!logToDelete, hasUser: !!user, hasAccess });
       return;
     }
     try {
-      console.log('[handleDeleteLogConfirm] Calling deleteStudyLog from useAuth with ID:', logToDelete);
+      console.log('[SubjectPage] Calling deleteStudyLog from useAuth...');
       await deleteStudyLog(logToDelete);
-      console.log('[handleDeleteLogConfirm] deleteStudyLog call finished.');
+      console.log('[SubjectPage] deleteStudyLog call finished.');
     } catch (error) {
-      console.error('[handleDeleteLogConfirm] Error during deleteStudyLog call:', error);
-      // toast is handled in auth-provider
+      console.error('[SubjectPage] Error during deleteStudyLog call:', error);
     } finally {
-      console.log('[handleDeleteLogConfirm] Closing delete confirmation dialog.');
+      console.log('[SubjectPage] Closing delete confirmation dialog.');
       setLogToDelete(null);
     }
   };
@@ -722,7 +721,10 @@ export default function SubjectTopicsPage() {
                                               variant="ghost"
                                               size="icon"
                                               className="absolute top-1 right-1 h-7 w-7"
-                                              onClick={() => setQuestionLogToDelete(log.id)}
+                                              onClick={() => {
+                                                  console.log(`[SubjectPage] Delete button clicked for question log ID: ${log.id}`);
+                                                  setQuestionLogToDelete(log.id);
+                                              }}
                                             >
                                               <Trash2 className="h-4 w-4 text-destructive" />
                                             </Button>
@@ -865,7 +867,10 @@ export default function SubjectTopicsPage() {
                                                 variant="ghost"
                                                 size="icon"
                                                 className="h-7 w-7"
-                                                onClick={() => setLogToDelete(log.id)}
+                                                onClick={() => {
+                                                    console.log(`[SubjectPage] Delete button clicked for study log ID: ${log.id}`);
+                                                    setLogToDelete(log.id);
+                                                }}
                                             >
                                                 <Trash2 className="h-4 w-4 text-destructive" />
                                             </Button>
@@ -1027,8 +1032,14 @@ export default function SubjectTopicsPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setQuestionLogToDelete(null)}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteQuestionLogConfirm} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+              <AlertDialogCancel onClick={() => {
+                  console.log('[SubjectPage] Cancel delete dialog for question log.');
+                  setQuestionLogToDelete(null);
+              }}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={() => {
+                  console.log('[SubjectPage] Confirming deletion for question log ID:', questionLogToDelete);
+                  handleDeleteQuestionLogConfirm();
+              }} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
@@ -1058,5 +1069,3 @@ export default function SubjectTopicsPage() {
     </PageWrapper>
   );
 }
-
-    
