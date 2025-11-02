@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import type { User as AppUser, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, PlanId, PlanDetails, NoteEntry } from '@/types';
@@ -47,7 +48,7 @@ interface AuthContextType {
   addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'id' | 'date'>) => Promise<void>;
   deleteQuestionLog: (logId: string) => Promise<void>;
   addRevisionSchedule: (compositeTopicId: string, daysToReview: number) => Promise<void>;
-  toggleRevisionReviewedStatus: (revisionId: string) => Promise<void>;
+  toggleRevisionReviewedStatus: (revisionId: string, nextValue?: boolean) => Promise<void>;
   addNote: (compositeTopicId: string, text: string) => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
   cancelSubscription: (subscriptionId: string) => Promise<void>;
@@ -383,19 +384,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const deleteStudyLog = async (logId: string) => {
-    console.log('[AuthProvider] deleteStudyLog called with ID:', logId);
     if (user && db) {
+        console.log(`[AuthProvider] deleteStudyLog: Deletando registro de estudo com ID: ${logId}`);
         try {
-            console.log(`[AuthProvider] Removing study log from DB at path: users/${user.id}/studyLogs/${logId}`);
             await remove(ref(db, `users/${user.id}/studyLogs/${logId}`));
-            console.log(`[AuthProvider] Firebase DB remove successful for study log.`);
             toast({ title: "Registro Excluído", description: "O registro de estudo foi removido.", variant: "default" });
         } catch (error) {
-            console.error('[AuthProvider] Error deleting study log from DB:', error);
+            console.error(`[AuthProvider] deleteStudyLog: Erro ao deletar log ${logId}`, error);
             toast({ title: "Erro ao Excluir", description: "Não foi possível remover o registro do banco de dados.", variant: "destructive" });
         }
-    } else {
-        console.error('[AuthProvider] deleteStudyLog aborted. User or DB not available.');
     }
   };
 
@@ -447,23 +444,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const toggleRevisionReviewedStatus = async (revisionId: string) => {
-     if (user && db) {
-        const revisionRef = ref(db, `users/${user.id}/revisionSchedules/${revisionId}`);
-        const snapshot = await get(revisionRef);
-        if (snapshot.exists()) {
-            const currentRevision = snapshot.val() as RevisionScheduleEntry;
-            const newStatus = !currentRevision.isReviewed;
-            try {
-                await update(revisionRef, {
-                    isReviewed: newStatus,
-                    reviewedDate: newStatus ? new Date().toISOString() : null,
-                });
-            } catch(e) {
-                 toast({ title: "Erro ao Atualizar Revisão", description: "Não foi possível salvar o status da revisão.", variant: "destructive" });
-            }
-        }
+  const toggleRevisionReviewedStatus = async (revisionId: string, nextValue?: boolean) => {
+    if (!(user && db)) return;
+
+    const revisionRef = ref(db, `users/${user.id}/revisionSchedules/${revisionId}`);
+
+    let newStatus = nextValue;
+    if (typeof newStatus === 'undefined') {
+        const snap = await get(revisionRef);
+        if (!snap.exists()) return;
+        const current = snap.val() as RevisionScheduleEntry;
+        newStatus = !current.isReviewed;
     }
+
+    const reviewedDate = newStatus ? new Date().toISOString() : null;
+
+    // Apenas persiste no DB; o onValue atualizará a UI
+    await update(revisionRef, { isReviewed: newStatus, reviewedDate });
   };
   
     const addNote = async (compositeTopicId: string, text: string) => {
@@ -504,6 +501,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   
           toast({ title: "Anotação Excluída", description: "Sua anotação foi removida com sucesso." });
       } catch (err) {
+          console.error('[AuthProvider] deleteNote: Erro ao tentar remover a anotação do Firebase:', err);
           console.error('[AuthProvider] Erro ao tentar remover a anotação do Firebase:', err);
           toast({ title: "Erro ao Excluir", description: "Não foi possível remover a anotação do banco de dados.", variant: "destructive" });
       }
