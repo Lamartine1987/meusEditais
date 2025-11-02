@@ -460,13 +460,12 @@ export default function SubjectTopicsPage() {
     }
   };
   
-  const handleToggleRevisionReviewed = async (revisionId: string) => {
+  const handleToggleRevisionReviewed = async (revisionId: string, nextValue?: boolean) => {
     if (!user || !hasAccess) return;
     try {
-        const revisionToToggle = user.revisionSchedules?.find(r => r.id === revisionId);
-        await toggleRevisionReviewedStatus(revisionId);
+        await toggleRevisionReviewedStatus(revisionId, nextValue);
         toast({
-            title: `Revisão ${!revisionToToggle?.isReviewed ? 'Concluída' : 'Marcada como Pendente'}!`,
+            title: `Revisão ${nextValue ? 'Concluída' : 'Marcada como Pendente'}!`,
             variant: "default",
         });
     } catch (error) {
@@ -714,20 +713,18 @@ export default function SubjectTopicsPage() {
                                                             : format(parseISO(revision.scheduledDate), "dd/MM/yy")}
                                                     </span>
                                                 </div>
-                                                {!revision.isReviewed && (
-                                                    <div className="flex items-center space-x-2 pt-1 border-t mt-1">
-                                                        <Checkbox
-                                                            id={`revision-checked-${revision.id}`}
-                                                            checked={revision.isReviewed}
-                                                            onCheckedChange={() => handleToggleRevisionReviewed(revision.id)}
-                                                            className="h-4 w-4"
-                                                            disabled={!hasAccess}
-                                                        />
-                                                        <Label htmlFor={`revision-checked-${revision.id}`} className={cn("text-xs font-medium", !hasAccess ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
-                                                            Marcar como revisado
-                                                        </Label>
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center space-x-2 pt-1 border-t mt-1">
+                                                  <Checkbox
+                                                    id={`revision-checked-${revision.id}`}
+                                                    checked={revision.isReviewed}
+                                                    onCheckedChange={(val) => handleToggleRevisionReviewed(revision.id, val === true)}
+                                                    className="h-4 w-4"
+                                                    disabled={!hasAccess}
+                                                  />
+                                                  <Label htmlFor={`revision-checked-${revision.id}`} className={cn("text-xs font-medium", !hasAccess ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
+                                                    {revision.isReviewed ? 'Revisado' : 'Marcar como revisado'}
+                                                  </Label>
+                                                </div>
                                             </li>
                                         )
                                     })}
@@ -1098,5 +1095,3 @@ export default function SubjectTopicsPage() {
     </PageWrapper>
   );
 }
-
-    

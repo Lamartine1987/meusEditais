@@ -48,7 +48,7 @@ interface AuthContextType {
   addQuestionLog: (logEntry: Omit<QuestionLogEntry, 'id' | 'date'>) => Promise<void>;
   deleteQuestionLog: (logId: string) => Promise<void>;
   addRevisionSchedule: (compositeTopicId: string, daysToReview: number) => Promise<void>;
-  toggleRevisionReviewedStatus: (revisionId: string) => Promise<void>;
+  toggleRevisionReviewedStatus: (revisionId: string, nextValue?: boolean) => Promise<void>;
   addNote: (compositeTopicId: string, text: string) => Promise<void>;
   deleteNote: (noteId: string) => Promise<void>;
   cancelSubscription: (subscriptionId: string) => Promise<void>;
@@ -385,10 +385,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const deleteStudyLog = async (logId: string) => {
     if (user && db) {
+        console.log(`[AuthProvider] deleteStudyLog: Deletando registro de estudo com ID: ${logId}`);
         try {
             await remove(ref(db, `users/${user.id}/studyLogs/${logId}`));
             toast({ title: "Registro Excluído", description: "O registro de estudo foi removido.", variant: "default" });
         } catch (error) {
+            console.error(`[AuthProvider] deleteStudyLog: Erro ao deletar log ${logId}`, error);
             toast({ title: "Erro ao Excluir", description: "Não foi possível remover o registro do banco de dados.", variant: "destructive" });
         }
     }
@@ -442,22 +444,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const toggleRevisionReviewedStatus = async (revisionId: string) => {
-     if (user && db) {
-        const revisionRef = ref(db, `users/${user.id}/revisionSchedules/${revisionId}`);
-        const snapshot = await get(revisionRef);
-        if (snapshot.exists()) {
-            const currentRevision = snapshot.val() as RevisionScheduleEntry;
-            const newStatus = !currentRevision.isReviewed;
-            try {
-                await update(revisionRef, {
-                    isReviewed: newStatus,
-                    reviewedDate: newStatus ? new Date().toISOString() : null,
-                });
-            } catch(e) {
-                 toast({ title: "Erro ao Atualizar Revisão", description: "Não foi possível salvar o status da revisão.", variant: "destructive" });
-            }
-        }
+  const toggleRevisionReviewedStatus = async (revisionId: string, nextValue?: boolean) => {
+     if (!(user && db)) return;
+
+    const revisionRef = ref(db, `users/${user.id}/revisionSchedules/${revisionId}`);
+
+    let newStatus = nextValue;
+    if (typeof newStatus === 'undefined') {
+        const snap = await get(revisionRef);
+        if (!snap.exists()) return;
+        const current = snap.val() as RevisionScheduleEntry;
+        newStatus = !current.isReviewed;
+    }
+
+    const reviewedDate = newStatus ? new Date().toISOString() : null;
+
+    setUser(prev => {
+        if (!prev) return prev;
+        const updated = (prev.revisionSchedules || []).map(rs =>
+            rs.id === revisionId ? { ...rs, isReviewed: newStatus!, reviewedDate } : rs
+        );
+        return { ...prev, revisionSchedules: updated };
+    });
+
+    try {
+        await update(revisionRef, { isReviewed: newStatus, reviewedDate });
+    } catch (e) {
+        setUser(prev => {
+            if (!prev) return prev;
+            const originalRevision = (prev.revisionSchedules || []).find(rs => rs.id === revisionId);
+            const rollbackReviewedDate = originalRevision ? !newStatus ? null : originalRevision.reviewedDate : null;
+            const updated = (prev.revisionSchedules || []).map(rs =>
+                rs.id === revisionId ? { ...rs, isReviewed: !newStatus!, reviewedDate: rollbackReviewedDate } : rs
+            );
+            return { ...prev, revisionSchedules: updated };
+        });
+        throw e;
     }
   };
   
@@ -794,5 +816,3 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-    
