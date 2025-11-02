@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useEffect, useState, useCallback, ChangeEvent, useRef } from 'react';
@@ -496,19 +497,14 @@ export default function SubjectTopicsPage() {
   };
 
   const handleDeleteLogConfirm = async () => {
-    console.log('[SubjectPage] Confirming deletion for log ID:', logToDelete);
     if (!logToDelete || !user || !hasAccess) {
-      console.error('[SubjectPage] Aborting deletion. Missing dependencies:', { hasLogId: !!logToDelete, hasUser: !!user, hasAccess });
       return;
     }
     try {
-      console.log('[SubjectPage] Calling deleteStudyLog from useAuth...');
       await deleteStudyLog(logToDelete);
-      console.log('[SubjectPage] deleteStudyLog call finished.');
     } catch (error) {
-      console.error('[SubjectPage] Error during deleteStudyLog call:', error);
+      // Error handled in useAuth
     } finally {
-      console.log('[SubjectPage] Closing delete confirmation dialog.');
       setLogToDelete(null);
     }
   };
@@ -766,10 +762,7 @@ export default function SubjectTopicsPage() {
                                               variant="ghost"
                                               size="icon"
                                               className="absolute top-1 right-1 h-7 w-7"
-                                              onClick={() => {
-                                                  console.log(`[SubjectPage] Delete button clicked for question log ID: ${log.id}`);
-                                                  setQuestionLogToDelete(log.id);
-                                              }}
+                                              onClick={() => setQuestionLogToDelete(log.id)}
                                             >
                                               <Trash2 className="h-4 w-4 text-destructive" />
                                             </Button>
@@ -912,10 +905,7 @@ export default function SubjectTopicsPage() {
                                                 variant="ghost"
                                                 size="icon"
                                                 className="h-7 w-7"
-                                                onClick={() => {
-                                                    console.log(`[SubjectPage] Delete button clicked for study log ID: ${log.id}`);
-                                                    setLogToDelete(log.id);
-                                                }}
+                                                onClick={() => setLogToDelete(log.id)}
                                             >
                                                 <Trash2 className="h-4 w-4 text-destructive" />
                                             </Button>
@@ -1077,10 +1067,7 @@ export default function SubjectTopicsPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => {
-                  console.log('[SubjectPage] Cancel delete dialog for question log.');
-                  setQuestionLogToDelete(null);
-              }}>Cancelar</AlertDialogCancel>
+              <AlertDialogCancel onClick={() => setQuestionLogToDelete(null)}>Cancelar</AlertDialogCancel>
               <AlertDialogAction onClick={handleDeleteQuestionLogConfirm} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
