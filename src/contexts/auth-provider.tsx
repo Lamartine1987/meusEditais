@@ -445,7 +445,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const toggleRevisionReviewedStatus = async (revisionId: string, nextValue?: boolean) => {
-     if (!(user && db)) return;
+    if (!(user && db)) return;
 
     const revisionRef = ref(db, `users/${user.id}/revisionSchedules/${revisionId}`);
 
@@ -459,28 +459,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const reviewedDate = newStatus ? new Date().toISOString() : null;
 
-    setUser(prev => {
-        if (!prev) return prev;
-        const updated = (prev.revisionSchedules || []).map(rs =>
-            rs.id === revisionId ? { ...rs, isReviewed: newStatus!, reviewedDate } : rs
-        );
-        return { ...prev, revisionSchedules: updated };
-    });
-
-    try {
-        await update(revisionRef, { isReviewed: newStatus, reviewedDate });
-    } catch (e) {
-        setUser(prev => {
-            if (!prev) return prev;
-            const originalRevision = (prev.revisionSchedules || []).find(rs => rs.id === revisionId);
-            const rollbackReviewedDate = originalRevision ? !newStatus ? null : originalRevision.reviewedDate : null;
-            const updated = (prev.revisionSchedules || []).map(rs =>
-                rs.id === revisionId ? { ...rs, isReviewed: !newStatus!, reviewedDate: rollbackReviewedDate } : rs
-            );
-            return { ...prev, revisionSchedules: updated };
-        });
-        throw e;
-    }
+    // Apenas persiste no DB; o onValue atualizará a UI
+    await update(revisionRef, { isReviewed: newStatus, reviewedDate });
   };
   
     const addNote = async (compositeTopicId: string, text: string) => {
