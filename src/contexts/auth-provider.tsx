@@ -483,14 +483,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     const deleteNote = async (noteId: string) => {
-      if (!noteId) { console.error('[AuthProvider] deleteNote: Tentativa de exclusão com noteId vazio.'); return; }
-      if (!(user && db)) { console.error('[AuthProvider] deleteNote: Tentativa de exclusão sem usuário ou db disponível.'); return; }
+      console.log(`[AuthProvider] deleteNote called for ID: ${noteId}`);
+      if (!noteId) { console.error('[AuthProvider] Tentativa de exclusão com noteId vazio.'); return; }
+      if (!(user && db)) { console.error('[AuthProvider] Tentativa de exclusão sem usuário ou db disponível.'); return; }
   
-      console.log(`[AuthProvider] deleteNote: Iniciando remoção para o caminho: users/${user.id}/notes/${noteId}`);
+      console.log(`[AuthProvider] Iniciando remoção para o caminho: users/${user.id}/notes/${noteId}`);
       try {
           await remove(ref(db, `users/${user.id}/notes/${noteId}`));
-          console.log('[AuthProvider] deleteNote: Anotação removida do Firebase com sucesso.');
+          console.log('[AuthProvider] Anotação removida do Firebase com sucesso.');
 
+          // Otimistic UI Update
           setUser(prevUser => {
             if (!prevUser) return prevUser;
             const updatedNotes = (prevUser.notes || []).filter(note => note.id !== noteId);
@@ -500,6 +502,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           toast({ title: "Anotação Excluída", description: "Sua anotação foi removida com sucesso." });
       } catch (err) {
           console.error('[AuthProvider] deleteNote: Erro ao tentar remover a anotação do Firebase:', err);
+          console.error('[AuthProvider] Erro ao tentar remover a anotação do Firebase:', err);
           toast({ title: "Erro ao Excluir", description: "Não foi possível remover a anotação do banco de dados.", variant: "destructive" });
       }
     };
@@ -796,3 +799,5 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+    
