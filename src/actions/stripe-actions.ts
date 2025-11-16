@@ -169,10 +169,9 @@ async function handleSubscriptionCreatedOrUpdated(
     };
     
     let effectiveStatus: PlanDetails['status'] = statusMap[subscription.status] ?? 'active';
-    // If cancel_at_period_end is true, it means the user requested cancellation, but the plan is still active until the period ends.
-    // The final 'canceled' status comes from the subscription status itself when it's truly over.
+
     if (subscription.cancel_at_period_end && subscription.status !== 'canceled') {
-        effectiveStatus = 'canceled'; // This will show as 'canceled but still active' on the profile
+        effectiveStatus = 'canceled';
     }
 
     const planDetails: PlanDetails = {
@@ -180,7 +179,7 @@ async function handleSubscriptionCreatedOrUpdated(
       startDate: formatISO(new Date(subscription.created * 1000)),
       expiryDate: formatISO(new Date(subscription.current_period_end * 1000)),
       stripeSubscriptionId: subscription.id,
-      stripePaymentIntentId: null, // This gets added from invoice events
+      stripePaymentIntentId: null,
       stripeCustomerId: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id,
       status: effectiveStatus,
     };
@@ -190,20 +189,17 @@ async function handleSubscriptionCreatedOrUpdated(
 
     const isTrulyInactive = ['canceled', 'unpaid', 'incomplete_expired'].includes(subscription.status);
 
-    // Remove existing entry for this subscription from both arrays to avoid duplicates
     finalActivePlans = finalActivePlans.filter(p => p.stripeSubscriptionId !== subscription.id);
     finalPlanHistory = finalPlanHistory.filter(p => p.stripeSubscriptionId !== subscription.id);
 
     if (isTrulyInactive) {
-        // Move to history
         finalPlanHistory.unshift(planDetails);
     } else {
-        // Add/update in active plans
         finalActivePlans.push(planDetails);
     }
 
     const highestPlan = [...finalActivePlans]
-        .filter(p => p.status === 'active') // Only consider active plans for setting the main plan
+        .filter(p => p.status === 'active')
         .sort((a, b) => (planRank[b.planId] ?? 0) - (planRank[a.planId] ?? 0))[0] ?? null;
 
     const updatePayload: any = {
