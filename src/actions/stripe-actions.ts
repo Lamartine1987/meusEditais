@@ -40,7 +40,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
             const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
             try {
                 const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-                await handleSubscriptionCreated(subscription, {
+                await handleSubscriptionCreatedOrUpdated(subscription, {
                     userId: session.metadata?.userId,
                     planId: session.metadata?.planId as PlanId | undefined,
                 });
@@ -122,68 +122,41 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     console.log(`[handleCheckoutSessionCompleted] SUCESSO: Usuário ${userId} atualizado com plano de pagamento único.`);
 }
 
-async function handleSubscriptionCreated(
+async function handleSubscriptionCreatedOrUpdated(
     subscription: Stripe.Subscription,
     fallback?: { userId?: string; planId?: PlanId }
 ) {
     let userId = subscription.metadata?.userId || fallback?.userId;
     let planId = (subscription.metadata?.planId as PlanId | undefined) || fallback?.planId;
 
-    console.log(`[handleSubscriptionCreated] Iniciando processamento para Sub ID: ${subscription.id}. Metadata inicial:`, { userId, planId });
+    console.log(`[handleSubscriptionUpdate] Iniciando processamento para Sub ID: ${subscription.id}. Metadata inicial:`, { userId, planId });
 
     if (!planId) {
         const priceId = subscription.items?.data?.[0]?.price?.id;
-        console.log(`[handleSubscriptionCreated] planId ausente. Tentando inferir a partir do Price ID: ${priceId}`);
         planId = await mapPriceToPlan(priceId);
-        if (planId) console.log(`[handleSubscriptionCreated] planId inferido com sucesso: ${planId}`);
     }
 
     if (!userId) {
-        console.warn(`[handleSubscriptionCreated] userId ainda ausente. Tentando buscar sessão de checkout...`);
         try {
             const stripe = await getStripeClient();
             const sessions = await stripe.checkout.sessions.list({ subscription: subscription.id, limit: 1 });
-            const session = sessions.data[0];
-            if (session) {
-                console.log(`[handleSubscriptionCreated] Sessão de checkout encontrada (ID: ${session.id}). Recuperando metadados...`);
-                userId = userId || (session.metadata?.userId as string | undefined);
-                if(userId) console.log(`[handleSubscriptionCreated] userId recuperado da sessão: ${userId}`);
-            }
+            userId = sessions.data[0]?.metadata?.userId;
         } catch (e: any) {
-            console.error('[handleSubscriptionCreated] Falha crítica ao buscar sessão para recuperar metadados:', e.message);
+            console.error('[handleSubscriptionUpdate] Falha ao buscar sessão para recuperar metadados:', e.message);
         }
     }
 
-    if (!userId) {
-        console.error(`[handleSubscriptionCreated] ERRO CRÍTICO: 'userId' ausente e não recuperável para a assinatura ${subscription.id}`);
-        return;
-    }
-    if (!planId) {
-        console.error(`[handleSubscriptionCreated] ERRO CRÍTICO: 'planId' ausente e não recuperável para a assinatura ${subscription.id}`);
+    if (!userId || !planId) {
+        console.error(`[handleSubscriptionUpdate] ERRO CRÍTICO: 'userId' ou 'planId' ausentes e não recuperáveis para a assinatura ${subscription.id}`);
         return;
     }
 
-    console.log(`[handleSubscriptionCreated] Processando assinatura ${subscription.id} para o usuário ${userId} com plano ${planId}.`);
+    console.log(`[handleSubscriptionUpdate] Processando assinatura ${subscription.id} para o usuário ${userId} com plano ${planId}.`);
     
-    let paymentIntentId: string | null = null;
-    if (subscription.latest_invoice) {
-        const stripe = await getStripeClient();
-        const invoiceId = typeof subscription.latest_invoice === 'string' ? subscription.latest_invoice : subscription.latest_invoice.id;
-        try {
-            const invoice = await stripe.invoices.retrieve(invoiceId);
-            paymentIntentId = typeof invoice.payment_intent === 'string' ? invoice.payment_intent : null;
-            console.log(`[handleSubscriptionCreated] Payment Intent ID recuperado da fatura ${invoiceId}: ${paymentIntentId}`);
-        } catch (invoiceError: any) {
-            console.error(`[handleSubscriptionCreated] Erro ao buscar Payment Intent da fatura ${invoiceId}:`, invoiceError.message);
-        }
-    } else {
-        console.warn(`[handleSubscriptionCreated] AVISO: A assinatura ${subscription.id} não possui 'latest_invoice'. O Payment Intent ID não será salvo.`);
-    }
-
     const userFirebaseRef = adminDb.ref(`users/${userId}`);
     const userSnapshot = await userFirebaseRef.get();
     const currentUserData = userSnapshot.val() || {};
-    
+
     const statusMap: Record<Stripe.Subscription.Status, PlanDetails['status']> = {
         active: 'active',
         trialing: 'active',
@@ -196,42 +169,56 @@ async function handleSubscriptionCreated(
     };
     
     let effectiveStatus: PlanDetails['status'] = statusMap[subscription.status] ?? 'active';
-    if (subscription.cancel_at_period_end) {
-        effectiveStatus = 'canceled';
+    // If cancel_at_period_end is true, it means the user requested cancellation, but the plan is still active until the period ends.
+    // The final 'canceled' status comes from the subscription status itself when it's truly over.
+    if (subscription.cancel_at_period_end && subscription.status !== 'canceled') {
+        effectiveStatus = 'canceled'; // This will show as 'canceled but still active' on the profile
     }
 
-
-    const newPlan: PlanDetails = {
+    const planDetails: PlanDetails = {
       planId,
       startDate: formatISO(new Date(subscription.created * 1000)),
       expiryDate: formatISO(new Date(subscription.current_period_end * 1000)),
       stripeSubscriptionId: subscription.id,
-      stripePaymentIntentId: paymentIntentId,
+      stripePaymentIntentId: null, // This gets added from invoice events
       stripeCustomerId: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id,
       status: effectiveStatus,
     };
-    
-    const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
-    const otherPlans = currentActivePlans.filter(p => p.stripeSubscriptionId !== subscription.id);
-    const finalActivePlans = [...otherPlans, newPlan];
 
-    const highestPlan = [...finalActivePlans].sort((a, b) => {
-        const rankA = planRank[a.planId as PlanId] ?? 0;
-        const rankB = planRank[b.planId as PlanId] ?? 0;
-        return rankB - rankA;
-    })[0] ?? null;
+    let finalActivePlans: PlanDetails[] = [...(currentUserData.activePlans || [])];
+    let finalPlanHistory: PlanDetails[] = [...(currentUserData.planHistory || [])];
+
+    const isTrulyInactive = ['canceled', 'unpaid', 'incomplete_expired'].includes(subscription.status);
+
+    // Remove existing entry for this subscription from both arrays to avoid duplicates
+    finalActivePlans = finalActivePlans.filter(p => p.stripeSubscriptionId !== subscription.id);
+    finalPlanHistory = finalPlanHistory.filter(p => p.stripeSubscriptionId !== subscription.id);
+
+    if (isTrulyInactive) {
+        // Move to history
+        finalPlanHistory.unshift(planDetails);
+    } else {
+        // Add/update in active plans
+        finalActivePlans.push(planDetails);
+    }
+
+    const highestPlan = [...finalActivePlans]
+        .filter(p => p.status === 'active') // Only consider active plans for setting the main plan
+        .sort((a, b) => (planRank[b.planId] ?? 0) - (planRank[a.planId] ?? 0))[0] ?? null;
 
     const updatePayload: any = {
-      activePlan: highestPlan?.planId,
+      activePlan: highestPlan?.planId ?? null,
       activePlans: finalActivePlans,
-      stripeCustomerId: newPlan.stripeCustomerId,
+      planHistory: finalPlanHistory,
+      stripeCustomerId: planDetails.stripeCustomerId,
       hasHadFreeTrial: true,
     };
 
-    console.log(`[handleSubscriptionCreated] Payload final para ${userId}:`, JSON.stringify(updatePayload));
+    console.log(`[handleSubscriptionUpdate] Payload final para ${userId}:`, JSON.stringify(updatePayload));
     await userFirebaseRef.update(updatePayload);
-    console.log(`[handleSubscriptionCreated] SUCESSO: Usuário ${userId} atualizado com plano de assinatura.`);
+    console.log(`[handleSubscriptionUpdate] SUCESSO: Usuário ${userId} atualizado.`);
 }
+
 
 export async function handleStripeWebhook(req: Request): Promise<Response> {
   console.log('[handleStripeWebhook] Requisição de webhook recebida.');
@@ -262,17 +249,18 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         break;
       }
 
-      case 'customer.subscription.created': {
-        const subscription = event.data.object as Stripe.Subscription;
-        console.log(`[Webhook] Assinatura ${subscription.id} foi criada. Status: ${subscription.status}`);
-        await handleSubscriptionCreated(subscription);
-        break;
-      }
-
+      case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
-        console.log(`[Webhook] Assinatura ${subscription.id} foi atualizada. Novo status: ${subscription.status}`);
-        await handleSubscriptionCreated(subscription);
+        console.log(`[Webhook] Assinatura ${subscription.id} ${event.type}. Novo status: ${subscription.status}`);
+        await handleSubscriptionCreatedOrUpdated(subscription);
+        break;
+      }
+      
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription;
+        console.log(`[Webhook] Assinatura ${subscription.id} foi deletada (deleted). Status: ${subscription.status}`);
+        await handleSubscriptionCreatedOrUpdated(subscription);
         break;
       }
 
@@ -284,35 +272,29 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             const stripe = await getStripeClient();
             const subscription = await stripe.subscriptions.retrieve(subscriptionId);
             
-            // This is a renewal or initial payment for a subscription
-            if (invoice.billing_reason === 'subscription_cycle' || invoice.billing_reason === 'subscription_create') {
-                const userId = subscription.metadata.userId;
-                const planId = await mapPriceToPlan(invoice.lines.data[0]?.price?.id) || 'plano_mensal';
+            const userId = subscription.metadata.userId;
+            const planId = await mapPriceToPlan(invoice.lines.data[0]?.price?.id) || 'plano_mensal';
 
-                if (userId) {
-                    console.log(`[Webhook] Pagamento de fatura bem-sucedido para assinatura ${subscriptionId} do usuário ${userId}.`);
+            if (userId) {
+                console.log(`[Webhook] Pagamento de fatura bem-sucedido para ${subscriptionId} do usuário ${userId}.`);
 
-                    const newPaymentRecord: PaymentRecord = {
-                        id: invoice.id,
-                        date: formatISO(new Date(invoice.created * 1000)),
-                        amount: invoice.amount_paid,
-                        planId: planId,
-                        description: invoice.billing_reason === 'subscription_cycle' ? 'Renovação Mensal' : 'Início de Assinatura',
-                    };
+                const newPaymentRecord: PaymentRecord = {
+                    id: invoice.id,
+                    date: formatISO(new Date(invoice.created * 1000)),
+                    amount: invoice.amount_paid,
+                    planId: planId,
+                    description: invoice.billing_reason === 'subscription_cycle' ? 'Renovação Mensal' : 'Início de Assinatura',
+                };
 
-                    const userRef = adminDb.ref(`users/${userId}`);
-                    const userSnapshot = await userRef.get();
-                    const userData = userSnapshot.val() || {};
-                    const currentPaymentHistory: PaymentRecord[] = userData.paymentHistory || [];
-                    const finalPaymentHistory = [newPaymentRecord, ...currentPaymentHistory];
-                    
-                    // Update payment history AND plan validity period
-                    await userRef.update({ paymentHistory: finalPaymentHistory });
-                    await handleSubscriptionCreated(subscription); 
-                }
-            } else {
-                 console.log(`[Webhook] Fatura paga para assinatura ${subscriptionId}, mas motivo não é ciclo ou criação. Atualizando apenas o período do plano.`);
-                 await handleSubscriptionCreated(subscription);
+                const userRef = adminDb.ref(`users/${userId}`);
+                const userSnapshot = await userRef.get();
+                const userData = userSnapshot.val() || {};
+                const currentPaymentHistory: PaymentRecord[] = userData.paymentHistory || [];
+                const finalPaymentHistory = [newPaymentRecord, ...currentPaymentHistory];
+                
+                // Update payment history AND plan validity period
+                await userRef.update({ paymentHistory: finalPaymentHistory });
+                await handleSubscriptionCreatedOrUpdated(subscription); 
             }
         }
         break;
@@ -327,35 +309,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             console.warn(`[Webhook] Pagamento da fatura falhou para a assinatura ${subscriptionId}. Marcando plano como 'past_due'.`);
             const stripe = await getStripeClient();
             const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-            await handleSubscriptionCreated(subscription);
-        }
-        break;
-      }
-
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription;
-        const userId = subscription.metadata.userId;
-        if (userId) {
-            console.log(`[Webhook] Assinatura ${subscription.id} do usuário ${userId} foi cancelada/expirada. Removendo plano ativo.`);
-            const userRef = adminDb.ref(`users/${userId}`);
-            const userSnapshot = await userRef.get();
-            if (userSnapshot.exists()) {
-                const userData = userSnapshot.val();
-                const updatedActivePlans = (userData.activePlans || []).filter((p: PlanDetails) => p.stripeSubscriptionId !== subscription.id);
-                
-                const highestPlan = [...updatedActivePlans].sort((a, b) => {
-                    const rankA = planRank[a.planId as PlanId] ?? 0;
-                    const rankB = planRank[b.planId as PlanId] ?? 0;
-                    return rankB - rankA;
-                })[0] ?? null;
-
-                const newActivePlanId = highestPlan ? highestPlan.planId : null;
-                
-                await userRef.update({
-                    activePlans: updatedActivePlans,
-                    activePlan: newActivePlanId,
-                });
-            }
+            await handleSubscriptionCreatedOrUpdated(subscription);
         }
         break;
       }
