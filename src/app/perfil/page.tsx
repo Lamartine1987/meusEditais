@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package, DollarSign, Clock, Trash2, Repeat, Search as SearchIcon, CalendarPlus } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package, DollarSign, Clock, Trash2, Repeat, Search as SearchIcon, CalendarPlus, BadgeInfo } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import type { PlanId, Edital as EditalType, Cargo as CargoType, PlanDetails } from '@/types';
@@ -49,6 +49,20 @@ const planRank: Record<PlanId, number> = {
   plano_cargo: 1,
   plano_edital: 2,
   plano_mensal: 3,
+};
+
+const getPlanStatusText = (status?: PlanDetails['status']): { text: string; variant: "destructive" | "secondary" | "default" | "outline" } => {
+    switch (status) {
+        case 'active': return { text: 'Ativo', variant: 'default' };
+        case 'past_due': return { text: 'Pag. Pendente', variant: 'destructive' };
+        case 'unpaid': return { text: 'Não Pago', variant: 'destructive' };
+        case 'canceled': return { text: 'Cancelado', variant: 'secondary' };
+        case 'incomplete': return { text: 'Incompleto', variant: 'destructive' };
+        case 'refundRequested': return { text: 'Reembolso Solicitado', variant: 'destructive' };
+        case 'refunded': return { text: 'Reembolsado', variant: 'secondary' };
+        case 'paused': return { text: 'Pausado', variant: 'secondary' };
+        default: return { text: status || 'Desconhecido', variant: 'outline' };
+    }
 };
 
 export default function ProfilePage() {
@@ -561,29 +575,25 @@ export default function ProfilePage() {
         <Card className="shadow-lg rounded-xl bg-card">
             <CardHeader>
                 <CardTitle className="text-xl flex items-center"><History className="mr-3 h-6 w-6 text-primary"/>Histórico de Assinaturas</CardTitle>
-                <CardDescription>Seus planos anteriores e reembolsados.</CardDescription>
+                <CardDescription>Seus planos anteriores, cancelados e reembolsados.</CardDescription>
             </CardHeader>
             <Separator className="mb-1" />
             <CardContent className="pt-6 space-y-4">
                 {user.planHistory && user.planHistory.length > 0 ? (
                     <ul className="space-y-3">
                         {user.planHistory.map((plan, index) => {
-                            let statusText = "Expirado/Substituído";
-                            let badgeVariant: "secondary" | "outline" = "outline";
-                            if (plan.status === 'refunded') {
-                                statusText = "Reembolsado";
-                                badgeVariant = "secondary";
-                            }
+                            const statusInfo = getPlanStatusText(plan.status);
                             return (
-                                <li key={plan.stripePaymentIntentId || index} className="p-3 border rounded-md text-sm">
-                                    <div className="flex justify-between items-center mb-1">
+                                <li key={plan.stripeSubscriptionId || plan.stripePaymentIntentId || index} className="p-3 border rounded-md text-sm bg-muted/30">
+                                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                                       <p className="font-semibold">{getPlanDisplayName(plan.planId)}</p>
-                                      <Badge variant={badgeVariant}>
-                                        {statusText}
+                                      <Badge variant={statusInfo.variant}>
+                                        {statusInfo.text}
                                       </Badge>
                                     </div>
+                                    <p className="text-xs text-muted-foreground mt-1">{getPlanDetailsDescription(plan)}</p>
                                     {plan.startDate && (
-                                        <p className="text-xs text-muted-foreground">
+                                        <p className="text-xs text-muted-foreground mt-1">
                                             Período: {new Date(plan.startDate).toLocaleDateString('pt-BR')}
                                             {plan.expiryDate ? ` - ${new Date(plan.expiryDate).toLocaleDateString('pt-BR')}` : ''}
                                         </p>
