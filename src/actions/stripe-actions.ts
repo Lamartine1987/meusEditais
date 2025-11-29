@@ -35,7 +35,7 @@ async function mapPriceToPlan(priceId: string | null | undefined): Promise<PlanI
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
     if (session.mode === 'subscription') {
         if (session.subscription) {
-            console.log(`[handleCheckoutSessionCompleted] Sessão de assinatura (ID: ${session.id}) detectada. Tentando processar antecipadamente...`);
+            console.log(`[handleCheckoutSessionCompleted] LOG: Sessão de assinatura (ID: ${session.id}) detectada com Subscription ID: ${session.subscription}. Tentando processar antecipadamente...`);
             const stripe = await getStripeClient();
             const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
             try {
@@ -44,11 +44,12 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
                     userId: session.metadata?.userId,
                     planId: session.metadata?.planId as PlanId | undefined,
                 }, session); // Pass the session object
+                console.log(`[handleCheckoutSessionCompleted] LOG: Processamento antecipado para ${subscriptionId} concluído com sucesso.`);
             } catch (error) {
-                console.error(`[handleCheckoutSessionCompleted] Erro ao processar assinatura antecipadamente para ${subscriptionId}:`, error);
+                console.error(`[handleCheckoutSessionCompleted] ERRO: Falha ao processar assinatura antecipadamente para ${subscriptionId}:`, error);
             }
         } else {
-             console.log(`[handleCheckoutSessionCompleted] Sessão de assinatura (ID: ${session.id}) para o usuário ${session.metadata?.userId}. Ignorando e aguardando evento 'customer.subscription.created'.`);
+             console.log(`[handleCheckoutSessionCompleted] LOG: Sessão de assinatura (ID: ${session.id}) para o usuário ${session.metadata?.userId}. Aguardando evento 'customer.subscription.created' pois 'session.subscription' está nulo.`);
         }
         return;
     }
@@ -61,7 +62,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         return;
     }
 
-    console.log(`[handleCheckoutSessionCompleted] Processando pagamento único para o usuário ${userId}, plano ${planId}.`);
+    console.log(`[handleCheckoutSessionCompleted] LOG: Processando pagamento único para o usuário ${userId}, plano ${planId}.`);
 
     const userFirebaseRef = adminDb.ref(`users/${userId}`);
     const userSnapshot = await userFirebaseRef.get();
@@ -87,16 +88,17 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         date: formatISO(now),
         amount: session.amount_total || 0,
         planId: planId,
-        description: `Compra ${planId}`,
+        description: `Compra ${getPlanDisplayName(planId)}`,
     };
+
+    console.log('[handleCheckoutSessionCompleted] LOG: Novo registro de pagamento criado para compra única:', newPaymentRecord);
 
     const currentActivePlans: PlanDetails[] = currentUserData.activePlans || [];
     const finalActivePlans = [...currentActivePlans, newPlan];
 
     const highestPlan = [...finalActivePlans].sort((a, b) => {
         const rankA = planRank[a.planId as PlanId] ?? 0;
-        const rankB = planRank[b.planId as PlanId] ?? 0;
-        return rankB - rankA;
+        const rankB = rankB - rankA;
     })[0] ?? null;
     
     const currentPaymentHistory: PaymentRecord[] = currentUserData.paymentHistory || [];
@@ -105,7 +107,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const updatePayload: any = {
       activePlan: highestPlan?.planId,
       activePlans: finalActivePlans,
-      paymentHistory: finalPaymentHistory, // Add to payload
+      paymentHistory: finalPaymentHistory,
       stripeCustomerId: newPlan.stripeCustomerId,
       hasHadFreeTrial: currentUserData.hasHadFreeTrial || true,
     };
@@ -117,7 +119,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       }
     }
 
-    console.log(`[handleCheckoutSessionCompleted] Payload final para ${userId}:`, JSON.stringify(updatePayload));
+    console.log(`[handleCheckoutSessionCompleted] LOG: Payload final para ${userId}:`, JSON.stringify(updatePayload));
     await userFirebaseRef.update(updatePayload);
     console.log(`[handleCheckoutSessionCompleted] SUCESSO: Usuário ${userId} atualizado com plano de pagamento único.`);
 }
@@ -130,29 +132,38 @@ async function handleSubscriptionCreatedOrUpdated(
     let userId = subscription.metadata?.userId || fallback?.userId;
     let planId = (subscription.metadata?.planId as PlanId | undefined) || fallback?.planId;
 
-    console.log(`[handleSubscriptionUpdate] Iniciando processamento para Sub ID: ${subscription.id}. Metadata inicial:`, { userId, planId });
+    console.log(`[handleSubscriptionUpdate] LOG: Iniciando processamento para Sub ID: ${subscription.id}. Metadata inicial:`, { userId, planId, fallback, checkoutSessionExists: !!checkoutSession });
 
     if (!planId) {
         const priceId = subscription.items?.data?.[0]?.price?.id;
+        console.log(`[handleSubscriptionUpdate] LOG: 'planId' ausente. Tentando mapear do Price ID: ${priceId}`);
         planId = await mapPriceToPlan(priceId);
+        console.log(`[handleSubscriptionUpdate] LOG: 'planId' mapeado para: ${planId}`);
     }
 
     if (!userId) {
         try {
+            console.log(`[handleSubscriptionUpdate] LOG: 'userId' ausente. Buscando checkout.session para a assinatura ${subscription.id}...`);
             const stripe = await getStripeClient();
             const sessions = await stripe.checkout.sessions.list({ subscription: subscription.id, limit: 1 });
-            userId = sessions.data[0]?.metadata?.userId;
+            if (sessions.data.length > 0) {
+                userId = sessions.data[0]?.metadata?.userId;
+                if (!checkoutSession) checkoutSession = sessions.data[0];
+                console.log(`[handleSubscriptionUpdate] LOG: 'userId' recuperado da sessão: ${userId}`);
+            } else {
+                 console.log(`[handleSubscriptionUpdate] AVISO: Nenhuma checkout.session encontrada para a assinatura ${subscription.id}.`);
+            }
         } catch (e: any) {
-            console.error('[handleSubscriptionUpdate] Falha ao buscar sessão para recuperar metadados:', e.message);
+            console.error('[handleSubscriptionUpdate] ERRO: Falha ao buscar sessão para recuperar metadados:', e.message);
         }
     }
 
     if (!userId || !planId) {
-        console.error(`[handleSubscriptionUpdate] ERRO CRÍTICO: 'userId' ou 'planId' ausentes e não recuperáveis para a assinatura ${subscription.id}`);
+        console.error(`[handleSubscriptionUpdate] ERRO CRÍTICO: 'userId' ou 'planId' ausentes e não recuperáveis para a assinatura ${subscription.id}. Abortando.`);
         return;
     }
 
-    console.log(`[handleSubscriptionUpdate] Processando assinatura ${subscription.id} para o usuário ${userId} com plano ${planId}.`);
+    console.log(`[handleSubscriptionUpdate] LOG: Processando assinatura ${subscription.id} para o usuário ${userId} com plano ${planId}.`);
     
     const userFirebaseRef = adminDb.ref(`users/${userId}`);
     const userSnapshot = await userFirebaseRef.get();
@@ -188,14 +199,16 @@ async function handleSubscriptionCreatedOrUpdated(
     let finalActivePlans: PlanDetails[] = [...(currentUserData.activePlans || [])];
     let finalPlanHistory: PlanDetails[] = [...(currentUserData.planHistory || [])];
 
-    const isTrulyInactive = ['canceled', 'unpaid', 'incomplete_expired'].includes(subscription.status);
+    const isTrulyInactive = ['canceled', 'unpaid', 'incomplete_expired'].includes(subscription.status) || subscription.status === 'incomplete_expired';
 
     finalActivePlans = finalActivePlans.filter(p => p.stripeSubscriptionId !== subscription.id);
     finalPlanHistory = finalPlanHistory.filter(p => p.stripeSubscriptionId !== subscription.id);
 
     if (isTrulyInactive) {
+        console.log(`[handleSubscriptionUpdate] LOG: Assinatura ${subscription.id} está inativa. Movendo para o histórico.`);
         finalPlanHistory.unshift(planDetails);
     } else {
+        console.log(`[handleSubscriptionUpdate] LOG: Assinatura ${subscription.id} está ativa. Adicionando/atualizando nos planos ativos.`);
         finalActivePlans.push(planDetails);
     }
 
@@ -213,6 +226,7 @@ async function handleSubscriptionCreatedOrUpdated(
 
     // --- CORREÇÃO: ADICIONA REGISTRO DE PAGAMENTO NA CRIAÇÃO DA ASSINATURA ---
     if (subscription.status === 'trialing' || (subscription.status === 'active' && subscription.created === subscription.current_period_start)) {
+        console.log(`[handleSubscriptionUpdate] LOG: Detectada criação de assinatura. Tentando registrar pagamento inicial para Sub ID: ${subscription.id}`);
         let paymentAmount = 0;
         let paymentId = subscription.id;
         
@@ -220,43 +234,53 @@ async function handleSubscriptionCreatedOrUpdated(
         if (checkoutSession && checkoutSession.amount_total) {
             paymentAmount = checkoutSession.amount_total;
             paymentId = checkoutSession.id;
+            console.log(`[handleSubscriptionUpdate] LOG: Usando dados do checkoutSession fornecido. Valor: ${paymentAmount}, ID: ${paymentId}`);
         } else if (subscription.latest_invoice) {
+            console.log(`[handleSubscriptionUpdate] LOG: checkoutSession ausente. Usando 'latest_invoice' da assinatura.`);
             const invoice = typeof subscription.latest_invoice === 'string' 
                 ? await (await getStripeClient()).invoices.retrieve(subscription.latest_invoice) 
                 : subscription.latest_invoice;
             if (invoice && invoice.amount_paid) {
               paymentAmount = invoice.amount_paid;
               paymentId = invoice.id;
+              console.log(`[handleSubscriptionUpdate] LOG: Usando dados da fatura. Valor: ${paymentAmount}, ID: ${paymentId}`);
             }
         }
         
         // Only add payment record if there was an actual charge
         if (paymentAmount > 0) {
+            console.log(`[handleSubscriptionUpdate] LOG: Valor do pagamento > 0. Criando registro de pagamento.`);
             const newPaymentRecord: PaymentRecord = {
                 id: paymentId,
                 date: formatISO(new Date(subscription.created * 1000)),
                 amount: paymentAmount,
                 planId: planId,
-                description: `Início de Assinatura (${getPlanDisplayName(planId)})`,
+                description: `Assinatura ${getPlanDisplayName(planId)}`,
             };
             
             const currentPaymentHistory: PaymentRecord[] = currentUserData.paymentHistory || [];
             if (!currentPaymentHistory.some(p => p.id === newPaymentRecord.id)) {
+                console.log(`[handleSubscriptionUpdate] LOG: Registro de pagamento não existe. Adicionando ao histórico.`);
                 updatePayload.paymentHistory = [newPaymentRecord, ...currentPaymentHistory];
+            } else {
+                 console.log(`[handleSubscriptionUpdate] AVISO: Registro de pagamento com ID ${newPaymentRecord.id} já existe no histórico. Pulando.`);
             }
+        } else {
+            console.log(`[handleSubscriptionUpdate] LOG: Valor do pagamento é 0. Nenhum registro de pagamento criado.`);
         }
+    } else {
+        console.log(`[handleSubscriptionUpdate] LOG: Não é uma criação de assinatura. Pulando lógica de registro de pagamento inicial.`);
     }
     // --- FIM DA CORREÇÃO ---
 
-
-    console.log(`[handleSubscriptionUpdate] Payload final para ${userId}:`, JSON.stringify(updatePayload));
+    console.log(`[handleSubscriptionUpdate] LOG: Payload final para ${userId}:`, JSON.stringify(updatePayload, null, 2));
     await userFirebaseRef.update(updatePayload);
-    console.log(`[handleSubscriptionUpdate] SUCESSO: Usuário ${userId} atualizado.`);
+    console.log(`[handleSubscriptionUpdate] SUCESSO: Usuário ${userId} atualizado no DB.`);
 }
 
 
 export async function handleStripeWebhook(req: Request): Promise<Response> {
-  console.log('[handleStripeWebhook] Requisição de webhook recebida.');
+  console.log('[handleStripeWebhook] LOG: Requisição de webhook recebida.');
   
   let event: Stripe.Event;
   try {
@@ -269,7 +293,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
     
     const rawBody = await req.text();
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
-    console.log(`[handleStripeWebhook] Evento verificado e construído: ${event.type} (ID: ${event.id})`);
+    console.log(`[handleStripeWebhook] LOG: Evento verificado e construído: ${event.type} (ID: ${event.id})`);
 
   } catch (err: any) {
     console.error(`[handleStripeWebhook] ERRO na verificação da assinatura do webhook: ${err.message}`);
@@ -280,6 +304,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
+        console.log(`[Webhook] LOG: Recebido evento 'checkout.session.completed' para a sessão ${session.id}.`);
         await handleCheckoutSessionCompleted(session);
         break;
       }
@@ -287,14 +312,14 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
-        console.log(`[Webhook] Assinatura ${subscription.id} ${event.type}. Novo status: ${subscription.status}`);
+        console.log(`[Webhook] LOG: Recebido evento '${event.type}' para a assinatura ${subscription.id}. Novo status: ${subscription.status}`);
         await handleSubscriptionCreatedOrUpdated(subscription);
         break;
       }
       
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
-        console.log(`[Webhook] Assinatura ${subscription.id} foi deletada (deleted). Status: ${subscription.status}`);
+        console.log(`[Webhook] LOG: Recebido evento 'customer.subscription.deleted' para a assinatura ${subscription.id}. Status final: ${subscription.status}`);
         await handleSubscriptionCreatedOrUpdated(subscription);
         break;
       }
@@ -311,9 +336,10 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             const planId = await mapPriceToPlan(invoice.lines.data[0]?.price?.id) || 'plano_mensal';
 
             if (userId) {
-                console.log(`[Webhook] Pagamento de fatura bem-sucedido para ${subscriptionId} do usuário ${userId}.`);
+                console.log(`[Webhook] LOG: Recebido 'invoice.payment_succeeded' para sub ${subscriptionId} do usuário ${userId}. Razão: ${invoice.billing_reason}`);
                 
-                if (invoice.billing_reason !== 'subscription_create') { // Don't double-log the initial payment
+                if (invoice.billing_reason !== 'subscription_create') {
+                    console.log(`[Webhook] LOG: Não é a criação da assinatura. Registrando pagamento recorrente.`);
                     const newPaymentRecord: PaymentRecord = {
                         id: invoice.id,
                         date: formatISO(new Date(invoice.created * 1000)),
@@ -328,13 +354,23 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
                     const currentPaymentHistory: PaymentRecord[] = userData.paymentHistory || [];
 
                     if (!currentPaymentHistory.some(p => p.id === newPaymentRecord.id)) {
+                      console.log(`[Webhook] LOG: Adicionando novo registro de pagamento recorrente ao histórico.`);
                       const finalPaymentHistory = [newPaymentRecord, ...currentPaymentHistory];
                       await userRef.update({ paymentHistory: finalPaymentHistory });
+                    } else {
+                      console.log(`[Webhook] AVISO: Pagamento recorrente com ID ${newPaymentRecord.id} já existe. Pulando.`);
                     }
+                } else {
+                   console.log(`[Webhook] LOG: É a criação da assinatura. O pagamento inicial deve ser tratado por 'handleSubscriptionCreatedOrUpdated'. Pulando.`);
                 }
                 
+                // Sempre atualiza o status da assinatura para refletir o novo período de validade
                 await handleSubscriptionCreatedOrUpdated(subscription); 
+            } else {
+              console.warn(`[Webhook] AVISO: 'userId' não encontrado nos metadados da assinatura ${subscriptionId} para 'invoice.payment_succeeded'.`);
             }
+        } else {
+           console.log(`[Webhook] LOG: 'invoice.payment_succeeded' recebido sem um ID de assinatura. Ignorando.`);
         }
         break;
       }
@@ -345,7 +381,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
         
         if (subscriptionId) {
-            console.warn(`[Webhook] Pagamento da fatura falhou para a assinatura ${subscriptionId}. Marcando plano como 'past_due'.`);
+            console.warn(`[Webhook] AVISO: Pagamento da fatura falhou para a assinatura ${subscriptionId}. Marcando plano como 'past_due'.`);
             const stripe = await getStripeClient();
             const subscription = await stripe.subscriptions.retrieve(subscriptionId);
             await handleSubscriptionCreatedOrUpdated(subscription);
@@ -354,7 +390,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
       }
 
       default:
-        console.log(`[handleStripeWebhook] Evento não tratado: ${event.type}.`);
+        console.log(`[handleStripeWebhook] LOG: Evento não tratado recebido: ${event.type}.`);
     }
 
   } catch (processingError: any) {
@@ -367,10 +403,10 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
 
 function getPlanDisplayName(planId: "plano_mensal" | "plano_cargo" | "plano_edital" | "plano_trial"): string {
     switch(planId) {
-        case 'plano_mensal': return 'Plano Mensal';
-        case 'plano_cargo': return 'Plano Cargo';
-        case 'plano_edital': return 'Plano Edital';
-        case 'plano_trial': return 'Plano Trial';
+        case 'plano_mensal': return 'Mensal';
+        case 'plano_cargo': return 'Cargo';
+        case 'plano_edital': return 'Edital';
+        case 'plano_trial': return 'Trial';
         default: return 'Plano';
     }
 }
