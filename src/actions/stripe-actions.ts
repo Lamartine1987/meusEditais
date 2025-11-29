@@ -39,11 +39,9 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
             const stripe = await getStripeClient();
             const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
             try {
+                // Passar o objeto 'session' inteiro para a próxima função é crucial
                 const subscription = await stripe.subscriptions.retrieve(subscriptionId, { expand: ['latest_invoice'] });
-                await handleSubscriptionCreatedOrUpdated(subscription, {
-                    userId: session.metadata?.userId,
-                    planId: session.metadata?.planId as PlanId | undefined,
-                }, session); // Pass the session object
+                await handleSubscriptionCreatedOrUpdated(subscription, undefined, session); 
                 console.log(`[handleCheckoutSessionCompleted] LOG: Processamento antecipado para ${subscriptionId} concluído com sucesso.`);
             } catch (error) {
                 console.error(`[handleCheckoutSessionCompleted] ERRO: Falha ao processar assinatura antecipadamente para ${subscriptionId}:`, error);
@@ -143,21 +141,29 @@ async function handleSubscriptionCreatedOrUpdated(
     }
 
     if (!userId) {
-        try {
-            console.log(`[handleSubscriptionUpdate] LOG: 'userId' ausente. Buscando checkout.session para a assinatura ${subscription.id}...`);
-            const stripe = await getStripeClient();
-            const sessions = await stripe.checkout.sessions.list({ subscription: subscription.id, limit: 1 });
-            if (sessions.data.length > 0) {
-                userId = sessions.data[0]?.metadata?.userId;
-                if (!checkoutSession) checkoutSession = sessions.data[0];
-                console.log(`[handleSubscriptionUpdate] LOG: 'userId' recuperado da sessão: ${userId}`);
-            } else {
-                 console.log(`[handleSubscriptionUpdate] AVISO: Nenhuma checkout.session encontrada para a assinatura ${subscription.id}.`);
+        console.log(`[handleSubscriptionUpdate] LOG: 'userId' ausente. Buscando checkout.session para a assinatura ${subscription.id}...`);
+        // Se a sessão de checkout não foi passada, tente buscá-la.
+        if (!checkoutSession) {
+            try {
+                const stripe = await getStripeClient();
+                const sessions = await stripe.checkout.sessions.list({ subscription: subscription.id, limit: 1 });
+                if (sessions.data.length > 0) {
+                    checkoutSession = sessions.data[0];
+                    console.log(`[handleSubscriptionUpdate] LOG: checkout.session recuperada da API: ${checkoutSession.id}`);
+                } else {
+                     console.log(`[handleSubscriptionUpdate] AVISO: Nenhuma checkout.session encontrada para a assinatura ${subscription.id}.`);
+                }
+            } catch (e: any) {
+                console.error('[handleSubscriptionUpdate] ERRO: Falha ao buscar sessão para recuperar metadados:', e.message);
             }
-        } catch (e: any) {
-            console.error('[handleSubscriptionUpdate] ERRO: Falha ao buscar sessão para recuperar metadados:', e.message);
+        }
+        // Agora, com a sessão (seja a passada ou a buscada), tente obter o userId
+        if (checkoutSession) {
+            userId = checkoutSession.metadata?.userId;
+            console.log(`[handleSubscriptionUpdate] LOG: 'userId' recuperado da sessão de checkout: ${userId}`);
         }
     }
+
 
     if (!userId || !planId) {
         console.error(`[handleSubscriptionUpdate] ERRO CRÍTICO: 'userId' ou 'planId' ausentes e não recuperáveis para a assinatura ${subscription.id}. Abortando.`);
@@ -200,7 +206,7 @@ async function handleSubscriptionCreatedOrUpdated(
     let finalActivePlans: PlanDetails[] = [...(currentUserData.activePlans || [])];
     let finalPlanHistory: PlanDetails[] = [...(currentUserData.planHistory || [])];
 
-    const isTrulyInactive = ['canceled', 'unpaid', 'incomplete_expired'].includes(subscription.status) || subscription.status === 'incomplete_expired';
+    const isTrulyInactive = ['canceled', 'unpaid', 'incomplete_expired'].includes(subscription.status);
 
     finalActivePlans = finalActivePlans.filter(p => p.stripeSubscriptionId !== subscription.id);
     finalPlanHistory = finalPlanHistory.filter(p => p.stripeSubscriptionId !== subscription.id);
@@ -226,29 +232,32 @@ async function handleSubscriptionCreatedOrUpdated(
     };
 
     // --- CORREÇÃO: ADICIONA REGISTRO DE PAGAMENTO NA CRIAÇÃO DA ASSINATURA ---
-    if (subscription.status === 'trialing' || (subscription.status === 'active' && subscription.created === subscription.current_period_start)) {
-        console.log(`[handleSubscriptionUpdate] LOG: Detectada criação de assinatura. Tentando registrar pagamento inicial para Sub ID: ${subscription.id}`);
+    // A condição de ser o primeiro pagamento da assinatura é `created === current_period_start`
+    const isInitialPayment = subscription.created === subscription.current_period_start;
+    if ((subscription.status === 'active' || subscription.status === 'trialing') && isInitialPayment) {
+        console.log(`[handleSubscriptionUpdate] LOG: Detectada criação de assinatura ou início de trial pago. Tentando registrar pagamento inicial para Sub ID: ${subscription.id}`);
         let paymentAmount = 0;
         let paymentId = subscription.id;
         
-        // Prefer checkout session for more accurate data on the first payment
-        if (checkoutSession && checkoutSession.amount_total) {
+        // Prioridade 1: Usar dados da sessão de checkout, se disponível. É a fonte mais confiável.
+        if (checkoutSession && checkoutSession.amount_total !== null) {
             paymentAmount = checkoutSession.amount_total;
             paymentId = checkoutSession.id;
             console.log(`[handleSubscriptionUpdate] LOG: Usando dados do checkoutSession fornecido. Valor: ${paymentAmount}, ID: ${paymentId}`);
-        } else if (subscription.latest_invoice) {
-            console.log(`[handleSubscriptionUpdate] LOG: checkoutSession ausente. Usando 'latest_invoice' da assinatura.`);
+        } 
+        // Prioridade 2: Usar a fatura mais recente associada à assinatura.
+        else if (subscription.latest_invoice) {
+            console.log(`[handleSubscriptionUpdate] LOG: checkoutSession ausente ou sem valor. Usando 'latest_invoice' da assinatura.`);
             const invoice = typeof subscription.latest_invoice === 'string' 
                 ? await (await getStripeClient()).invoices.retrieve(subscription.latest_invoice) 
                 : subscription.latest_invoice;
-            if (invoice && invoice.amount_paid) {
+            if (invoice && invoice.amount_paid > 0) {
               paymentAmount = invoice.amount_paid;
               paymentId = invoice.id;
               console.log(`[handleSubscriptionUpdate] LOG: Usando dados da fatura. Valor: ${paymentAmount}, ID: ${paymentId}`);
             }
         }
         
-        // Only add payment record if there was an actual charge
         if (paymentAmount > 0) {
             console.log(`[handleSubscriptionUpdate] LOG: Valor do pagamento > 0. Criando registro de pagamento.`);
             const newPaymentRecord: PaymentRecord = {
@@ -262,15 +271,16 @@ async function handleSubscriptionCreatedOrUpdated(
             const currentPaymentHistory: PaymentRecord[] = currentUserData.paymentHistory || [];
             if (!currentPaymentHistory.some(p => p.id === newPaymentRecord.id)) {
                 console.log(`[handleSubscriptionUpdate] LOG: Registro de pagamento não existe. Adicionando ao histórico.`);
-                updatePayload.paymentHistory = [newPaymentRecord, ...currentPaymentHistory];
+                // Garante que o payload do paymentHistory seja atualizado
+                updatePayload.paymentHistory = [newPaymentRecord, ...(updatePayload.paymentHistory || currentPaymentHistory)];
             } else {
                  console.log(`[handleSubscriptionUpdate] AVISO: Registro de pagamento com ID ${newPaymentRecord.id} já existe no histórico. Pulando.`);
             }
         } else {
-            console.log(`[handleSubscriptionUpdate] LOG: Valor do pagamento é 0. Nenhum registro de pagamento criado.`);
+            console.log(`[handleSubscriptionUpdate] LOG: Valor do pagamento é 0 (trial sem custo inicial). Nenhum registro de pagamento criado.`);
         }
     } else {
-        console.log(`[handleSubscriptionUpdate] LOG: Não é uma criação de assinatura. Pulando lógica de registro de pagamento inicial.`);
+        console.log(`[handleSubscriptionUpdate] LOG: Não é a criação da assinatura (pagamento recorrente ou outra atualização). Pulando lógica de registro de pagamento inicial.`);
     }
     // --- FIM DA CORREÇÃO ---
 
