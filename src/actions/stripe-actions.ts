@@ -292,11 +292,38 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const stripe = await getStripeClient();
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         
-        const userId = subscription.metadata.userId;
+        // --- NOVO: recuperar userId mesmo se não estiver nos metadados da subscription ---
+        let userId = (subscription.metadata?.userId as string | undefined) || undefined;
+
         if (!userId) {
-            console.warn(`[Webhook] AVISO: 'userId' não encontrado nos metadados da assinatura ${subscriptionId} para 'invoice.payment_succeeded'.`);
-            break;
+          console.log(
+            `[Webhook] LOG: 'userId' ausente na assinatura ${subscriptionId}. Tentando recuperar via checkout.session...`
+          );
+          const sessions = await stripe.checkout.sessions.list({
+            subscription: subscriptionId,
+            limit: 1,
+          });
+
+          if (sessions.data.length > 0) {
+            const checkoutSession = sessions.data[0];
+            userId = checkoutSession.metadata?.userId as string | undefined;
+            console.log(
+              `[Webhook] LOG: 'userId' recuperado da checkout.session ${checkoutSession.id}: ${userId}`
+            );
+          } else {
+            console.log(
+              `[Webhook] AVISO: Nenhuma checkout.session encontrada para a assinatura ${subscriptionId}.`
+            );
+          }
         }
+
+        if (!userId) {
+          console.warn(
+            `[Webhook] AVISO: 'userId' não encontrado para a assinatura ${subscriptionId} em 'invoice.payment_succeeded'. Pagamento não será registrado.`
+          );
+          break;
+        }
+        // --- FIM DO NOVO BLOCO ---
         
         const priceId = invoice.lines.data[0]?.price?.id || subscription.items.data[0]?.price?.id || null;
         const planId = (await mapPriceToPlan(priceId)) || ('plano_mensal' as PlanId);
