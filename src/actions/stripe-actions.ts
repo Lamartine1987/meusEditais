@@ -98,7 +98,8 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
     const highestPlan = [...finalActivePlans].sort((a, b) => {
         const rankA = planRank[a.planId as PlanId] ?? 0;
-        const rankB = rankB - rankA;
+        const rankB = planRank[b.planId as PlanId] ?? 0;
+        return rankB - rankA;
     })[0] ?? null;
     
     const currentPaymentHistory: PaymentRecord[] = currentUserData.paymentHistory || [];
