@@ -142,7 +142,6 @@ async function handleSubscriptionCreatedOrUpdated(
 
     if (!userId) {
         console.log(`[handleSubscriptionUpdate] LOG: 'userId' ausente. Buscando checkout.session para a assinatura ${subscription.id}...`);
-        // Se a sessão de checkout não foi passada, tente buscá-la.
         if (!checkoutSession) {
             try {
                 const stripe = await getStripeClient();
@@ -157,7 +156,6 @@ async function handleSubscriptionCreatedOrUpdated(
                 console.error('[handleSubscriptionUpdate] ERRO: Falha ao buscar sessão para recuperar metadados:', e.message);
             }
         }
-        // Agora, com a sessão (seja a passada ou a buscada), tente obter o userId
         if (checkoutSession) {
             userId = checkoutSession.metadata?.userId;
             console.log(`[handleSubscriptionUpdate] LOG: 'userId' recuperado da sessão de checkout: ${userId}`);
@@ -231,59 +229,6 @@ async function handleSubscriptionCreatedOrUpdated(
       hasHadFreeTrial: true,
     };
 
-    // --- CORREÇÃO: ADICIONA REGISTRO DE PAGAMENTO NA CRIAÇÃO DA ASSINATURA ---
-    // A condição de ser o primeiro pagamento da assinatura é `created === current_period_start`
-    const isInitialPayment = subscription.created === subscription.current_period_start;
-    if ((subscription.status === 'active' || subscription.status === 'trialing') && isInitialPayment) {
-        console.log(`[handleSubscriptionUpdate] LOG: Detectada criação de assinatura ou início de trial pago. Tentando registrar pagamento inicial para Sub ID: ${subscription.id}`);
-        let paymentAmount = 0;
-        let paymentId = subscription.id;
-        
-        // Prioridade 1: Usar dados da sessão de checkout, se disponível. É a fonte mais confiável.
-        if (checkoutSession && checkoutSession.amount_total !== null) {
-            paymentAmount = checkoutSession.amount_total;
-            paymentId = checkoutSession.id;
-            console.log(`[handleSubscriptionUpdate] LOG: Usando dados do checkoutSession fornecido. Valor: ${paymentAmount}, ID: ${paymentId}`);
-        } 
-        // Prioridade 2: Usar a fatura mais recente associada à assinatura.
-        else if (subscription.latest_invoice) {
-            console.log(`[handleSubscriptionUpdate] LOG: checkoutSession ausente ou sem valor. Usando 'latest_invoice' da assinatura.`);
-            const invoice = typeof subscription.latest_invoice === 'string' 
-                ? await (await getStripeClient()).invoices.retrieve(subscription.latest_invoice) 
-                : subscription.latest_invoice;
-            if (invoice && invoice.amount_paid > 0) {
-              paymentAmount = invoice.amount_paid;
-              paymentId = invoice.id;
-              console.log(`[handleSubscriptionUpdate] LOG: Usando dados da fatura. Valor: ${paymentAmount}, ID: ${paymentId}`);
-            }
-        }
-        
-        if (paymentAmount > 0) {
-            console.log(`[handleSubscriptionUpdate] LOG: Valor do pagamento > 0. Criando registro de pagamento.`);
-            const newPaymentRecord: PaymentRecord = {
-                id: paymentId,
-                date: formatISO(new Date(subscription.created * 1000)),
-                amount: paymentAmount,
-                planId: planId,
-                description: `Assinatura ${getPlanDisplayName(planId)}`,
-            };
-            
-            const currentPaymentHistory: PaymentRecord[] = currentUserData.paymentHistory || [];
-            if (!currentPaymentHistory.some(p => p.id === newPaymentRecord.id)) {
-                console.log(`[handleSubscriptionUpdate] LOG: Registro de pagamento não existe. Adicionando ao histórico.`);
-                // Garante que o payload do paymentHistory seja atualizado
-                updatePayload.paymentHistory = [newPaymentRecord, ...(updatePayload.paymentHistory || currentPaymentHistory)];
-            } else {
-                 console.log(`[handleSubscriptionUpdate] AVISO: Registro de pagamento com ID ${newPaymentRecord.id} já existe no histórico. Pulando.`);
-            }
-        } else {
-            console.log(`[handleSubscriptionUpdate] LOG: Valor do pagamento é 0 (trial sem custo inicial). Nenhum registro de pagamento criado.`);
-        }
-    } else {
-        console.log(`[handleSubscriptionUpdate] LOG: Não é a criação da assinatura (pagamento recorrente ou outra atualização). Pulando lógica de registro de pagamento inicial.`);
-    }
-    // --- FIM DA CORREÇÃO ---
-
     console.log(`[handleSubscriptionUpdate] LOG: Payload final para ${userId}:`, JSON.stringify(updatePayload, null, 2));
     await userFirebaseRef.update(updatePayload);
     console.log(`[handleSubscriptionUpdate] SUCESSO: Usuário ${userId} atualizado no DB.`);
@@ -339,50 +284,57 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const invoice = event.data.object as Stripe.Invoice;
         const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
         
-        if (subscriptionId) {
-            const stripe = await getStripeClient();
-            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-            
-            const userId = subscription.metadata.userId;
-            const planId = await mapPriceToPlan(invoice.lines.data[0]?.price?.id) || 'plano_mensal';
-
-            if (userId) {
-                console.log(`[Webhook] LOG: Recebido 'invoice.payment_succeeded' para sub ${subscriptionId} do usuário ${userId}. Razão: ${invoice.billing_reason}`);
-                
-                if (invoice.billing_reason !== 'subscription_create') {
-                    console.log(`[Webhook] LOG: Não é a criação da assinatura. Registrando pagamento recorrente.`);
-                    const newPaymentRecord: PaymentRecord = {
-                        id: invoice.id,
-                        date: formatISO(new Date(invoice.created * 1000)),
-                        amount: invoice.amount_paid,
-                        planId: planId,
-                        description: invoice.billing_reason === 'subscription_cycle' ? 'Renovação Mensal' : 'Pagamento de Fatura',
-                    };
-
-                    const userRef = adminDb.ref(`users/${userId}`);
-                    const userSnapshot = await userRef.get();
-                    const userData = userSnapshot.val() || {};
-                    const currentPaymentHistory: PaymentRecord[] = userData.paymentHistory || [];
-
-                    if (!currentPaymentHistory.some(p => p.id === newPaymentRecord.id)) {
-                      console.log(`[Webhook] LOG: Adicionando novo registro de pagamento recorrente ao histórico.`);
-                      const finalPaymentHistory = [newPaymentRecord, ...currentPaymentHistory];
-                      await userRef.update({ paymentHistory: finalPaymentHistory });
-                    } else {
-                      console.log(`[Webhook] AVISO: Pagamento recorrente com ID ${newPaymentRecord.id} já existe. Pulando.`);
-                    }
-                } else {
-                   console.log(`[Webhook] LOG: É a criação da assinatura. O pagamento inicial deve ser tratado por 'handleSubscriptionCreatedOrUpdated'. Pulando.`);
-                }
-                
-                // Sempre atualiza o status da assinatura para refletir o novo período de validade
-                await handleSubscriptionCreatedOrUpdated(subscription); 
-            } else {
-              console.warn(`[Webhook] AVISO: 'userId' não encontrado nos metadados da assinatura ${subscriptionId} para 'invoice.payment_succeeded'.`);
-            }
-        } else {
-           console.log(`[Webhook] LOG: 'invoice.payment_succeeded' recebido sem um ID de assinatura. Ignorando.`);
+        if (!subscriptionId) {
+            console.log(`[Webhook] LOG: 'invoice.payment_succeeded' recebido sem um ID de assinatura (provavelmente pagamento único avulso). Ignorando, pois será tratado pelo 'checkout.session.completed'.`);
+            break;
         }
+
+        const stripe = await getStripeClient();
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+        
+        const userId = subscription.metadata.userId;
+        if (!userId) {
+            console.warn(`[Webhook] AVISO: 'userId' não encontrado nos metadados da assinatura ${subscriptionId} para 'invoice.payment_succeeded'.`);
+            break;
+        }
+        
+        const priceId = invoice.lines.data[0]?.price?.id || subscription.items.data[0]?.price?.id || null;
+        const planId = (await mapPriceToPlan(priceId)) || ('plano_mensal' as PlanId);
+
+        console.log(`[Webhook] LOG: 'invoice.payment_succeeded' para sub ${subscriptionId} do usuário ${userId}. Razão: ${invoice.billing_reason}`);
+        
+        let description: string;
+        if (invoice.billing_reason === 'subscription_create') {
+            description = `Assinatura ${getPlanDisplayName(planId)}`;
+        } else if (invoice.billing_reason === 'subscription_cycle') {
+            description = `Renovação Mensal`;
+        } else {
+            description = 'Pagamento de Fatura';
+        }
+
+        const newPaymentRecord: PaymentRecord = {
+            id: invoice.id,
+            date: formatISO(new Date(invoice.created * 1000)),
+            amount: invoice.amount_paid,
+            planId: planId,
+            description: description,
+        };
+
+        const userRef = adminDb.ref(`users/${userId}`);
+        const userSnapshot = await userRef.get();
+        const userData = userSnapshot.val() || {};
+        const currentPaymentHistory: PaymentRecord[] = userData.paymentHistory || [];
+
+        if (!currentPaymentHistory.some(p => p.id === newPaymentRecord.id)) {
+          console.log(`[Webhook] LOG: Adicionando novo registro de pagamento (billing_reason=${invoice.billing_reason}) ao histórico.`);
+          const finalPaymentHistory = [newPaymentRecord, ...currentPaymentHistory];
+          await userRef.update({ paymentHistory: finalPaymentHistory });
+        } else {
+          console.log(`[Webhook] AVISO: Pagamento com ID ${newPaymentRecord.id} já existe. Pulando.`);
+        }
+        
+        // Sempre atualiza o status da assinatura para refletir o novo período de validade
+        await handleSubscriptionCreatedOrUpdated(subscription); 
         break;
       }
 
@@ -421,5 +373,3 @@ function getPlanDisplayName(planId: "plano_mensal" | "plano_cargo" | "plano_edit
         default: return 'Plano';
     }
 }
-
-    
