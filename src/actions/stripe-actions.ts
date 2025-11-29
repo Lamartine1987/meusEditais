@@ -39,11 +39,11 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
             const stripe = await getStripeClient();
             const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
             try {
-                const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+                const subscription = await stripe.subscriptions.retrieve(subscriptionId, { expand: ['latest_invoice'] });
                 await handleSubscriptionCreatedOrUpdated(subscription, {
                     userId: session.metadata?.userId,
                     planId: session.metadata?.planId as PlanId | undefined,
-                });
+                }, session); // Pass the session object
             } catch (error) {
                 console.error(`[handleCheckoutSessionCompleted] Erro ao processar assinatura antecipadamente para ${subscriptionId}:`, error);
             }
@@ -124,7 +124,8 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
 
 async function handleSubscriptionCreatedOrUpdated(
     subscription: Stripe.Subscription,
-    fallback?: { userId?: string; planId?: PlanId }
+    fallback?: { userId?: string; planId?: PlanId },
+    checkoutSession?: Stripe.Checkout.Session | null
 ) {
     let userId = subscription.metadata?.userId || fallback?.userId;
     let planId = (subscription.metadata?.planId as PlanId | undefined) || fallback?.planId;
@@ -210,6 +211,44 @@ async function handleSubscriptionCreatedOrUpdated(
       hasHadFreeTrial: true,
     };
 
+    // --- CORREÇÃO: ADICIONA REGISTRO DE PAGAMENTO NA CRIAÇÃO DA ASSINATURA ---
+    if (subscription.status === 'trialing' || (subscription.status === 'active' && subscription.created === subscription.current_period_start)) {
+        let paymentAmount = 0;
+        let paymentId = subscription.id;
+        
+        // Prefer checkout session for more accurate data on the first payment
+        if (checkoutSession && checkoutSession.amount_total) {
+            paymentAmount = checkoutSession.amount_total;
+            paymentId = checkoutSession.id;
+        } else if (subscription.latest_invoice) {
+            const invoice = typeof subscription.latest_invoice === 'string' 
+                ? await (await getStripeClient()).invoices.retrieve(subscription.latest_invoice) 
+                : subscription.latest_invoice;
+            if (invoice && invoice.amount_paid) {
+              paymentAmount = invoice.amount_paid;
+              paymentId = invoice.id;
+            }
+        }
+        
+        // Only add payment record if there was an actual charge
+        if (paymentAmount > 0) {
+            const newPaymentRecord: PaymentRecord = {
+                id: paymentId,
+                date: formatISO(new Date(subscription.created * 1000)),
+                amount: paymentAmount,
+                planId: planId,
+                description: `Início de Assinatura (${getPlanDisplayName(planId)})`,
+            };
+            
+            const currentPaymentHistory: PaymentRecord[] = currentUserData.paymentHistory || [];
+            if (!currentPaymentHistory.some(p => p.id === newPaymentRecord.id)) {
+                updatePayload.paymentHistory = [newPaymentRecord, ...currentPaymentHistory];
+            }
+        }
+    }
+    // --- FIM DA CORREÇÃO ---
+
+
     console.log(`[handleSubscriptionUpdate] Payload final para ${userId}:`, JSON.stringify(updatePayload));
     await userFirebaseRef.update(updatePayload);
     console.log(`[handleSubscriptionUpdate] SUCESSO: Usuário ${userId} atualizado.`);
@@ -273,23 +312,27 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
 
             if (userId) {
                 console.log(`[Webhook] Pagamento de fatura bem-sucedido para ${subscriptionId} do usuário ${userId}.`);
-
-                const newPaymentRecord: PaymentRecord = {
-                    id: invoice.id,
-                    date: formatISO(new Date(invoice.created * 1000)),
-                    amount: invoice.amount_paid,
-                    planId: planId,
-                    description: invoice.billing_reason === 'subscription_cycle' ? 'Renovação Mensal' : 'Início de Assinatura',
-                };
-
-                const userRef = adminDb.ref(`users/${userId}`);
-                const userSnapshot = await userRef.get();
-                const userData = userSnapshot.val() || {};
-                const currentPaymentHistory: PaymentRecord[] = userData.paymentHistory || [];
-                const finalPaymentHistory = [newPaymentRecord, ...currentPaymentHistory];
                 
-                // Update payment history AND plan validity period
-                await userRef.update({ paymentHistory: finalPaymentHistory });
+                if (invoice.billing_reason !== 'subscription_create') { // Don't double-log the initial payment
+                    const newPaymentRecord: PaymentRecord = {
+                        id: invoice.id,
+                        date: formatISO(new Date(invoice.created * 1000)),
+                        amount: invoice.amount_paid,
+                        planId: planId,
+                        description: invoice.billing_reason === 'subscription_cycle' ? 'Renovação Mensal' : 'Pagamento de Fatura',
+                    };
+
+                    const userRef = adminDb.ref(`users/${userId}`);
+                    const userSnapshot = await userRef.get();
+                    const userData = userSnapshot.val() || {};
+                    const currentPaymentHistory: PaymentRecord[] = userData.paymentHistory || [];
+
+                    if (!currentPaymentHistory.some(p => p.id === newPaymentRecord.id)) {
+                      const finalPaymentHistory = [newPaymentRecord, ...currentPaymentHistory];
+                      await userRef.update({ paymentHistory: finalPaymentHistory });
+                    }
+                }
+                
                 await handleSubscriptionCreatedOrUpdated(subscription); 
             }
         }
@@ -320,4 +363,14 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
   }
 
   return new Response(JSON.stringify({ received: true }), { status: 200 });
+}
+
+function getPlanDisplayName(planId: "plano_mensal" | "plano_cargo" | "plano_edital" | "plano_trial"): string {
+    switch(planId) {
+        case 'plano_mensal': return 'Plano Mensal';
+        case 'plano_cargo': return 'Plano Cargo';
+        case 'plano_edital': return 'Plano Edital';
+        case 'plano_trial': return 'Plano Trial';
+        default: return 'Plano';
+    }
 }
