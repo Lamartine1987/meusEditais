@@ -327,7 +327,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
     console.log(`[handleStripeWebhook] LOG: Evento verificado e construído: ${event.type} (ID: ${event.id})`);
 
-  } catch (err: any) {
+  } catch (err: any) => {
     console.error(`[handleStripeWebhook] ERRO na verificação da assinatura do webhook: ${err.message}`);
     return new Response(`Erro de Webhook: ${err.message}`, { status: 400 });
   }
@@ -358,86 +358,101 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
 
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId = typeof invoice.subscription === 'string' ? invoice.subscription : invoice.subscription?.id;
-        
+        const subscriptionId =
+          typeof invoice.subscription === 'string'
+            ? invoice.subscription
+            : invoice.subscription?.id || null;
+      
+        console.log(
+          `[Webhook] LOG: invoice.payment_succeeded. invoice.id=${invoice.id}, subscriptionId=${subscriptionId}, billing_reason=${invoice.billing_reason}, amount_paid=${invoice.amount_paid}`
+        );
+      
+        // Se não tiver assinatura vinculada, deve ser pagamento avulso (cargo/edital),
+        // que você já trata em checkout.session.completed. Então só sai.
         if (!subscriptionId) {
-            console.log(`[Webhook] LOG: 'invoice.payment_succeeded' recebido sem um ID de assinatura (provavelmente pagamento único avulso). Ignorando, pois será tratado pelo 'checkout.session.completed'.`);
-            break;
-        }
-
-        const stripe = await getStripeClient();
-        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-        
-        // --- NOVO: recuperar userId mesmo se não estiver nos metadados da subscription ---
-        let userId = (subscription.metadata?.userId as string | undefined) || undefined;
-
-        if (!userId) {
           console.log(
-            `[Webhook] LOG: 'userId' ausente na assinatura ${subscriptionId}. Tentando recuperar via checkout.session...`
-          );
-          const sessions = await stripe.checkout.sessions.list({
-            subscription: subscriptionId,
-            limit: 1,
-          });
-
-          if (sessions.data.length > 0) {
-            const checkoutSession = sessions.data[0];
-            userId = checkoutSession.metadata?.userId as string | undefined;
-            console.log(
-              `[Webhook] LOG: 'userId' recuperado da checkout.session ${checkoutSession.id}: ${userId}`
-            );
-          } else {
-            console.log(
-              `[Webhook] AVISO: Nenhuma checkout.session encontrada para a assinatura ${subscriptionId}.`
-            );
-          }
-        }
-
-        if (!userId) {
-          console.warn(
-            `[Webhook] AVISO: 'userId' não encontrado para a assinatura ${subscriptionId} em 'invoice.payment_succeeded'. Pagamento não será registrado.`
+            `[Webhook] LOG: invoice.payment_succeeded sem subscriptionId. Provavelmente pagamento único já tratado em checkout.session.completed.`
           );
           break;
         }
-        // --- FIM DO NOVO BLOCO ---
-        
-        const priceId = invoice.lines.data[0]?.price?.id || subscription.items.data[0]?.price?.id || null;
-        const planId = (await mapPriceToPlan(priceId)) || ('plano_mensal' as PlanId);
-
-        console.log(`[Webhook] LOG: 'invoice.payment_succeeded' para sub ${subscriptionId} do usuário ${userId}. Razão: ${invoice.billing_reason}`);
-        
+      
+        const stripe = await getStripeClient();
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      
+        // --- Recupera userId e planId da assinatura ---
+        const userId = subscription.metadata?.userId as string | undefined;
+        let planId =
+          ((subscription.metadata?.planId as PlanId | undefined) ??
+            (await mapPriceToPlan(
+              invoice.lines.data[0]?.price?.id ||
+                subscription.items.data[0]?.price?.id ||
+                null,
+            )) ??
+            'plano_mensal') as PlanId;
+      
+        if (!userId) {
+          console.warn(
+            `[Webhook] AVISO: 'userId' não encontrado nos metadados da assinatura ${subscriptionId} para 'invoice.payment_succeeded'. Histórico de faturamento não será atualizado.`
+          );
+          break;
+        }
+      
+        console.log(
+          `[Webhook] LOG: Registrando pagamento para userId=${userId}, planId=${planId}.`
+        );
+      
+        // --- Monta descrição amigável ---
         let description: string;
         if (invoice.billing_reason === 'subscription_create') {
-            description = `Assinatura ${getPlanDisplayName(planId)}`;
+          description = `Assinatura ${getPlanDisplayName(planId)}`;
         } else if (invoice.billing_reason === 'subscription_cycle') {
-            description = `Renovação Mensal`;
+          description = `Renovação Assinatura ${getPlanDisplayName(planId)}`;
         } else {
-            description = 'Pagamento de Fatura';
+          description = 'Pagamento de Fatura';
         }
-
+      
         const newPaymentRecord: PaymentRecord = {
-            id: invoice.id,
-            date: formatISO(new Date(invoice.created * 1000)),
-            amount: invoice.amount_paid,
-            planId: planId,
-            description: description,
+          id: invoice.id,
+          date: formatISO(new Date(invoice.created * 1000)),
+          amount: invoice.amount_paid,
+          planId,
+          description,
         };
-
+      
         const userRef = adminDb.ref(`users/${userId}`);
         const userSnapshot = await userRef.get();
         const userData = userSnapshot.val() || {};
-        const currentPaymentHistory: PaymentRecord[] = userData.paymentHistory || [];
-
-        if (!currentPaymentHistory.some(p => p.id === newPaymentRecord.id)) {
-          console.log(`[Webhook] LOG: Adicionando novo registro de pagamento (billing_reason=${invoice.billing_reason}) ao histórico.`);
+      
+        // Normaliza paymentHistory (array ou objeto ou inexistente)
+        const rawHistory = userData.paymentHistory || [];
+        const currentPaymentHistory: PaymentRecord[] = Array.isArray(rawHistory)
+          ? rawHistory
+          : Object.values(rawHistory);
+      
+        if (!currentPaymentHistory.some((p) => p.id === newPaymentRecord.id)) {
+          console.log(
+            `[Webhook] LOG: Adicionando novo registro de pagamento ao histórico.`
+          );
           const finalPaymentHistory = [newPaymentRecord, ...currentPaymentHistory];
           await userRef.update({ paymentHistory: finalPaymentHistory });
         } else {
-          console.log(`[Webhook] AVISO: Pagamento com ID ${newPaymentRecord.id} já existe. Pulando.`);
+          console.log(
+            `[Webhook] AVISO: Pagamento com ID ${newPaymentRecord.id} já existe no histórico. Pulando.`
+          );
         }
-        
-        // Sempre atualiza o status da assinatura para refletir o novo período de validade
-        await handleSubscriptionCreatedOrUpdated(subscription); 
+      
+        // Atualiza status/validade da assinatura (mesmo que ainda existam erros nessa função,
+        // o histórico já foi gravado acima).
+        try {
+          await handleSubscriptionCreatedOrUpdated(subscription);
+        } catch (err: any) {
+          console.error(
+            `[Webhook] ERRO ao atualizar assinatura após invoice.payment_succeeded (${subscriptionId}):`,
+            err?.message
+          );
+          // NÃO relança o erro para não estragar o 200 do invoice.payment_succeeded.
+        }
+      
         break;
       }
 
