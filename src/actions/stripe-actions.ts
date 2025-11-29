@@ -379,8 +379,48 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const stripe = await getStripeClient();
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
       
-        // --- Recupera userId e planId da assinatura ---
-        const userId = subscription.metadata?.userId as string | undefined;
+        // 1) tenta pegar userId direto dos metadados da assinatura
+        let userId = subscription.metadata?.userId as string | undefined;
+
+        // 2) se não tiver, tenta recuperar pela checkout.session (fallback)
+        if (!userId) {
+          try {
+            console.log(
+              `[invoice.payment_succeeded] LOG: userId ausente em subscription.metadata. Buscando checkout.session para ${subscriptionId}...`
+            );
+            const sessions = await stripe.checkout.sessions.list({
+              subscription: subscriptionId,
+              limit: 1,
+            });
+      
+            if (sessions.data.length > 0) {
+              const cs = sessions.data[0];
+              userId = cs.metadata?.userId as string | undefined;
+              console.log(
+                `[invoice.payment_succeeded] LOG: userId recuperado da checkout.session ${cs.id}: ${userId}`
+              );
+            } else {
+              console.log(
+                `[invoice.payment_succeeded] AVISO: Nenhuma checkout.session encontrada para assinatura ${subscriptionId}.`
+              );
+            }
+          } catch (e: any) {
+            console.error(
+              `[invoice.payment_succeeded] ERRO ao buscar checkout.session para recuperar userId:`,
+              e.message
+            );
+          }
+        }
+      
+        // 3) se mesmo assim não tiver userId, desiste (mas agora isso é bem menos provável)
+        if (!userId) {
+          console.warn(
+            `[invoice.payment_succeeded] AVISO: 'userId' não encontrado nem na assinatura nem na sessão de checkout para ${subscriptionId}. Histórico de faturamento NÃO será atualizado.`
+          );
+          break;
+        }
+      
+        // 4) determina o planId (metadado ou mapeando o price)
         let planId =
           ((subscription.metadata?.planId as PlanId | undefined) ??
             (await mapPriceToPlan(
@@ -389,13 +429,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
                 null,
             )) ??
             'plano_mensal') as PlanId;
-      
-        if (!userId) {
-          console.warn(
-            `[Webhook] AVISO: 'userId' não encontrado nos metadados da assinatura ${subscriptionId} para 'invoice.payment_succeeded'. Histórico de faturamento não será atualizado.`
-          );
-          break;
-        }
       
         console.log(
           `[Webhook] LOG: Registrando pagamento para userId=${userId}, planId=${planId}.`
@@ -423,7 +456,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const userSnapshot = await userRef.get();
         const userData = userSnapshot.val() || {};
       
-        // Normaliza paymentHistory (array ou objeto ou inexistente)
         const rawHistory = userData.paymentHistory || [];
         const currentPaymentHistory: PaymentRecord[] = Array.isArray(rawHistory)
           ? rawHistory
@@ -441,8 +473,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           );
         }
       
-        // Atualiza status/validade da assinatura (mesmo que ainda existam erros nessa função,
-        // o histórico já foi gravado acima).
+        // (resto do try/catch com handleSubscriptionCreatedOrUpdated permanece igual)
         try {
           await handleSubscriptionCreatedOrUpdated(subscription);
         } catch (err: any) {
@@ -450,7 +481,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             `[Webhook] ERRO ao atualizar assinatura após invoice.payment_succeeded (${subscriptionId}):`,
             err?.message
           );
-          // NÃO relança o erro para não estragar o 200 do invoice.payment_succeeded.
         }
       
         break;
@@ -491,3 +521,5 @@ function getPlanDisplayName(planId: "plano_mensal" | "plano_cargo" | "plano_edit
         default: return 'Plano';
     }
 }
+
+    
