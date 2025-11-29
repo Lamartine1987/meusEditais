@@ -17,7 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package, DollarSign, Clock, Trash2, Repeat, Search as SearchIcon, CalendarPlus, BadgeInfo } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
-import type { PlanId, Edital as EditalType, Cargo as CargoType, PlanDetails } from '@/types';
+import type { PlanId, Edital as EditalType, Cargo as CargoType, PlanDetails, PaymentRecord } from '@/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +36,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from '@/components/ui/switch';
 import { isWithinGracePeriod } from '@/lib/utils';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 
 const profileSchema = z.object({
@@ -604,6 +606,33 @@ export default function ProfilePage() {
                     </ul>
                 ) : (
                     <p className="text-sm text-muted-foreground text-center">Nenhum plano anterior encontrado.</p>
+                )}
+            </CardContent>
+        </Card>
+
+        <Card className="shadow-lg rounded-xl bg-card">
+            <CardHeader>
+                <CardTitle className="text-xl flex items-center"><DollarSign className="mr-3 h-6 w-6 text-primary"/>Histórico de Faturamento</CardTitle>
+                <CardDescription>Seu histórico de pagamentos e transações.</CardDescription>
+            </CardHeader>
+            <Separator />
+            <CardContent className="pt-6 space-y-4">
+                 {(user.paymentHistory && user.paymentHistory.length > 0) ? (
+                    <ul className="space-y-3">
+                        {user.paymentHistory.map((payment: PaymentRecord) => (
+                            <li key={payment.id} className="p-3 border rounded-md text-sm bg-muted/30 flex justify-between items-center">
+                                <div>
+                                    <p className="font-semibold">{payment.description}</p>
+                                    <p className="text-xs text-muted-foreground">{format(parseISO(payment.date), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</p>
+                                </div>
+                                <span className="font-mono font-semibold text-lg text-foreground">
+                                    R$ {(payment.amount / 100).toFixed(2).replace('.', ',')}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="text-sm text-muted-foreground text-center">Nenhum registro de pagamento encontrado.</p>
                 )}
             </CardContent>
         </Card>
