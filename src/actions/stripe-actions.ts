@@ -327,7 +327,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
     console.log(`[handleStripeWebhook] LOG: Evento verificado e construído: ${event.type} (ID: ${event.id})`);
 
-  } catch (err: any) => {
+  } catch (err: any) {
     console.error(`[handleStripeWebhook] ERRO na verificação da assinatura do webhook: ${err.message}`);
     return new Response(`Erro de Webhook: ${err.message}`, { status: 400 });
   }
