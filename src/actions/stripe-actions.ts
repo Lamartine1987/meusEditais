@@ -40,7 +40,6 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
             if (session.subscription) {
                 const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
                 const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-                // Passa a session completa para ter todos os metadados
                 await handleSubscriptionCreatedOrUpdated(subscription, undefined, session);
                 console.log(`[handleCheckoutSessionCompleted] LOG: Processamento antecipado para ${subscriptionId} concluído.`);
             } else {
@@ -395,46 +394,50 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         }
 
         // --- 3) Descobrir userId com várias fontes ---
-        let userId: string | undefined =
-          (subscription?.metadata?.userId as string | undefined) ?? undefined;
+        let userId: string | undefined;
 
-        if (!userId) {
-          // parent.subscription_details.metadata.userId
-          const parent: any = (invoice as any).parent;
-          userId = parent?.subscription_details?.metadata?.userId as
-            | string
-            | undefined;
-
-          // lines[0].metadata.userId
-          if (!userId) {
-            const firstLine: any = invoice.lines?.data?.[0] ?? null;
-            userId = firstLine?.metadata?.userId as string | undefined;
-          }
+        // Fonte 1: Metadados da própria assinatura (ideal)
+        if (subscription?.metadata?.userId) {
+          userId = subscription.metadata.userId;
+          console.log(`[Webhook] userId encontrado em subscription.metadata: ${userId}`);
         }
 
-        // Fallback extra: procurar checkout.session se ainda não tiver userId e tivermos subscriptionId
-        if (!userId && subscriptionId) {
+        // Fonte 2: Metadados do Cliente Stripe (fallback mais robusto)
+        if (!userId && typeof invoice.customer === 'string') {
           try {
-            console.log(
-              `[invoice.payment_succeeded] LOG: userId ausente em invoice/subscription. Buscando checkout.session para ${subscriptionId}...`
-            );
-            const sessions = await stripe.checkout.sessions.list({
-              subscription: subscriptionId,
-              limit: 1,
-            });
-            if (sessions.data.length > 0) {
-              const cs = sessions.data[0];
-              userId = cs.metadata?.userId as string | undefined;
+            const customer = await stripe.customers.retrieve(invoice.customer);
+            if (customer && !customer.deleted) {
+              userId = customer.metadata?.firebaseUID;
+              if(userId) console.log(`[Webhook] userId encontrado em customer.metadata.firebaseUID: ${userId}`);
+            }
+          } catch (customerError: any) {
+            console.error(`[Webhook] Erro ao buscar cliente Stripe ${invoice.customer}:`, customerError.message);
+          }
+        }
+        
+        // Fonte 3: Sessão de Checkout original (fallback final, principalmente para o primeiro pagamento)
+        if (!userId && subscriptionId) {
+            try {
               console.log(
-                `[invoice.payment_succeeded] LOG: userId recuperado da checkout.session ${cs.id}: ${userId}`
+                `[invoice.payment_succeeded] LOG: userId ausente. Buscando checkout.session para ${subscriptionId}...`
+              );
+              const sessions = await stripe.checkout.sessions.list({
+                subscription: subscriptionId,
+                limit: 1,
+              });
+              if (sessions.data.length > 0) {
+                const cs = sessions.data[0];
+                userId = cs.metadata?.userId as string | undefined;
+                console.log(
+                  `[invoice.payment_succeeded] LOG: userId recuperado da checkout.session ${cs.id}: ${userId}`
+                );
+              }
+            } catch (e: any) {
+              console.error(
+                `[invoice.payment_succeeded] ERRO ao buscar checkout.session para recuperar userId:`,
+                e.message
               );
             }
-          } catch (e: any) {
-            console.error(
-              `[invoice.payment_succeeded] ERRO ao buscar checkout.session para recuperar userId:`,
-              e.message
-            );
-          }
         }
 
         if (!userId) {
@@ -447,10 +450,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         // --- 4) Descobrir planId (subscription.metadata, invoice.parent, line.metadata, price) ---
         let planId: PlanId =
           ((subscription?.metadata?.planId as PlanId | undefined) ??
-            ((invoice as any).parent?.subscription_details?.metadata?.planId as
-              PlanId | undefined) ??
-            ((invoice.lines?.data?.[0] as any)?.metadata?.planId as
-              PlanId | undefined) ??
             ((await mapPriceToPlan(
               invoice.lines.data[0]?.price?.id ||
                 subscription?.items.data[0]?.price?.id ||
