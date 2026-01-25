@@ -34,22 +34,47 @@ async function mapPriceToPlan(priceId: string | null | undefined): Promise<PlanI
 
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
     if (session.mode === 'subscription') {
-        console.log(`[handleCheckoutSessionCompleted] LOG: Sessão de assinatura (ID: ${session.id}) detectada. Tentando processar antecipadamente...`);
-        try {
-            const stripe = await getStripeClient();
-            if (session.subscription) {
-                const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
-                const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-                await handleSubscriptionCreatedOrUpdated(subscription, undefined, session);
-                console.log(`[handleCheckoutSessionCompleted] LOG: Processamento antecipado para ${subscriptionId} concluído.`);
-            } else {
-                 console.log(`[handleCheckoutSessionCompleted] AVISO: session.subscription está nulo para a sessão ${session.id}. O processamento dependerá do webhook 'customer.subscription.created'.`);
-            }
-        } catch (error) {
-            console.error(`[handleCheckoutSessionCompleted] ERRO: Falha ao processar assinatura antecipadamente para a sessão ${session.id}:`, error);
-        }
-        return;
+    console.log(
+      `[handleCheckoutSessionCompleted] LOG: Sessão de assinatura (ID: ${session.id}) detectada. Tentando processar antecipadamente...`
+    );
+
+    try {
+      const stripe = await getStripeClient();
+
+      if (session.subscription) {
+        const subscriptionId =
+          typeof session.subscription === 'string'
+            ? session.subscription
+            : session.subscription.id;
+
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+        await handleSubscriptionCreatedOrUpdated(
+          subscription,
+          {
+            userId: session.metadata?.userId,
+            planId: session.metadata?.planId as PlanId | undefined,
+          },
+          session
+        );
+
+        console.log(
+          `[handleCheckoutSessionCompleted] LOG: Processamento antecipado para ${subscriptionId} concluído.`
+        );
+      } else {
+        console.log(
+          `[handleCheckoutSessionCompleted] AVISO: session.subscription está nulo para a sessão ${session.id}. O processamento dependerá do webhook 'customer.subscription.created'.`
+        );
+      }
+    } catch (error) {
+      console.error(
+        `[handleCheckoutSessionCompleted] ERRO: Falha ao processar assinatura antecipadamente para a sessão ${session.id}:`,
+        error
+      );
     }
+
+    return;
+  }
     
     const userId = session.metadata?.userId;
     const planId = session.metadata?.planId as PlanId | undefined;
@@ -226,62 +251,43 @@ async function handleSubscriptionCreatedOrUpdated(
         : null;
 
     const planDetails: PlanDetails = {
-      planId,
-      startDate: formatISO(new Date(subscription.created * 1000)),
-      expiryDate: formatISO(new Date(subscription.current_period_end * 1000)),
-      stripeSubscriptionId: subscription.id,
-      stripePaymentIntentId: null,
-      stripeCustomerId: stripeCustomerId,
-      status: effectiveStatus,
-    };
+  planId,
+  startDate: formatISO(new Date(subscription.created * 1000)),
+  expiryDate: formatISO(new Date(subscription.current_period_end * 1000)),
+  stripeSubscriptionId: subscription.id,
+  stripePaymentIntentId: null,
+  stripeCustomerId: stripeCustomerId,
+  status: effectiveStatus,
+};
 
-    // --- 3. Normaliza arrays vindos do Firebase (caso venham como objeto) ---
-    const toArray = <T>(value: any): T[] => {
-      if (!value) return [];
-      if (Array.isArray(value)) return value as T[];
-      // se veio como objeto { "0": {...}, "1": {...} }
-      return Object.values(value) as T[];
-    };
+// --- 3. Normaliza arrays vindos do Firebase (caso venham como objeto) ---
+const toArray = <T>(value: any): T[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value as T[];
+  return Object.values(value) as T[];
+};
 
-    let finalActivePlans: PlanDetails[] = toArray<PlanDetails>(
-      currentUserData.activePlans
-    );
-    let finalPlanHistory: PlanDetails[] = toArray<PlanDetails>(
-      currentUserData.planHistory
-    );
+let finalActivePlans: PlanDetails[] = toArray<PlanDetails>(currentUserData.activePlans);
+let finalPlanHistory: PlanDetails[] = toArray<PlanDetails>(currentUserData.planHistory);
 
-    const isTrulyInactive = ['canceled', 'unpaid', 'incomplete_expired'].includes(
-      subscription.status
-    );
+const isTrulyInactive = ['canceled', 'unpaid', 'incomplete_expired'].includes(subscription.status);
 
-    // Remove qualquer registro anterior dessa mesma assinatura
-    finalActivePlans = finalActivePlans.filter(
-      (p) => p.stripeSubscriptionId !== subscription.id
-    );
-    finalPlanHistory = finalPlanHistory.filter(
-      (p) => p.stripeSubscriptionId !== subscription.id
-    );
+// Remove qualquer registro anterior dessa mesma assinatura
+finalActivePlans = finalActivePlans.filter(p => p.stripeSubscriptionId !== subscription.id);
+finalPlanHistory = finalPlanHistory.filter(p => p.stripeSubscriptionId !== subscription.id);
 
-    if (isTrulyInactive) {
-      console.log(
-        `[handleSubscriptionUpdate] LOG: Assinatura ${subscription.id} está inativa. Movendo para o histórico.`
-      );
-      finalPlanHistory.unshift(planDetails);
-    } else {
-      console.log(
-        `[handleSubscriptionUpdate] LOG: Assinatura ${subscription.id} está ativa. Adicionando/atualizando nos planos ativos.`
-      );
-      finalActivePlans.push(planDetails);
-    }
+if (isTrulyInactive) {
+  console.log(`[handleSubscriptionUpdate] LOG: Assinatura ${subscription.id} está inativa. Movendo para o histórico.`);
+  finalPlanHistory.unshift(planDetails);
+} else {
+  console.log(`[handleSubscriptionUpdate] LOG: Assinatura ${subscription.id} está ativa. Adicionando/atualizando nos planos ativos.`);
+  finalActivePlans.push(planDetails);
+}
 
-    const sortedActive = [...finalActivePlans].filter((p) => p.status === 'active');
-
-    const highestPlan =
-      sortedActive.sort((a, b) => {
-        const rankA = planRank[a.planId as PlanId] ?? 0;
-        const rankB = planRank[b.planId as PlanId] ?? 0;
-        return rankB - rankA;
-      })[0] ?? null;
+const highestPlan =
+  [...finalActivePlans]
+    .filter(p => p.status === 'active')
+    .sort((a, b) => (planRank[b.planId as PlanId] ?? 0) - (planRank[a.planId as PlanId] ?? 0))[0] ?? null;
 
     const updatePayload: any = {
       activePlan: highestPlan?.planId ?? null,
@@ -505,7 +511,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
           try {
             await handleSubscriptionCreatedOrUpdated(subscription);
           } catch (err: any) {
-            console.error(
+            console.error(  
               `[Webhook] ERRO ao atualizar assinatura após invoice.payment_succeeded (${subscriptionId}):`,
               err?.message
             );
