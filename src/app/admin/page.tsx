@@ -347,8 +347,11 @@ export default function AdminPage() {
                                                     {u.isAdmin && (
                                                         <TooltipProvider>
                                                             <Tooltip>
-                                                                <TooltipTrigger>
-                                                                    <ShieldCheck className="h-5 w-5 text-green-600" />
+                                                                <TooltipTrigger asChild>
+                                                                    <Badge variant="outline" className="cursor-default border-green-600/40 bg-green-500/10 text-green-700">
+                                                                        <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+                                                                        Admin
+                                                                    </Badge>
                                                                 </TooltipTrigger>
                                                                 <TooltipContent>
                                                                     <p>Este usuário é um administrador.</p>
@@ -375,3 +378,5 @@ export default function AdminPage() {
         </PageWrapper>
     );
 }
+
+    
