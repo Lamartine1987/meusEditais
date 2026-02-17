@@ -1,5 +1,3 @@
-
-
 "use client";
 
 import { useEffect, useState, useCallback, ChangeEvent, useRef } from 'react';
@@ -114,7 +112,6 @@ export default function SubjectTopicsPage() {
   useEffect(() => {
     const fetchSubjectDetails = async () => {
       if (editalId && cargoId && subjectId) {
-        console.log(`[SubjectTopicsPage] Fetching details for editalId: ${editalId}, cargoId: ${cargoId}, subjectId: ${subjectId}`);
         setLoadingData(true);
         try {
           const response = await fetch('/api/editais');
@@ -122,19 +119,15 @@ export default function SubjectTopicsPage() {
             throw new Error('Falha ao buscar dados dos editais.');
           }
           const allEditais: Edital[] = await response.json();
-          console.log(`[SubjectTopicsPage] Received ${allEditais.length} editais from API.`);
           
           const foundEdital = allEditais.find(e => e.id === editalId);
           if (foundEdital) {
-            console.log(`[SubjectTopicsPage] Found edital: ${foundEdital.title}`);
             setEdital(foundEdital);
             const foundCargo = foundEdital.cargos?.find(c => c.id === cargoId);
             if (foundCargo) {
-              console.log(`[SubjectTopicsPage] Found cargo: ${foundCargo.name}`);
               setCargo(foundCargo);
               const foundSubject = foundCargo.subjects?.find(s => s.id === subjectId);
               if (foundSubject) {
-                console.log(`[SubjectTopicsPage] Found subject: ${foundSubject.name}`);
                 setSubject(foundSubject);
                 if (foundSubject.topics) {
                   const initialTimerStates: Record<string, { time: number; isRunning: boolean }> = {};
@@ -144,15 +137,12 @@ export default function SubjectTopicsPage() {
                   setTimerStates(initialTimerStates);
                 }
               } else {
-                 console.error(`[SubjectTopicsPage] Subject with id ${subjectId} not found in cargo ${cargoId}.`);
                  setSubject(null);
               }
             } else {
-              console.error(`[SubjectTopicsPage] Cargo with id ${cargoId} not found in edital ${editalId}.`);
               setCargo(null);
             }
           } else {
-            console.error(`[SubjectTopicsPage] Edital with id ${editalId} not found.`);
             setEdital(null);
           }
         } catch (error: any) {
@@ -208,8 +198,19 @@ export default function SubjectTopicsPage() {
   const handleToggleTopicCheckbox = useCallback(async (topicId: string) => {
     if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    const isCurrentlyStudied = user.studiedTopicIds?.includes(compositeTopicId);
+
     try {
       await toggleTopicStudyStatus(compositeTopicId);
+      
+      // Se estiver marcando como estudado (e não desmarcando), cria um log de 0 duração
+      // para registrar a atividade de hoje nas estatísticas de consistência.
+      if (!isCurrentlyStudied) {
+        await addStudyLog(compositeTopicId, { 
+          duration: 0, 
+          pdfName: "Tópico concluído (Checklist)" 
+        });
+      }
     } catch (error) {
       toast({
         title: "Erro ao atualizar status",
@@ -217,7 +218,7 @@ export default function SubjectTopicsPage() {
         variant: "destructive",
       });
     }
-  }, [user, editalId, cargoId, subjectId, toggleTopicStudyStatus, toast, hasAccess]);
+  }, [user, editalId, cargoId, subjectId, toggleTopicStudyStatus, addStudyLog, toast, hasAccess]);
 
   const handleTimerPlayPause = (topicId: string) => {
       if (!hasAccess) return;

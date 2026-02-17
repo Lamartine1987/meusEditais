@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
@@ -382,18 +381,42 @@ export default function EstatisticasPage() {
         aproveitamento: percentualAcertoMedio
     };
 
-    const allStudiedDays = new Set<string>();
+    // --- NOVA LÓGICA DE ATIVIDADE AGREGADA ---
+    // Consideramos como "estudado" qualquer dia que tenha:
+    // 1. Logs de estudo (cronômetro ou checklist)
+    // 2. Resolução de questões
+    // 3. Revisões concluídas
+    const allActivityDays = new Set<string>();
+    
     (user.studyLogs || []).forEach(log => {
         try {
             if (log.date) {
               const date = parseISO(log.date);
-              allStudiedDays.add(format(date, 'yyyy-MM-dd'));
+              allActivityDays.add(format(date, 'yyyy-MM-dd'));
+            }
+        } catch(e) {}
+    });
+
+    (user.questionLogs || []).forEach(log => {
+        try {
+            if (log.date) {
+              const date = parseISO(log.date);
+              allActivityDays.add(format(date, 'yyyy-MM-dd'));
+            }
+        } catch(e) {}
+    });
+
+    (user.revisionSchedules || []).forEach(log => {
+        try {
+            if (log.isReviewed && log.reviewedDate) {
+              const date = parseISO(log.reviewedDate);
+              allActivityDays.add(format(date, 'yyyy-MM-dd'));
             }
         } catch(e) {}
     });
 
     const currentYear = new Date().getFullYear();
-    const studiedDaysThisYear = Array.from(allStudiedDays).filter(dayStr => dayStr.startsWith(`${currentYear}-`));
+    const activityDaysThisYear = Array.from(allActivityDays).filter(dayStr => dayStr.startsWith(`${currentYear}-`));
     
     const calculateStreak = (days: Set<string>) => {
         let streak = 0;
@@ -413,7 +436,7 @@ export default function EstatisticasPage() {
         }
         return streak;
     };
-    const currentStreak = calculateStreak(allStudiedDays);
+    const currentStreak = calculateStreak(allActivityDays);
 
     const studyTimeByDay = filteredStudyLogs.reduce((acc, log) => {
       if (log.date) {
@@ -501,8 +524,8 @@ export default function EstatisticasPage() {
       performanceGeralQuestoes,
       totalPaginasLidas,
       materiaisEstudados,
-      studiedDaysThisYearCount: studiedDaysThisYear.length,
-      allStudiedDaysSet: allStudiedDays,
+      studiedDaysThisYearCount: activityDaysThisYear.length,
+      allActivityDaysSet: allActivityDays,
       currentStreak,
       chartData: {
         studyTimeData,
@@ -790,7 +813,7 @@ export default function EstatisticasPage() {
                         <CalendarIcon className="mr-2 h-5 w-5 text-primary" />
                         Consistência
                     </CardTitle>
-                    <CardDescription>Dias estudados este ano.</CardDescription>
+                    <CardDescription>Dias com atividade este ano.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div className="flex items-center justify-between p-4 rounded-lg bg-primary/10 border-l-4 border-primary">
@@ -810,11 +833,11 @@ export default function EstatisticasPage() {
                     <div className="flex justify-center border rounded-lg p-2 bg-muted/20">
                         <Calendar
                             mode="multiple"
-                            selected={Array.from(stats.allStudiedDaysSet).map(d => parseISO(d))}
+                            selected={Array.from(stats.allActivityDaysSet).map(d => parseISO(d))}
                             className="pointer-events-none"
                             locale={ptBR}
                             modifiers={{
-                                studied: (date) => stats.allStudiedDaysSet.has(format(date, 'yyyy-MM-dd'))
+                                studied: (date) => stats.allActivityDaysSet.has(format(date, 'yyyy-MM-dd'))
                             }}
                             modifiersClassNames={{
                                 studied: "bg-primary text-primary-foreground font-bold rounded-full"
