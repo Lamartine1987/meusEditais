@@ -6,12 +6,12 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Library, CheckCircle, Clock, CalendarCheck, AlertTriangle, FilterIcon, Target, BookOpen, Layers, PieChart as PieChartIcon, BookCopy, BarChartHorizontal, FileText } from 'lucide-react';
+import { Loader2, Library, CheckCircle, Clock, CalendarCheck, AlertTriangle, FilterIcon, Target, BookOpen, Layers, PieChart as PieChartIcon, BookCopy, BarChartHorizontal, FileText, Calendar as CalendarIcon, Flame } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { RevisionScheduleEntry, StudyLogEntry, QuestionLogEntry, Edital, Cargo, Subject as SubjectType, Topic as TopicType } from '@/types';
-import { parseISO, isToday, isPast, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from 'date-fns';
+import { parseISO, isToday, isPast, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, subDays, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -23,6 +23,7 @@ import {
   ChartLegendContent,
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis, Cell } from "recharts";
+import { Calendar } from '@/components/ui/calendar';
 
 
 const formatTotalDuration = (totalSeconds: number): string => {
@@ -401,6 +402,40 @@ export default function EstatisticasPage() {
         aproveitamento: percentualAcertoMedio
     };
 
+    // --- Yearly Study Days Calculation ---
+    const allStudiedDays = new Set<string>();
+    (user.studyLogs || []).forEach(log => {
+        try {
+            const date = parseISO(log.date);
+            allStudiedDays.add(format(date, 'yyyy-MM-dd'));
+        } catch(e) {}
+    });
+
+    const currentYear = new Date().getFullYear();
+    const studiedDaysThisYear = Array.from(allStudiedDays).filter(dayStr => dayStr.startsWith(`${currentYear}-`));
+    
+    // Streak calculation
+    const calculateStreak = (days: Set<string>) => {
+        let streak = 0;
+        let checkDate = new Date();
+        while (true) {
+            const dateStr = format(checkDate, 'yyyy-MM-dd');
+            if (days.has(dateStr)) {
+                streak++;
+                checkDate = subDays(checkDate, 1);
+            } else {
+                // If it's today and not studied yet, check yesterday to keep streak alive
+                if (streak === 0 && dateStr === format(new Date(), 'yyyy-MM-dd')) {
+                    checkDate = subDays(checkDate, 1);
+                    continue;
+                }
+                break;
+            }
+        }
+        return streak;
+    };
+    const currentStreak = calculateStreak(allStudiedDays);
+
     // --- Chart Data Processing ---
     
     const studyTimeByDay = filteredStudyLogs.reduce((acc, log) => {
@@ -482,6 +517,9 @@ export default function EstatisticasPage() {
       performanceGeralQuestoes,
       totalPaginasLidas,
       materiaisEstudados,
+      studiedDaysThisYearCount: studiedDaysThisYear.length,
+      allStudiedDaysSet: allStudiedDays,
+      currentStreak,
       chartData: {
         studyTimeData,
         questionPerformanceData,
@@ -710,8 +748,8 @@ export default function EstatisticasPage() {
         <p className="text-sm text-muted-foreground mb-6 italic text-center">{getFilterDescription()}</p>
 
 
-        <div className="grid grid-cols-1 gap-6">
-            <Card className="shadow-lg rounded-xl bg-card">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2 shadow-lg rounded-xl bg-card">
                 <CardHeader>
                     <CardTitle>Resumo de Desempenho</CardTitle>
                     <CardDescription>Suas principais métricas de estudo com base nos filtros selecionados.</CardDescription>
@@ -768,6 +806,50 @@ export default function EstatisticasPage() {
                             <p className="text-muted-foreground">Nenhum registro de questões encontrado para os filtros selecionados.</p>
                         )}
                     </div>
+                </CardContent>
+            </Card>
+
+            {/* Nova Seção: Calendário de Consistência e Sequência */}
+            <Card className="shadow-lg rounded-xl bg-card">
+                <CardHeader>
+                    <CardTitle className="flex items-center">
+                        <CalendarIcon className="mr-2 h-5 w-5 text-primary" />
+                        Consistência
+                    </CardTitle>
+                    <CardDescription>Dias estudados este ano.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-primary/10 border-l-4 border-primary">
+                        <div className="flex items-center">
+                            <Flame className={cn("h-8 w-8 mr-3", stats.currentStreak > 0 ? "text-orange-500" : "text-muted-foreground")} />
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-wider text-primary">Sequência Atual</p>
+                                <p className="text-2xl font-black">{stats.currentStreak} dias</p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total em {new Date().getFullYear()}</p>
+                            <p className="text-2xl font-black text-foreground">{stats.studiedDaysThisYearCount} dias</p>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-center border rounded-lg p-2 bg-muted/20">
+                        <Calendar
+                            mode="multiple"
+                            selected={Array.from(stats.allStudiedDaysSet).map(d => parseISO(d))}
+                            className="pointer-events-none"
+                            locale={ptBR}
+                            modifiers={{
+                                studied: (date) => stats.allStudiedDaysSet.has(format(date, 'yyyy-MM-dd'))
+                            }}
+                            modifiersClassNames={{
+                                studied: "bg-primary text-primary-foreground font-bold rounded-full"
+                            }}
+                        />
+                    </div>
+                    <p className="text-xs text-center text-muted-foreground italic">
+                        Os dias marcados no calendário representam sessões de estudo registradas.
+                    </p>
                 </CardContent>
             </Card>
         </div>
