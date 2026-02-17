@@ -14,6 +14,7 @@ import type { RevisionScheduleEntry, StudyLogEntry, QuestionLogEntry, Edital, Ca
 import { parseISO, isToday, isPast, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, subDays, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 import {
   ChartConfig,
   ChartContainer,
@@ -809,7 +810,6 @@ export default function EstatisticasPage() {
                 </CardContent>
             </Card>
 
-            {/* Nova Seção: Calendário de Consistência e Sequência */}
             <Card className="shadow-lg rounded-xl bg-card">
                 <CardHeader>
                     <CardTitle className="flex items-center">
