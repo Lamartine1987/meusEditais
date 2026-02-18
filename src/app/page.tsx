@@ -39,12 +39,11 @@ export default function HomePage() {
       try {
         const response = await fetch('/api/editais');
         if (!response.ok) {
-          // Try to get a more specific error message from the response body
-          const errorBody = await response.json().catch(() => ({ error: 'Failed to fetch data from API.' }));
-          throw new Error(errorBody.error || `HTTP error! status: ${response.status}`);
+          const errorBody = await response.json().catch(() => ({ error: 'Falha ao carregar dados da API.' }));
+          throw new Error(errorBody.error || `Erro HTTP! status: ${response.status}`);
         }
-        const data: Edital[] = await response.json();
-        setAllEditais(data);
+        const data = await response.json();
+        setAllEditais(Array.isArray(data) ? data : []);
       } catch (err: any) {
         console.error("API fetch error:", err);
         setError("Não foi possível carregar os editais. Tente novamente mais tarde.");
@@ -62,10 +61,9 @@ export default function HomePage() {
   }, [toast]);
 
   const processedEditais = useMemo(() => {
-    if (!allEditais) return [];
+    if (!allEditais || !Array.isArray(allEditais)) return [];
 
     const getStatus = (publicationDateStr: string, closingDateStr: string): Edital['status'] => {
-      // Return 'closed' if dates are invalid or missing
       if (!publicationDateStr || !closingDateStr || !/^\d{4}-\d{2}-\d{2}$/.test(publicationDateStr) || !/^\d{4}-\d{2}-\d{2}$/.test(closingDateStr)) {
         return 'closed';
       }
@@ -73,19 +71,23 @@ export default function HomePage() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const [pubYear, pubMonth, pubDay] = publicationDateStr.split('-').map(Number);
-      const pubDate = new Date(pubYear, pubMonth - 1, pubDay);
+      try {
+        const [pubYear, pubMonth, pubDay] = publicationDateStr.split('-').map(Number);
+        const pubDate = new Date(pubYear, pubMonth - 1, pubDay);
 
-      const [closeYear, closeMonth, closeDay] = closingDateStr.split('-').map(Number);
-      const closeDate = new Date(closeYear, closeMonth - 1, closeDay);
-      
-      if (isNaN(pubDate.getTime()) || isNaN(closeDate.getTime())) {
+        const [closeYear, closeMonth, closeDay] = closingDateStr.split('-').map(Number);
+        const closeDate = new Date(closeYear, closeMonth - 1, closeDay);
+        
+        if (isNaN(pubDate.getTime()) || isNaN(closeDate.getTime())) {
+          return 'closed';
+        }
+
+        if (today < pubDate) return 'upcoming';
+        if (today > closeDate) return 'closed';
+        return 'open';
+      } catch(e) {
         return 'closed';
       }
-
-      if (today < pubDate) return 'upcoming';
-      if (today > closeDate) return 'closed';
-      return 'open';
     };
 
     const statusOrder: Record<Edital['status'], number> = {
@@ -94,38 +96,34 @@ export default function HomePage() {
       closed: 3,
     };
 
-    return allEditais
+    return [...allEditais]
       .map(edital => ({
         ...edital,
-        status: getStatus(edital.publicationDate, edital.closingDate), // Calculate status dynamically
+        status: getStatus(edital.publicationDate || '', edital.closingDate || ''),
       }))
       .sort((a, b) => {
-        // First, sort by status
         const statusDifference = statusOrder[a.status] - statusOrder[b.status];
         if (statusDifference !== 0) {
           return statusDifference;
         }
-        
-        // If statuses are the same, then sort by publication date (most recent first)
         try {
-          return new Date(b.publicationDate).getTime() - new Date(a.publicationDate).getTime();
+          return new Date(b.publicationDate || '').getTime() - new Date(a.publicationDate || '').getTime();
         } catch (e) {
-          return 0; // Don't crash on invalid dates
+          return 0;
         }
       });
   }, [allEditais]);
 
   const uniqueAreas = useMemo(() => {
-    if (!processedEditais) return [];
+    if (!processedEditais || !Array.isArray(processedEditais)) return [];
     const areas = new Set(processedEditais.map(edital => edital.area).filter((area): area is string => !!area));
     return ['all', ...Array.from(areas).sort()];
   }, [processedEditais]);
 
   const filteredEditais = useMemo(() => {
-    if (!processedEditais) return [];
+    if (!processedEditais || !Array.isArray(processedEditais)) return [];
     return processedEditais
       .filter(edital => {
-        // Safe search filter
         const searchTermLower = searchTerm.toLowerCase();
         return (
           (edital?.title || '').toLowerCase().includes(searchTermLower) ||
@@ -134,18 +132,15 @@ export default function HomePage() {
         );
       })
       .filter(edital => {
-        // Status filter now works on dynamically calculated status
         if (statusFilter === 'all') return true;
         return edital?.status === statusFilter;
       })
       .filter(edital => {
-        // State filter
-        if (stateFilter === specialFilters[0]) return true; // 'Todos'
-        if (stateFilter === specialFilters[1]) return edital?.state === specialFilters[1]; // 'Nacional'
+        if (stateFilter === specialFilters[0]) return true;
+        if (stateFilter === specialFilters[1]) return edital?.state === specialFilters[1];
         return edital?.state === stateFilter;
       })
       .filter(edital => {
-        // Area filter
         if (areaFilter === 'all') return true;
         return edital?.area === areaFilter;
       });
@@ -187,13 +182,13 @@ export default function HomePage() {
                 placeholder="Buscar por título, organização ou palavra-chave..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 py-3 text-base focus:animate-subtle-focus rounded-lg shadow-sm h-12"
+                className="pl-10 py-3 text-base rounded-lg shadow-sm h-12"
                 aria-label="Buscar editais"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Select value={statusFilter} onValueChange={(value: 'all' | 'open' | 'closed' | 'upcoming') => setStatusFilter(value)}>
+              <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
                 <SelectTrigger className="w-full py-3 text-base rounded-lg shadow-sm h-12">
                   <Filter className="h-4 w-4 mr-2 text-muted-foreground" />
                   <SelectValue placeholder="Filtrar por status" />

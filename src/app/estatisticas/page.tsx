@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
@@ -6,14 +5,15 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Library, CheckCircle, Clock, CalendarCheck, AlertTriangle, FilterIcon, Target, BookOpen, Layers, PieChart as PieChartIcon, BookCopy, BarChartHorizontal, FileText } from 'lucide-react';
+import { Loader2, Library, CheckCircle, Clock, CalendarCheck, AlertTriangle, FilterIcon, Target, BookOpen, PieChart as PieChartIcon, BookCopy, BarChartHorizontal, FileText, Calendar as CalendarIcon, Flame } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { RevisionScheduleEntry, StudyLogEntry, QuestionLogEntry, Edital, Cargo, Subject as SubjectType, Topic as TopicType } from '@/types';
-import { parseISO, isToday, isPast, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from 'date-fns';
+import { parseISO, isToday, isPast, isWithinInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 import {
   ChartConfig,
   ChartContainer,
@@ -23,7 +23,7 @@ import {
   ChartLegendContent,
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, Pie, PieChart, XAxis, YAxis, Cell } from "recharts";
-
+import { Calendar } from '@/components/ui/calendar';
 
 const formatTotalDuration = (totalSeconds: number): string => {
   const hours = Math.floor(totalSeconds / 3600);
@@ -65,7 +65,6 @@ const CHART_COLORS = [
   'hsl(var(--chart-5))',
 ];
 
-
 const robustParseCompositeTopicId = (compositeId: string, allEditais: Edital[]): ParsedIds | null => {
     if (!compositeId || typeof compositeId !== 'string' || !allEditais || allEditais.length === 0) {
         return null;
@@ -98,7 +97,7 @@ const robustParseCompositeTopicId = (compositeId: string, allEditais: Edital[]):
             }
         }
     }
-    return null; // Return null if no complete match is found
+    return null;
 }
 
 const parseCargoCompositeId = (compositeId: string, allEditais: Edital[]): { editalId: string, cargoId: string } | null => {
@@ -121,15 +120,15 @@ const parseCargoCompositeId = (compositeId: string, allEditais: Edital[]): { edi
     return null;
 };
 
-
 export default function EstatisticasPage() {
   const { user, loading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
 
   const [allEditaisData, setAllEditaisData] = useState<Edital[]>([]);
 
-  const [filterScope, setFilterScope] = useState<'all' | string>('all'); // 'all' or 'editalId_cargoId'
+  const [filterScope, setFilterScope] = useState<'all' | string>('all');
   const [filterPeriod, setFilterPeriod] = useState<'all_time' | 'today' | 'this_week' | 'this_month' | 'specific_month'>('all_time');
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   
@@ -139,8 +138,8 @@ export default function EstatisticasPage() {
   const [selectedTopicId, setSelectedTopicId] = useState<'all_topics_in_subject' | string>('all_topics_in_subject');
   const [topicsForFilter, setTopicsForFilter] = useState<TopicType[]>([]);
 
-
   useEffect(() => {
+    setIsMounted(true);
     const fetchAllEditais = async () => {
       try {
         const response = await fetch('/api/editais');
@@ -186,14 +185,6 @@ export default function EstatisticasPage() {
             cargoId: cargo.id
           });
         }
-      } else {
-          registeredInfos.push({
-            id: compositeId,
-            name: `Cargo ${compositeId}`,
-            editalId: 'unknown',
-            cargoId: 'unknown'
-          });
-          console.warn(`[EstatisticasPage] Could not find a valid edital/cargo match for composite ID: '${compositeId}'`);
       }
     });
 
@@ -218,9 +209,7 @@ export default function EstatisticasPage() {
         if (!isNaN(date.getTime())) { 
           months.add(format(date, 'yyyy-MM'));
         }
-      } catch (e) {
-        console.warn(`[EstatisticasPage] Could not parse date: ${isoDate}`);
-      }
+      } catch (e) {}
     });
     
     return Array.from(months).sort((a, b) => b.localeCompare(a));
@@ -259,7 +248,6 @@ export default function EstatisticasPage() {
     setSelectedTopicId('all_topics_in_subject');
   }, [selectedSubjectId, filterScope, allEditaisData]);
 
-
   const stats = useMemo(() => {
     if (!user || !allEditaisData.length) return null;
 
@@ -275,7 +263,6 @@ export default function EstatisticasPage() {
                 const monthDate = parseISO(`${selectedMonth}-01`);
                 return { startDate: startOfMonth(monthDate), endDate: endOfMonth(monthDate) };
             } catch (e) {
-                console.error(`[EstatisticasPage] Invalid month format: ${selectedMonth}`);
                 return { startDate: null, endDate: null };
             }
           }
@@ -284,7 +271,7 @@ export default function EstatisticasPage() {
     })();
 
     const filterByScopeSubjectTopicAndPeriod = <T extends { compositeTopicId: string; date?: string }>(items: T[] | undefined): T[] => {
-      if (!items || items.length === 0) return [];
+      if (!items || !Array.isArray(items)) return [];
     
       return items.filter(item => {
         const parsed = robustParseCompositeTopicId(item.compositeTopicId, allEditaisData);
@@ -300,32 +287,28 @@ export default function EstatisticasPage() {
         }
     
         if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo') {
-          if (!itemSubjectId || itemSubjectId !== selectedSubjectId) { 
-            return false;
-          }
+          if (!itemSubjectId || itemSubjectId !== selectedSubjectId) return false;
         }
     
         if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo' && selectedTopicId !== 'all_topics_in_subject') {
-          if (!itemTopicId || itemTopicId !== selectedTopicId) {
-            return false;
-          }
+          if (!itemTopicId || itemTopicId !== selectedTopicId) return false;
         }
     
-        if (filterPeriod !== 'all_time') {
+        if (filterPeriod !== 'all_time' && item.date) {
           if (!startDate || !endDate) return false;
-          if (!item.date) return false; 
-          const itemDate = parseISO(item.date);
-          if (isNaN(itemDate.getTime()) || !isWithinInterval(itemDate, { start: startDate, end: endDate })) {
-            return false;
-          }
+          try {
+            const itemDate = parseISO(item.date);
+            if (isNaN(itemDate.getTime()) || !isWithinInterval(itemDate, { start: startDate, end: endDate })) {
+              return false;
+            }
+          } catch(e) { return false; }
         }
-        
         return true; 
       });
     };
         
     const filterCompositeIdsByScopeSubjectAndTopic = (compositeIds: string[] | undefined): string[] => {
-        if (!compositeIds || compositeIds.length === 0) return [];
+        if (!compositeIds || !Array.isArray(compositeIds)) return [];
     
         return compositeIds.filter(id => {
             const parsed = robustParseCompositeTopicId(id, allEditaisData);
@@ -340,15 +323,11 @@ export default function EstatisticasPage() {
             }
         
             if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo') {
-              if (!itemSubjectId || itemSubjectId !== selectedSubjectId) {
-                return false;
-              }
+              if (!itemSubjectId || itemSubjectId !== selectedSubjectId) return false;
             }
         
             if (filterScope !== 'all' && selectedSubjectId !== 'all_subjects_in_cargo' && selectedTopicId !== 'all_topics_in_subject') {
-              if (!itemTopicId || itemTopicId !== selectedTopicId) {
-                return false;
-              }
+              if (!itemTopicId || itemTopicId !== selectedTopicId) return false;
             }
             return true;
         });
@@ -365,7 +344,7 @@ export default function EstatisticasPage() {
     const totalCargosInscritos = user.registeredCargoIds?.length || 0;
     const totalTopicosEstudados = filteredStudiedTopicIds.length;
 
-    const tempoTotalEstudoSegundos = filteredStudyLogs.reduce((acc, log) => acc + log.duration, 0);
+    const tempoTotalEstudoSegundos = filteredStudyLogs.reduce((acc, log) => acc + (log.duration || 0), 0);
     const tempoTotalEstudoFormatado = formatTotalDuration(tempoTotalEstudoSegundos);
     
     const totalPaginasLidas = filteredStudyLogs.reduce((acc, log) => {
@@ -379,20 +358,21 @@ export default function EstatisticasPage() {
     const revisoesPendentes = filteredRevisionSchedulesObjects.filter(
       (rs: RevisionScheduleEntry) => {
         if (!rs.scheduledDate || rs.isReviewed) return false;
-        const scheduledDateObj = parseISO(rs.scheduledDate);
-        const isDue = isToday(scheduledDateObj) || isPast(scheduledDateObj);
-        if (!isDue) return false;
-
-        if (filterPeriod !== 'all_time' && startDate && endDate) {
-            return isWithinInterval(scheduledDateObj, { start: startDate, end: endDate });
-        }
-        return true;
+        try {
+          const scheduledDateObj = parseISO(rs.scheduledDate);
+          const isDue = isToday(scheduledDateObj) || isPast(scheduledDateObj);
+          if (!isDue) return false;
+          if (filterPeriod !== 'all_time' && startDate && endDate) {
+              return isWithinInterval(scheduledDateObj, { start: startDate, end: endDate });
+          }
+          return true;
+        } catch(e) { return false; }
       }
     ).length;
 
-    const totalQuestoesRespondidas = filteredQuestionLogs.reduce((acc, log) => acc + log.totalQuestions, 0);
-    const totalQuestoesCertas = filteredQuestionLogs.reduce((acc, log) => acc + log.correctQuestions, 0);
-    const totalQuestoesErradas = filteredQuestionLogs.reduce((acc, log) => acc + log.incorrectQuestions, 0);
+    const totalQuestoesRespondidas = filteredQuestionLogs.reduce((acc, log) => acc + (log.totalQuestions || 0), 0);
+    const totalQuestoesCertas = filteredQuestionLogs.reduce((acc, log) => acc + (log.correctQuestions || 0), 0);
+    const totalQuestoesErradas = filteredQuestionLogs.reduce((acc, log) => acc + (log.incorrectQuestions || 0), 0);
     const percentualAcertoMedio = totalQuestoesRespondidas > 0 ? (totalQuestoesCertas / totalQuestoesRespondidas) * 100 : 0;
     const performanceGeralQuestoes = {
         total: totalQuestoesRespondidas,
@@ -401,20 +381,84 @@ export default function EstatisticasPage() {
         aproveitamento: percentualAcertoMedio
     };
 
-    // --- Chart Data Processing ---
+    // --- NOVA LÓGICA DE ATIVIDADE AGREGADA ---
+    // Consideramos como "estudado" qualquer dia que tenha:
+    // 1. Logs de estudo (cronômetro ou checklist)
+    // 2. Resolução de questões
+    // 3. Revisões concluídas
+    const allActivityDays = new Set<string>();
     
+    (user.studyLogs || []).forEach(log => {
+        try {
+            if (log.date) {
+              const date = parseISO(log.date);
+              allActivityDays.add(format(date, 'yyyy-MM-dd'));
+            }
+        } catch(e) {}
+    });
+
+    (user.questionLogs || []).forEach(log => {
+        try {
+            if (log.date) {
+              const date = parseISO(log.date);
+              allActivityDays.add(format(date, 'yyyy-MM-dd'));
+            }
+        } catch(e) {}
+    });
+
+    (user.revisionSchedules || []).forEach(log => {
+        try {
+            if (log.isReviewed && log.reviewedDate) {
+              const date = parseISO(log.reviewedDate);
+              allActivityDays.add(format(date, 'yyyy-MM-dd'));
+            }
+        } catch(e) {}
+    });
+
+    const currentYear = new Date().getFullYear();
+    const activityDaysThisYear = Array.from(allActivityDays).filter(dayStr => dayStr.startsWith(`${currentYear}-`));
+    
+    const calculateStreak = (days: Set<string>) => {
+        let streak = 0;
+        let checkDate = new Date();
+        while (true) {
+            const dateStr = format(checkDate, 'yyyy-MM-dd');
+            if (days.has(dateStr)) {
+                streak++;
+                checkDate = subDays(checkDate, 1);
+            } else {
+                if (streak === 0 && dateStr === format(new Date(), 'yyyy-MM-dd')) {
+                    checkDate = subDays(checkDate, 1);
+                    continue;
+                }
+                break;
+            }
+        }
+        return streak;
+    };
+    const currentStreak = calculateStreak(allActivityDays);
+
     const studyTimeByDay = filteredStudyLogs.reduce((acc, log) => {
-      const day = format(parseISO(log.date), 'yyyy-MM-dd');
-      acc[day] = (acc[day] || 0) + log.duration;
+      if (log.date) {
+        try {
+          const day = format(parseISO(log.date), 'yyyy-MM-dd');
+          acc[day] = (acc[day] || 0) + (log.duration || 0);
+        } catch(e) {}
+      }
       return acc;
     }, {} as Record<string, number>);
 
     const studyTimeData = Object.entries(studyTimeByDay)
-      .map(([date, duration]) => ({
-        date: format(parseISO(date), 'dd/MM'),
-        dateISO: date,
-        tempoMin: Math.ceil(duration / 60),
-      }))
+      .map(([date, duration]) => {
+        try {
+          return {
+            date: format(parseISO(date), 'dd/MM'),
+            dateISO: date,
+            tempoMin: Math.ceil(duration / 60),
+          };
+        } catch(e) { return null; }
+      })
+      .filter((d): d is any => d !== null)
       .sort((a, b) => a.dateISO.localeCompare(b.dateISO));
       
     const questionPerformanceData = [
@@ -426,18 +470,17 @@ export default function EstatisticasPage() {
     let breakdownChartTitle: string = 'Tempo por Matéria';
     let breakdownChartDescription: string = 'Selecione um cargo para ver os dados.';
 
-    if (filterScope !== 'all') { // A cargo must be selected
+    if (filterScope !== 'all') {
       const parsedScope = parseCargoCompositeId(filterScope, allEditaisData);
       
       if (selectedSubjectId !== 'all_subjects_in_cargo') {
-        // Breakdown by TOPIC
         breakdownChartTitle = 'Tempo por Assunto (Tópico)';
         breakdownChartDescription = 'Total de minutos estudados para cada assunto da matéria selecionada.';
 
         const timeByTopic = filteredStudyLogs.reduce((acc, log) => {
           const parsed = robustParseCompositeTopicId(log.compositeTopicId, allEditaisData);
           if (parsed?.topicId) {
-            acc[parsed.topicId] = (acc[parsed.topicId] || 0) + log.duration;
+            acc[parsed.topicId] = (acc[parsed.topicId] || 0) + (log.duration || 0);
           }
           return acc;
         }, {} as Record<string, number>);
@@ -450,14 +493,14 @@ export default function EstatisticasPage() {
             return { name: topicName, tempoMin: Math.ceil(duration / 60), fill: CHART_COLORS[index % CHART_COLORS.length] };
           }).sort((a, b) => b.tempoMin - a.tempoMin);
         }
-      } else { // Breakdown by SUBJECT
+      } else {
         breakdownChartTitle = 'Tempo por Matéria';
         breakdownChartDescription = 'Total de minutos estudados para cada matéria do cargo selecionado.';
 
         const timeBySubject = filteredStudyLogs.reduce((acc, log) => {
           const parsed = robustParseCompositeTopicId(log.compositeTopicId, allEditaisData);
           if (parsed?.subjectId) {
-            acc[parsed.subjectId] = (acc[parsed.subjectId] || 0) + log.duration;
+            acc[parsed.subjectId] = (acc[parsed.subjectId] || 0) + (log.duration || 0);
           }
           return acc;
         }, {} as Record<string, number>);
@@ -473,7 +516,6 @@ export default function EstatisticasPage() {
       }
     }
 
-
     return {
       totalCargosInscritos,
       totalTopicosEstudados,
@@ -482,6 +524,9 @@ export default function EstatisticasPage() {
       performanceGeralQuestoes,
       totalPaginasLidas,
       materiaisEstudados,
+      studiedDaysThisYearCount: activityDaysThisYear.length,
+      allActivityDaysSet: allActivityDays,
+      currentStreak,
       chartData: {
         studyTimeData,
         questionPerformanceData,
@@ -491,7 +536,6 @@ export default function EstatisticasPage() {
       }
     };
   }, [user, filterScope, filterPeriod, selectedSubjectId, selectedTopicId, allEditaisData, selectedMonth]);
-
 
   const getFilterDescription = useCallback(() => {
     let scopeDesc = "geral";
@@ -539,8 +583,7 @@ export default function EstatisticasPage() {
     return `Exibindo estatísticas ${scopeDesc}${subjectDesc}${topicDesc}${periodDesc}.`;
   }, [filterScope, selectedSubjectId, selectedTopicId, filterPeriod, selectedMonth, registeredCargosList, subjectsForFilter, topicsForFilter]);
 
-
-  if (isLoading || authLoading) {
+  if (isLoading || authLoading || !isMounted) {
     return (
       <PageWrapper>
         <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[calc(100vh-10rem)]">
@@ -635,9 +678,6 @@ export default function EstatisticasPage() {
                             ))}
                         </SelectContent>
                     </Select>
-                     {filterScope !== 'all' && subjectsForFilter.length === 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">Nenhuma matéria encontrada para este cargo.</p>
-                    )}
                 </div>
                  <div>
                     <label htmlFor="selectedTopicId" className="block text-sm font-medium text-muted-foreground mb-1">Assunto (Tópico)</label>
@@ -656,9 +696,6 @@ export default function EstatisticasPage() {
                             ))}
                         </SelectContent>
                     </Select>
-                     {selectedSubjectId !== 'all_subjects_in_cargo' && topicsForFilter.length === 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">Nenhum assunto encontrado para esta matéria.</p>
-                    )}
                 </div>
                 <div>
                     <label htmlFor="filterPeriod" className="block text-sm font-medium text-muted-foreground mb-1">Período</label>
@@ -698,7 +735,7 @@ export default function EstatisticasPage() {
                                     </SelectItem>
                                 ))
                             ) : (
-                                <SelectItem value="no-data" disabled>Nenhum dado de estudo encontrado</SelectItem>
+                                <SelectItem value="no-data" disabled>Nenhum dado encontrado</SelectItem>
                             )}
                         </SelectContent>
                     </Select>
@@ -709,12 +746,11 @@ export default function EstatisticasPage() {
         
         <p className="text-sm text-muted-foreground mb-6 italic text-center">{getFilterDescription()}</p>
 
-
-        <div className="grid grid-cols-1 gap-6">
-            <Card className="shadow-lg rounded-xl bg-card">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2 shadow-lg rounded-xl bg-card">
                 <CardHeader>
                     <CardTitle>Resumo de Desempenho</CardTitle>
-                    <CardDescription>Suas principais métricas de estudo com base nos filtros selecionados.</CardDescription>
+                    <CardDescription>Suas principais métricas de estudo.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
@@ -742,7 +778,7 @@ export default function EstatisticasPage() {
                         </div>
                         <div className="p-4 rounded-lg bg-muted/50">
                             <FileText className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-                            <p className="text-sm font-medium text-muted-foreground">Materiais Estudados</p>
+                            <p className="text-sm font-medium text-muted-foreground">Materiais</p>
                             <p className="text-2xl font-bold">{stats.materiaisEstudados}</p>
                         </div>
                         <div className="p-4 rounded-lg bg-muted/50">
@@ -761,163 +797,108 @@ export default function EstatisticasPage() {
                                 <span className="text-3xl font-bold">{stats.performanceGeralQuestoes.aproveitamento.toFixed(1)}%</span>
                                 <span className="text-xl font-semibold text-muted-foreground"> de Acerto</span>
                                 <p className="text-sm text-muted-foreground mt-1">
-                                    Total de {stats.performanceGeralQuestoes.total} questões ({stats.performanceGeralQuestoes.certas} certas, {stats.performanceGeralQuestoes.erradas} erradas) nos filtros atuais.
+                                    Total de {stats.performanceGeralQuestoes.total} questões ({stats.performanceGeralQuestoes.certas} certas).
                                 </p>
                             </div>
                         ) : (
-                            <p className="text-muted-foreground">Nenhum registro de questões encontrado para os filtros selecionados.</p>
+                            <p className="text-muted-foreground">Nenhum registro de questões encontrado.</p>
                         )}
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card className="shadow-lg rounded-xl bg-card">
+                <CardHeader>
+                    <CardTitle className="flex items-center">
+                        <CalendarIcon className="mr-2 h-5 w-5 text-primary" />
+                        Consistência
+                    </CardTitle>
+                    <CardDescription>Dias com atividade este ano.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-primary/10 border-l-4 border-primary">
+                        <div className="flex items-center">
+                            <Flame className={cn("h-8 w-8 mr-3", stats.currentStreak > 0 ? "text-orange-500" : "text-muted-foreground")} />
+                            <div>
+                                <p className="text-xs font-bold uppercase tracking-wider text-primary">Sequência Atual</p>
+                                <p className="text-2xl font-black">{stats.currentStreak} dias</p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total em {new Date().getFullYear()}</p>
+                            <p className="text-2xl font-black text-foreground">{stats.studiedDaysThisYearCount} dias</p>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-center border rounded-lg p-2 bg-muted/20">
+                        <Calendar
+                            mode="multiple"
+                            selected={Array.from(stats.allActivityDaysSet).map(d => parseISO(d))}
+                            className="pointer-events-none"
+                            locale={ptBR}
+                            modifiers={{
+                                studied: (date) => stats.allActivityDaysSet.has(format(date, 'yyyy-MM-dd'))
+                            }}
+                            modifiersClassNames={{
+                                studied: "bg-primary text-primary-foreground font-bold rounded-full"
+                            }}
+                        />
                     </div>
                 </CardContent>
             </Card>
         </div>
 
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {stats.chartData.studyTimeData.length > 0 ? (
+          {isMounted && stats.chartData.studyTimeData.length > 0 ? (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center"><BarChartHorizontal className="mr-2 h-5 w-5 text-primary" />Tempo de Estudo por Dia</CardTitle>
-                <CardDescription>Tempo total de estudo (em minutos) registrado a cada dia no período filtrado.</CardDescription>
+                <CardTitle className="flex items-center"><BarChartHorizontal className="mr-2 h-5 w-5 text-primary" />Tempo por Dia</CardTitle>
               </CardHeader>
               <CardContent>
                 <ChartContainer config={timeChartConfig} className="h-[250px] w-full">
                   <BarChart accessibilityLayer data={stats.chartData.studyTimeData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                     <CartesianGrid vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                    />
-                    <YAxis
-                      tickFormatter={(value) => `${value}`}
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      width={30}
-                    />
+                    <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
+                    <YAxis tickLine={false} axisLine={false} tickMargin={8} width={30} />
                     <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
-                    <Bar
-                      dataKey="tempoMin"
-                      fill="var(--color-tempoMin)"
-                      radius={4}
-                      barSize={60}
-                    />
+                    <Bar dataKey="tempoMin" fill="var(--color-tempoMin)" radius={4} barSize={60} />
                   </BarChart>
                 </ChartContainer>
               </CardContent>
             </Card>
-          ) : (
+          ) : isMounted && (
             <Card>
-              <CardHeader>
-                 <CardTitle className="flex items-center"><BarChartHorizontal className="mr-2 h-5 w-5 text-primary" />Tempo de Estudo por Dia</CardTitle>
-              </CardHeader>
-               <CardContent className="text-center text-muted-foreground py-10">
-                 Nenhum dado de tempo de estudo para exibir no gráfico.
-               </CardContent>
+              <CardHeader><CardTitle>Tempo por Dia</CardTitle></CardHeader>
+              <CardContent className="text-center text-muted-foreground py-10">Nenhum dado disponível.</CardContent>
             </Card>
           )}
 
-          
-            {stats.performanceGeralQuestoes.total > 0 ? (
+          {isMounted && stats.performanceGeralQuestoes.total > 0 ? (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center"><PieChartIcon className="mr-2 h-5 w-5 text-primary" />Desempenho em Questões</CardTitle>
-                   <CardDescription>Distribuição de acertos e erros nas questões registradas.</CardDescription>
+                  <CardTitle className="flex items-center"><PieChartIcon className="mr-2 h-5 w-5 text-primary" />Aproveitamento</CardTitle>
                 </CardHeader>
                 <CardContent className="flex items-center justify-center">
-                  <ChartContainer
-                    config={questionChartConfig}
-                    className="mx-auto aspect-square h-[250px]"
-                  >
+                  <ChartContainer config={questionChartConfig} className="mx-auto aspect-square h-[250px]">
                     <PieChart>
-                      <ChartTooltip
-                        cursor={false}
-                        content={<ChartTooltipContent hideLabel />}
-                      />
-                      <Pie
-                        data={stats.chartData.questionPerformanceData}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={60}
-                        strokeWidth={5}
-                      >
+                      <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                      <Pie data={stats.chartData.questionPerformanceData} dataKey="value" nameKey="name" innerRadius={60} strokeWidth={5}>
                          {stats.chartData.questionPerformanceData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.fill} />
                          ))}
                       </Pie>
-                      <ChartLegend
-                        content={<ChartLegendContent nameKey="name" />}
-                      />
+                      <ChartLegend content={<ChartLegendContent nameKey="name" />} />
                     </PieChart>
                   </ChartContainer>
                 </CardContent>
               </Card>
-            ) : (
+            ) : isMounted && (
                 <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center"><PieChartIcon className="mr-2 h-5 w-5 text-primary" />Desempenho em Questões</CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-center text-muted-foreground py-10">
-                        Nenhum dado de questões para exibir no gráfico.
-                    </CardContent>
+                    <CardHeader><CardTitle>Aproveitamento</CardTitle></CardHeader>
+                    <CardContent className="text-center text-muted-foreground py-10">Nenhum dado disponível.</CardContent>
                 </Card>
             )}
-
-            {stats.chartData.studyTimeBreakdownData.length > 0 ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center"><BookCopy className="mr-2 h-5 w-5 text-primary" />{stats.chartData.breakdownChartTitle}</CardTitle>
-                   <CardDescription>{stats.chartData.breakdownChartDescription}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ChartContainer config={timeChartConfig} className="h-[250px] w-full">
-                    <BarChart
-                      accessibilityLayer
-                      data={stats.chartData.studyTimeBreakdownData}
-                      layout="vertical"
-                      margin={{ left: 10, right: 10 }}
-                    >
-                      <CartesianGrid horizontal={false} />
-                       <YAxis
-                        dataKey="name"
-                        type="category"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={10}
-                        width={80} 
-                        className="text-xs"
-                      />
-                      <XAxis dataKey="tempoMin" type="number" hide />
-                      <ChartTooltip
-                        cursor={false}
-                        content={<ChartTooltipContent indicator="dot" />}
-                      />
-                      <Bar dataKey="tempoMin" radius={4}>
-                        {stats.chartData.studyTimeBreakdownData.map((entry) => (
-                          <Cell key={entry.name} fill={entry.fill} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
-            ) : (
-                 <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center"><BookCopy className="mr-2 h-5 w-5 text-primary" />Tempo por Matéria/Assunto</CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-center text-muted-foreground py-10">
-                        {filterScope === 'all'
-                            ? 'Selecione um cargo para ver a distribuição de tempo.'
-                            : 'Nenhum dado de estudo encontrado para este filtro.'
-                        }
-                    </CardContent>
-                </Card>
-            )}
-          
         </div>
-
       </div>
     </PageWrapper>
   );
