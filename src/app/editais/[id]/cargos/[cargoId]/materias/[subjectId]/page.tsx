@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useCallback, ChangeEvent, useRef } from 'react';
@@ -207,6 +206,8 @@ export default function SubjectTopicsPage() {
     try {
       await toggleTopicStudyStatus(compositeTopicId);
       
+      // Se estiver marcando como estudado (e não desmarcando), cria um log de 0 duração
+      // para registrar a atividade de hoje nas estatísticas de consistência.
       if (!isCurrentlyStudied) {
         await addStudyLog(compositeTopicId, { 
           duration: 0, 
