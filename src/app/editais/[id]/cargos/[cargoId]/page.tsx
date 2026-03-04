@@ -35,11 +35,14 @@ export default function CargoDetailPage() {
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
     let canAccess = false;
 
-    if (user.activePlans?.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
+    // Verifica apenas planos com status 'active'
+    const activePaidPlans = user.activePlans?.filter(p => p.status === 'active' || p.planId === 'plano_trial') || [];
+
+    if (activePaidPlans.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
         canAccess = true;
-    } else if (user.activePlans?.some(p => p.planId === 'plano_edital' && p.selectedEditalId === editalId)) {
+    } else if (activePaidPlans.some(p => p.planId === 'plano_edital' && p.selectedEditalId === editalId)) {
         canAccess = true;
-    } else if (user.activePlans?.some(p => p.planId === 'plano_cargo' && p.selectedCargoCompositeId === currentCargoCompositeId)) {
+    } else if (activePaidPlans.some(p => p.planId === 'plano_cargo' && p.selectedCargoCompositeId === currentCargoCompositeId)) {
         canAccess = true;
     }
     
@@ -49,7 +52,6 @@ export default function CargoDetailPage() {
   useEffect(() => {
     const fetchCargoDetails = async () => {
       if (editalId && cargoId) {
-        console.log(`[CargoDetailPage] Fetching details for editalId: ${editalId}, cargoId: ${cargoId}`);
         setLoadingData(true);
         try {
           const response = await fetch('/api/editais');
@@ -57,23 +59,18 @@ export default function CargoDetailPage() {
             throw new Error('Falha ao buscar dados dos editais.');
           }
           const allEditais: Edital[] = await response.json();
-          console.log(`[CargoDetailPage] Received ${allEditais.length} editais from API.`);
 
           const foundEdital = allEditais.find(e => e.id === editalId);
           if (foundEdital) {
-            console.log(`[CargoDetailPage] Found edital: ${foundEdital.title}`);
             const foundCargo = foundEdital.cargos?.find(c => c.id === cargoId);
             if (foundCargo) {
-              console.log(`[CargoDetailPage] Found cargo: ${foundCargo.name}`);
               setEdital(foundEdital);
               setCargo(foundCargo);
             } else {
-              console.error(`[CargoDetailPage] Cargo with id ${cargoId} not found in edital ${editalId}.`);
-              setEdital(foundEdital); // Still set edital to show some context
+              setEdital(foundEdital);
               setCargo(null);
             }
           } else {
-            console.error(`[CargoDetailPage] Edital with id ${editalId} not found.`);
             setEdital(null);
             setCargo(null);
           }
@@ -142,14 +139,21 @@ export default function CargoDetailPage() {
             <Separator />
             <CardContent className="pt-6">
               <p className="text-muted-foreground mb-4">
-                Seu plano atual não concede acesso às matérias deste cargo. Para visualizar este conteúdo, por favor, faça um upgrade no seu plano.
+                Seu plano atual não está ativo ou não concede acesso às matérias deste cargo. Verifique se há pagamentos pendentes ou faça um upgrade.
               </p>
-              <Button asChild className="mt-6" size="lg">
-                <Link href="/planos">
-                  <Gem className="mr-2 h-4 w-4" />
-                  Ver Planos Disponíveis
-                </Link>
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
+                <Button asChild size="lg">
+                    <Link href="/planos">
+                    <Gem className="mr-2 h-4 w-4" />
+                    Ver Planos Disponíveis
+                    </Link>
+                </Button>
+                <Button asChild variant="outline" size="lg">
+                    <Link href="/perfil">
+                    Gerenciar Minha Assinatura
+                    </Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -208,7 +212,6 @@ export default function CargoDetailPage() {
                       <p className="text-xs text-muted-foreground mb-2">
                         {subject.topics?.length || 0} tópico(s) no total.
                       </p>
-                       {/* Placeholder for a brief description if available in future */}
                     </CardContent>
                     <CardFooter className="pt-3 border-t">
                       <div className="flex items-center w-full">

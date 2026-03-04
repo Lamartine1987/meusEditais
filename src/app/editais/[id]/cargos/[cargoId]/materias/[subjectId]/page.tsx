@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useCallback, ChangeEvent, useRef } from 'react';
@@ -98,11 +99,14 @@ export default function SubjectTopicsPage() {
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
     let canAccess = false;
 
-    if (user.activePlans?.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
+    // Filtra planos ATIVOS ou TRIAL
+    const activePaidPlans = user.activePlans?.filter(p => p.status === 'active' || p.planId === 'plano_trial') || [];
+
+    if (activePaidPlans.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
         canAccess = true;
-    } else if (user.activePlans?.some(p => p.planId === 'plano_edital' && p.selectedEditalId === editalId)) {
+    } else if (activePaidPlans.some(p => p.planId === 'plano_edital' && p.selectedEditalId === editalId)) {
         canAccess = true;
-    } else if (user.activePlans?.some(p => p.planId === 'plano_cargo' && p.selectedCargoCompositeId === currentCargoCompositeId)) {
+    } else if (activePaidPlans.some(p => p.planId === 'plano_cargo' && p.selectedCargoCompositeId === currentCargoCompositeId)) {
         canAccess = true;
     }
 
@@ -203,8 +207,6 @@ export default function SubjectTopicsPage() {
     try {
       await toggleTopicStudyStatus(compositeTopicId);
       
-      // Se estiver marcando como estudado (e não desmarcando), cria um log de 0 duração
-      // para registrar a atividade de hoje nas estatísticas de consistência.
       if (!isCurrentlyStudied) {
         await addStudyLog(compositeTopicId, { 
           duration: 0, 
@@ -223,7 +225,6 @@ export default function SubjectTopicsPage() {
   const handleTimerPlayPause = (topicId: string) => {
       if (!hasAccess) return;
   
-      // Pausar qualquer outro cronômetro que esteja rodando
       if (activeTimerTopicIdRef.current && activeTimerTopicIdRef.current !== topicId && timerStates[activeTimerTopicIdRef.current]?.isRunning) {
           setTimerStates(prev => ({
               ...prev,
@@ -233,11 +234,11 @@ export default function SubjectTopicsPage() {
   
       const isCurrentlyRunning = timerStates[topicId]?.isRunning;
   
-      if (isCurrentlyRunning) { // Pausando
+      if (isCurrentlyRunning) { 
           if (timerRef.current) clearInterval(timerRef.current);
           timerRef.current = null;
           startTimeRef.current = null;
-      } else { // Iniciando/Retomando
+      } else { 
           activeTimerTopicIdRef.current = topicId;
           startTimeRef.current = Date.now() - (timerStates[topicId].time * 1000);
       }
@@ -283,12 +284,10 @@ export default function SubjectTopicsPage() {
   const handleSaveLog = async (topicId: string) => {
     if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
 
-    // Pausar o timer antes de salvar para garantir o tempo mais recente
     if (timerStates[topicId]?.isRunning) {
       handleTimerPlayPause(topicId);
     }
     
-    // Usar um pequeno timeout para garantir que o estado `time` seja o mais atualizado
     setTimeout(async () => {
         const durationToSave = timerStates[topicId]?.time || 0;
         const pdfNameToSave = pdfName.trim();
@@ -333,7 +332,6 @@ export default function SubjectTopicsPage() {
       setIsRankingModalOpen(false);
       setPendingLogData(null);
     } catch (e) {
-      // Toasts are handled internally
     } finally {
       setIsSavingWithRankingChoice(false);
     }
@@ -430,7 +428,6 @@ export default function SubjectTopicsPage() {
     try {
       await deleteQuestionLog(questionLogToDelete);
     } catch (error) {
-      // toast is handled in useAuth
     } finally {
       setQuestionLogToDelete(null);
     }
@@ -479,9 +476,8 @@ export default function SubjectTopicsPage() {
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
     try {
         await addNote(compositeTopicId, noteText);
-        setNoteText(''); // Clear textarea after saving
+        setNoteText(''); 
     } catch (error) {
-        // toast is handled in useAuth
     }
   };
 
@@ -490,7 +486,6 @@ export default function SubjectTopicsPage() {
     try {
       await deleteNote(noteToDelete);
     } catch (error) {
-      // toast is handled in useAuth
     } finally {
       setNoteToDelete(null);
     }
@@ -503,7 +498,6 @@ export default function SubjectTopicsPage() {
     try {
       await deleteStudyLog(logToDelete);
     } catch (error) {
-      // Error handled in useAuth
     } finally {
       setLogToDelete(null);
     }
@@ -561,17 +555,24 @@ export default function SubjectTopicsPage() {
             <CardContent className="pt-6">
               <Alert variant="destructive" className="text-left">
                 <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Seu plano não cobre este conteúdo</AlertTitle>
+                <AlertTitle>Seu plano não está ativo ou não cobre este conteúdo</AlertTitle>
                 <AlertDescription>
-                  Para acessar os tópicos e registrar seu progresso para este cargo, por favor, verifique seu plano atual ou considere fazer um upgrade.
+                  Para acessar os tópicos e registrar seu progresso, certifique-se de que sua assinatura está em dia ou considere fazer um upgrade.
                 </AlertDescription>
               </Alert>
-              <Button asChild className="mt-6" size="lg">
-                <Link href="/planos">
-                  <Gem className="mr-2 h-4 w-4" />
-                  Ver Planos Disponíveis
-                </Link>
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
+                <Button asChild size="lg">
+                    <Link href="/planos">
+                    <Gem className="mr-2 h-4 w-4" />
+                    Ver Planos Disponíveis
+                    </Link>
+                </Button>
+                <Button asChild variant="outline" size="lg">
+                    <Link href="/perfil">
+                    Gerenciar Minha Assinatura
+                    </Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

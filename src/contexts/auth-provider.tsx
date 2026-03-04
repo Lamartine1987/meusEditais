@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { User as AppUser, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, PlanId, PlanDetails, NoteEntry } from '@/types';
@@ -79,7 +78,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const dbUnsubscribeRef = useRef<Unsubscribe | null>(null);
-  // Get router once and pass it to functions that need it
   const router = useRouter();
 
 
@@ -109,28 +107,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         dbUnsubscribeRef.current = onValue(userRef, async (snapshot) => {
           try {
             if (!snapshot.exists()) {
-              // This can happen briefly after account deletion before the auth state listener fully logs the user out.
-              // We'll treat this as logged out to prevent errors.
-              console.warn(`[AuthProvider] User is authenticated with UID ${firebaseUser.uid}, but no data found in Realtime Database. Logging out.`);
-              await signOut(auth); // Force client logout to sync state
+              await signOut(auth);
               setUser(null);
               setLoading(false);
               return;
             }
 
             let dbData = snapshot.val();
-            
-            const updatesToSyncToDb: any = {};
-            if (firebaseUser.displayName && dbData.name !== firebaseUser.displayName) {
-              updatesToSyncToDb.name = firebaseUser.displayName;
-            }
-            if (firebaseUser.photoURL && dbData.avatarUrl !== firebaseUser.photoURL) {
-              updatesToSyncToDb.avatarUrl = firebaseUser.photoURL;
-            }
-            if (Object.keys(updatesToSyncToDb).length > 0) {
-              await update(userRef, updatesToSyncToDb);
-              dbData = { ...dbData, ...updatesToSyncToDb };
-            }
             
             const adminRef = ref(db, `admins/${firebaseUser.uid}`);
             const adminSnapshot = await get(adminRef);
@@ -165,8 +148,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 const updatedActivePlans = appUser.activePlans?.filter(p => p.planId !== 'plano_trial') || [];
                 
                 let highestPlan: PlanDetails | null = null;
-                if (updatedActivePlans.length > 0) {
-                    highestPlan = updatedActivePlans.reduce((max, plan) => {
+                const activePlansOnly = updatedActivePlans.filter(p => p.status === 'active');
+                if (activePlansOnly.length > 0) {
+                    highestPlan = activePlansOnly.reduce((max, plan) => {
                       return planRank[plan.planId] > planRank[max.planId] ? plan : max;
                     });
                 }
@@ -187,7 +171,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (trialExpiredToastShown) {
                toast({
                   title: "Teste Gratuito Expirado",
-                  description: `Seu período de teste gratuito de ${TRIAL_DURATION_DAYS} dias terminou. Para continuar acessando os recursos, por favor, escolha um plano pago.`,
+                  description: `Seu período de teste gratuito de ${TRIAL_DURATION_DAYS} dias terminou.`,
                   variant: "default",
                   duration: 9000,
                 });
@@ -195,22 +179,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           } catch (error: any) {
             console.error("[AuthProvider] Erro ao ler dados do usuário do DB:", error);
-            toast({ title: "Erro ao carregar dados", description: "Não foi possível buscar seus dados salvos.", variant: "destructive" });
-            setUser({
-              id: firebaseUser.uid, name: firebaseUser.displayName || 'Usuário', email: firebaseUser.email || '',
-              registeredCargoIds: [], studiedTopicIds: [], studyLogs: [], questionLogs: [], revisionSchedules: [],
-              notes: [], activePlan: null, activePlans: [], stripeCustomerId: null, hasHadFreeTrial: false, planHistory: [],
-              paymentHistory: [],
-              isRankingParticipant: null, isAdmin: false,
-            });
+            setUser(null);
           } finally {
             setLoading(false);
           }
-        }, (error) => {
-          console.error("[AuthProvider] Erro de permissão ou conexão ao DB:", error);
-          toast({ title: "Erro de Conexão com Dados", description: "Não foi possível sincronizar seus dados. Verifique as regras de segurança do Firebase.", variant: "destructive", duration: 7000 });
-          setUser(null);
-          setLoading(false);
         });
 
       } else {
@@ -228,108 +200,93 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [toast]);
 
   const login = async (email: string, pass: string) => {
-    if (!auth) throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
+    if (!auth) throw new Error("Serviço de autenticação indisponível.");
     await signInWithEmailAndPassword(auth, email, pass);
   };
 
   const register = async (name: string, email: string, cpf: string, pass: string) => {
-    // This now delegates to the server action
     await signInWithEmailAndPassword(auth, email, pass);
   };
   
   const sendPasswordReset = async (email: string) => {
-    if (!auth) throw new Error("O serviço de autenticação não está disponível. Verifique a configuração do Firebase.");
+    if (!auth) throw new Error("Serviço de autenticação indisponível.");
     await sendPasswordResetEmail(auth, email);
   };
 
   const logout = async () => {
-    if (!auth) throw new Error("O serviço de autenticação não está disponível.");
+    if (!auth) throw new Error("Serviço de autenticação indisponível.");
     await signOut(auth);
     router.push('/login'); 
   };
   
   const updateUser = async (updatedInfo: { name?: string; email?: string; avatarUrl?: string }) => {
-    if (!auth) throw new Error("Firebase Auth service is not available.");
-    if (!db) throw new Error("Firebase DB service is not available.");
-    const firebaseCurrentUser = auth.currentUser;
-    if (firebaseCurrentUser && user) {
-      setLoading(true);
-      try {
-        const authUpdates: { displayName?: string; photoURL?: string | null } = {};
-        if (updatedInfo.hasOwnProperty('name') && updatedInfo.name !== user.name) authUpdates.displayName = updatedInfo.name;
-        if (updatedInfo.hasOwnProperty('avatarUrl') && updatedInfo.avatarUrl !== user.avatarUrl) authUpdates.photoURL = updatedInfo.avatarUrl || null;
-        
-        if (Object.keys(authUpdates).length > 0) await updateProfile(firebaseCurrentUser, authUpdates);
-        
-        const dbUpdates: any = {};
-        if (authUpdates.displayName) dbUpdates.name = authUpdates.displayName;
-        if (authUpdates.photoURL !== undefined) dbUpdates.avatarUrl = authUpdates.photoURL;
+    if (!auth || !db || !user) throw new Error("Dados insuficientes para atualização.");
+    setLoading(true);
+    try {
+      const authUpdates: { displayName?: string; photoURL?: string | null } = {};
+      if (updatedInfo.hasOwnProperty('name') && updatedInfo.name !== user.name) authUpdates.displayName = updatedInfo.name;
+      if (updatedInfo.hasOwnProperty('avatarUrl') && updatedInfo.avatarUrl !== user.avatarUrl) authUpdates.photoURL = updatedInfo.avatarUrl || null;
+      
+      if (Object.keys(authUpdates).length > 0) await updateProfile(auth.currentUser!, authUpdates);
+      
+      const dbUpdates: any = {};
+      if (authUpdates.displayName) dbUpdates.name = authUpdates.displayName;
+      if (authUpdates.photoURL !== undefined) dbUpdates.avatarUrl = authUpdates.photoURL;
 
-        if (Object.keys(dbUpdates).length > 0) {
-            await update(ref(db, `users/${user.id}`), dbUpdates);
-        }
-
-        toast({ title: "Perfil Atualizado!", description: "Suas informações foram salvas.", variant: "default", className: "bg-accent text-accent-foreground" });
-      } catch (error) {
-        toast({ title: "Erro ao Atualizar", description: "Não foi possível salvar suas informações.", variant: "destructive" });
-      } finally {
-        setLoading(false);
+      if (Object.keys(dbUpdates).length > 0) {
+          await update(ref(db, `users/${user.id}`), dbUpdates);
       }
-    } else {
-      throw new Error("Nenhum usuário logado para atualizar.");
+    } catch (error) {
+      toast({ title: "Erro ao Atualizar", variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
   };
 
   const registerForCargo = async (editalId: string, cargoId: string) => {
-    if (!user) {
-      toast({ title: "Usuário não encontrado", description: "Não foi possível registrar no cargo.", variant: "destructive" });
-      throw new Error("User not found for cargo registration");
-    }
-    if (!db) throw new Error("Firebase DB service is not available.");
+    if (!user || !db) throw new Error("Usuário ou Banco de Dados indisponível.");
 
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
     let canRegister = false;
     let reason = "";
 
-    if (user.activePlans?.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
+    // Verifica se o usuário tem algum plano ATIVO que cubra o cargo
+    const activePlans = user.activePlans?.filter(p => p.status === 'active' || p.planId === 'plano_trial') || [];
+
+    if (activePlans.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
       canRegister = true;
-    } else if (user.activePlans?.some(p => p.planId === 'plano_edital' && p.selectedEditalId === editalId)) {
+    } else if (activePlans.some(p => p.planId === 'plano_edital' && p.selectedEditalId === editalId)) {
+      canRegister = true;
+    } else if (activePlans.some(p => p.planId === 'plano_cargo' && p.selectedCargoCompositeId === currentCargoCompositeId)) {
       canRegister = true;
     } else {
-      reason = "Você não possui um plano que cubra este cargo. Para se inscrever, adquira um plano correspondente.";
+      reason = "Você não possui um plano ativo que cubra este cargo. Verifique sua assinatura.";
     }
 
     if (!canRegister) {
       throw new Error(reason);
     }
 
-    const compositeId = `${editalId}_${cargoId}`;
-    const updatedRegisteredCargoIds = Array.from(new Set([...(user.registeredCargoIds || []), compositeId]));
+    const updatedRegisteredCargoIds = Array.from(new Set([...(user.registeredCargoIds || []), currentCargoCompositeId]));
     
     try {
       await update(ref(db, `users/${user.id}`), { registeredCargoIds: updatedRegisteredCargoIds });
     } catch (error) {
-      toast({ title: "Erro na Inscrição do Cargo", description: "Não foi possível salvar a inscrição no cargo.", variant: "destructive" });
       throw error; 
     }
   };
 
   const unregisterFromCargo = async (editalId: string, cargoId: string) => {
-    if (!user) {
-      toast({ title: "Usuário não logado.", variant: "destructive" });
-      return;
-    }
-    if (!db) throw new Error("Firebase DB service is not available.");
+    if (!user || !db) return;
     const cargoCompositeId = `${editalId}_${cargoId}`;
 
-    const isCargoTiedToPlan = user.activePlans?.some(p => p.planId === 'plano_cargo' && p.selectedCargoCompositeId === cargoCompositeId);
+    const isCargoTiedToPlan = user.activePlans?.some(p => p.planId === 'plano_cargo' && p.selectedCargoCompositeId === cargoCompositeId && p.status === 'active');
 
     if (isCargoTiedToPlan) {
         toast({
             title: "Ação Não Permitida",
-            description: "Este cargo está vinculado a um Plano Cargo ativo. Para removê-lo, cancele o plano na sua página de perfil.",
+            description: "Este cargo está vinculado a um Plano Cargo ativo. Você deve gerenciar isso através do seu perfil.",
             variant: "destructive",
-            duration: 7000,
         });
         return;
     }
@@ -342,9 +299,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         registeredCargoIds: updatedRegisteredCargoIds,
         ...progressUpdates
       });
-      toast({ title: "Inscrição Cancelada", description: `Sua inscrição e progresso no cargo foram removidos.` });
     } catch (error) {
-      toast({ title: "Erro ao Cancelar", description: "Não foi possível remover a inscrição ou o progresso do cargo.", variant: "destructive" });
+      toast({ title: "Erro ao Cancelar", variant: "destructive" });
     } 
   };
 
@@ -357,7 +313,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         await update(ref(db, `users/${user.id}`), { studiedTopicIds: updatedStudiedTopicIds });
       } catch (error) {
-        toast({ title: "Erro ao Atualizar Status", description: "Não foi possível salvar o status do tópico.", variant: "destructive" });
+        toast({ title: "Erro ao Atualizar", variant: "destructive" });
       } 
     }
   };
@@ -378,20 +334,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
             await set(newLogRef, newLog);
         } catch (error) {
-            toast({ title: "Erro ao Salvar Log", description: "Não foi possível salvar o registro de estudo.", variant: "destructive" });
+            toast({ title: "Erro ao Salvar Log", variant: "destructive" });
         }
     }
   };
 
   const deleteStudyLog = async (logId: string) => {
     if (user && db) {
-        console.log(`[AuthProvider] deleteStudyLog: Deletando registro de estudo com ID: ${logId}`);
         try {
             await remove(ref(db, `users/${user.id}/studyLogs/${logId}`));
-            toast({ title: "Registro Excluído", description: "O registro de estudo foi removido.", variant: "default" });
         } catch (error) {
-            console.error(`[AuthProvider] deleteStudyLog: Erro ao deletar log ${logId}`, error);
-            toast({ title: "Erro ao Excluir", description: "Não foi possível remover o registro do banco de dados.", variant: "destructive" });
+            toast({ title: "Erro ao Excluir", variant: "destructive" });
         }
     }
   };
@@ -406,7 +359,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         await set(newQuestionLogRef, newQuestionLog);
       } catch (error) {
-        toast({ title: "Erro ao Salvar Desempenho", description: "Não foi possível salvar o registro de questões.", variant: "destructive" });
         throw error;
       } 
     }
@@ -416,9 +368,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (user && db) {
       try {
         await remove(ref(db, `users/${user.id}/questionLogs/${logId}`));
-        toast({ title: "Registro Excluído", description: "O registro de questões foi removido.", variant: "default" });
       } catch (error) {
-        toast({ title: "Erro ao Excluir", description: "Não foi possível remover o registro de questões.", variant: "destructive" });
         throw error;
       }
     }
@@ -439,16 +389,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         await set(newScheduleRef, newScheduleEntry);
       } catch (error) {
-        toast({ title: "Erro ao Agendar Revisão", description: "Não foi possível salvar o agendamento.", variant: "destructive" });
+        toast({ title: "Erro ao Agendar", variant: "destructive" });
       }
     }
   };
 
   const toggleRevisionReviewedStatus = async (revisionId: string, nextValue?: boolean) => {
     if (!(user && db)) return;
-
     const revisionRef = ref(db, `users/${user.id}/revisionSchedules/${revisionId}`);
-
     let newStatus = nextValue;
     if (typeof newStatus === 'undefined') {
         const snap = await get(revisionRef);
@@ -456,10 +404,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const current = snap.val() as RevisionScheduleEntry;
         newStatus = !current.isReviewed;
     }
-
     const reviewedDate = newStatus ? new Date().toISOString() : null;
-
-    // Apenas persiste no DB; o onValue atualizará a UI
     await update(revisionRef, { isReviewed: newStatus, reviewedDate });
   };
   
@@ -475,35 +420,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             };
             try {
                 await set(newNoteRef, newNote);
-                toast({ title: "Anotação Salva!", description: "Sua anotação foi salva com sucesso.", variant: "default", className: "bg-accent text-accent-foreground" });
             } catch (error) {
-                toast({ title: "Erro ao Salvar", description: "Não foi possível salvar sua anotação.", variant: "destructive" });
+                toast({ title: "Erro ao Salvar Anotação", variant: "destructive" });
             }
         }
     };
 
     const deleteNote = async (noteId: string) => {
-      console.log(`[AuthProvider] deleteNote called for ID: ${noteId}`);
-      if (!noteId) { console.error('[AuthProvider] Tentativa de exclusão com noteId vazio.'); return; }
-      if (!(user && db)) { console.error('[AuthProvider] Tentativa de exclusão sem usuário ou db disponível.'); return; }
-  
-      console.log(`[AuthProvider] Iniciando remoção para o caminho: users/${user.id}/notes/${noteId}`);
-      try {
-          await remove(ref(db, `users/${user.id}/notes/${noteId}`));
-          console.log('[AuthProvider] Anotação removida do Firebase com sucesso.');
-
-          // Otimistic UI Update
-          setUser(prevUser => {
-            if (!prevUser) return prevUser;
-            const updatedNotes = (prevUser.notes || []).filter(note => note.id !== noteId);
-            return { ...prevUser, notes: updatedNotes };
-          });
-  
-          toast({ title: "Anotação Excluída", description: "Sua anotação foi removida com sucesso." });
-      } catch (err) {
-          console.error('[AuthProvider] deleteNote: Erro ao tentar remover a anotação do Firebase:', err);
-          console.error('[AuthProvider] Erro ao tentar remover a anotação do Firebase:', err);
-          toast({ title: "Erro ao Excluir", description: "Não foi possível remover a anotação do banco de dados.", variant: "destructive" });
+      if (user && db) {
+          try {
+              await remove(ref(db, `users/${user.id}/notes/${noteId}`));
+          } catch (err) {
+              toast({ title: "Erro ao Excluir", variant: "destructive" });
+          }
       }
     };
 
@@ -511,16 +440,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (!user || !user.activePlans || !db) throw new Error("Usuário ou planos não encontrados.");
         
         const planIndex = user.activePlans.findIndex(p => p.stripePaymentIntentId === paymentIntentId);
-        if (planIndex === -1) {
-            toast({ title: "Erro", description: "Plano original não encontrado para realizar a troca.", variant: "destructive" });
-            throw new Error("Plano não encontrado.");
-        }
+        if (planIndex === -1) throw new Error("Plano não encontrado.");
 
         const planToChange = user.activePlans[planIndex];
-        if (!isWithinGracePeriod(planToChange.startDate, 7)) {
-            toast({ title: "Período Expirado", description: "O período de 7 dias para troca já passou.", variant: "destructive" });
-            throw new Error("Período de troca expirou.");
-        }
+        if (!isWithinGracePeriod(planToChange.startDate, 7)) throw new Error("Período de troca expirou.");
 
         const updatedPlans = [...user.activePlans];
         const oldItemId = planToChange.planId === 'plano_cargo' ? planToChange.selectedCargoCompositeId : planToChange.selectedEditalId;
@@ -531,7 +454,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             updatedPlans[planIndex].selectedEditalId = newItemId;
         }
 
-        // Limpar progresso e inscrições do item antigo e adicionar o novo
         const updates: any = { activePlans: updatedPlans };
         let registeredCargos = user.registeredCargoIds || [];
 
@@ -540,7 +462,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             registeredCargos = registeredCargos.filter(id => id !== oldItemId);
             registeredCargos.push(newItemId);
         } else if (planToChange.planId === 'plano_edital' && oldItemId) {
-            // Para troca de edital, removemos todos os cargos do edital antigo
             registeredCargos = registeredCargos.filter(id => !id.startsWith(`${oldItemId}_`));
             Object.assign(updates, cleanProgressForCargo(user, `${oldItemId}_`));
         }
@@ -548,15 +469,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         try {
             await update(ref(db, `users/${user.id}`), updates);
-            toast({ title: "Troca Realizada!", description: "Seu plano foi atualizado para o novo item selecionado.", variant: "default", className: "bg-accent text-accent-foreground" });
+            toast({ title: "Troca Realizada!", variant: "default", className: "bg-accent text-accent-foreground" });
         } catch (error) {
-            toast({ title: "Erro na Troca", description: "Não foi possível atualizar seu plano.", variant: "destructive" });
             throw error;
         }
     };
 
   const cancelSubscription = async (subscriptionId: string) => {
-    if (!user || !db) throw new Error("Usuário não está logado ou o DB não está disponível.");
+    if (!user || !db) throw new Error("Sessão inválida.");
 
     if (subscriptionId === 'plano_trial') {
         const updatedActivePlans = user.activePlans?.filter(p => p.planId !== 'plano_trial') || [];
@@ -565,18 +485,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         try {
             await update(ref(db, `users/${user.id}`), updates);
-            toast({ title: "Teste Cancelado", description: "Seu teste gratuito foi cancelado." });
+            toast({ title: "Teste Cancelado" });
         } catch(e) {
-            toast({ title: "Erro", description: "Não foi possível cancelar o teste.", variant: "destructive" });
             throw e;
         }
         return;
     }
     
-    // For paid subscriptions
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      if (!idToken) throw new Error("Token de autenticação não encontrado.");
+      const idToken = await auth?.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Token não encontrado.");
 
       const response = await fetch('/api/subscriptions/cancel', {
         method: 'POST',
@@ -587,68 +505,46 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         body: JSON.stringify({ subscriptionId }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Falha ao cancelar a assinatura no servidor.');
-      }
+      if (!response.ok) throw new Error('Falha ao cancelar.');
       
-      // The local state will be updated via the onValue listener from the webhook,
-      // but we can give immediate feedback.
       toast({
         title: "Cancelamento Agendado",
-        description: "Sua assinatura será cancelada no final do período de cobrança. O acesso continuará até lá.",
+        description: "Seu acesso continuará até o fim do período já pago.",
         variant: "default",
         className: "bg-accent text-accent-foreground",
-        duration: 9000,
       });
 
     } catch (error: any) {
-      toast({
-        title: "Erro ao Cancelar",
-        description: error.message || "Não foi possível processar o cancelamento da assinatura.",
-        variant: "destructive",
-      });
+      toast({ title: "Erro ao Cancelar", variant: "destructive" });
       throw error;
     }
   };
 
   const startFreeTrial = async () => {
-
-    if (!user || !user.cpf || !user.email) {
-        toast({ title: "Informação Faltando", description: "Usuário, CPF ou e-mail não encontrado. Faça login para iniciar seu teste.", variant: "destructive" });
-
-        if (!user) router.push("/login?redirect=/planos");
+    if (!user || !user.cpf || !user.email || !db) {
+        toast({ title: "Informação Faltando", variant: "destructive" });
         return;
     }
     if (user.hasHadFreeTrial) {
-        toast({ title: "Teste Já Utilizado", description: "Este CPF já utilizou o período de teste gratuito.", variant: "default" });
-        return;
-    }
-    const hasPaidPlan = user.activePlans?.some(p => p.planId === 'plano_cargo' || p.planId === 'plano_edital' || p.planId === 'plano_mensal');
-    if (hasPaidPlan) {
-        toast({ title: "Plano Ativo", description: "Você já possui um plano pago ativo.", variant: "default" });
+        toast({ title: "Teste Já Utilizado" });
         return;
     }
 
     try {
-        console.log("[startFreeTrial] Calling registerUsedTrialByCpf server action...");
-
         const result = await registerUsedTrialByCpf({
             cpf: user.cpf,
             email: user.email,
             name: user.name,
         });
 
-        if (result.error) {
-            throw new Error(result.error);
-        }
-        console.log("[startFreeTrial] Server action successful. Updating user profile on client...");
+        if (result.error) throw new Error(result.error);
 
         const now = new Date();
         const trialPlanDetails: PlanDetails = {
             planId: 'plano_trial',
             startDate: formatISO(now),
             expiryDate: formatISO(addDays(now, TRIAL_DURATION_DAYS)),
+            status: 'active', // Define status ativo explicitamente
         };
         const updatedActivePlans = [...(user.activePlans || []), trialPlanDetails];
         const userUpdates = {
@@ -658,19 +554,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         };
 
         await update(ref(db, `users/${user.id}`), userUpdates);
-        console.log("[startFreeTrial] User profile updated successfully.");
-
-        toast({ 
-            title: "Teste Gratuito Ativado!", 
-            description: `Você tem ${TRIAL_DURATION_DAYS} dias para explorar todos os recursos. Aproveite!`, 
-            variant: "default",
-            className: "bg-accent text-accent-foreground",
-            duration: 7000 
-        });
+        toast({ title: "Teste Ativado!", variant: "default", className: "bg-accent text-accent-foreground" });
         router.push('/');
     } catch (error: any) {
-        console.error("[startFreeTrial] CRITICAL: Error during free trial activation:", error);
-        toast({ title: "Erro ao Ativar Teste", description: error.message || "Não foi possível iniciar seu período de teste.", variant: "destructive" });
+        toast({ title: "Erro ao Ativar Teste", variant: "destructive" });
     }
   };
 
@@ -679,32 +566,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (user && db) {
       try {
         await update(ref(db, `users/${user.id}`), { isRankingParticipant: participate });
-        toast({
-          title: "Preferência de Ranking Salva!",
-          description: participate
-            ? "Você agora está participando do ranking."
-            : "Você escolheu não participar do ranking. Seus dados permanecerão anônimos.",
-          variant: "default",
-          className: "bg-accent text-accent-foreground",
-        });
       } catch (error) {
-        toast({ title: "Erro", description: "Não foi possível salvar sua preferência de ranking.", variant: "destructive" });
         throw error;
       }
     }
   };
   
   const requestPlanRefund = async (paymentIntentId: string) => {
-    if (!user || !user.activePlans || !db) {
-      toast({ title: "Erro", description: "Usuário, planos ou conexão com DB não encontrados.", variant: "destructive" });
-      return;
-    }
+    if (!user || !user.activePlans || !db) return;
     
     const planIndex = user.activePlans.findIndex(p => p.stripePaymentIntentId === paymentIntentId);
-    if (planIndex === -1) {
-        toast({ title: "Erro", description: "Plano não encontrado para solicitar reembolso.", variant: "destructive" });
-        return;
-    }
+    if (planIndex === -1) return;
 
     const updatedPlans = [...user.activePlans];
     updatedPlans[planIndex] = {
@@ -715,82 +587,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     
     try {
       await update(ref(db, `users/${user.id}`), { activePlans: updatedPlans });
-      toast({
-        title: "Solicitação Enviada",
-        description: "Sua solicitação de reembolso foi enviada ao administrador. O processo pode levar alguns dias.",
-        variant: "default",
-        className: "bg-accent text-accent-foreground",
-      });
+      toast({ title: "Solicitação Enviada", variant: "default", className: "bg-accent text-accent-foreground" });
     } catch (error) {
-      toast({ title: "Erro ao Solicitar", description: "Não foi possível enviar sua solicitação.", variant: "destructive" });
+      toast({ title: "Erro ao Solicitar", variant: "destructive" });
     }
   };
 
   const deleteUserAccount = async () => {
-    console.log('[AuthProvider] Iniciando deleteUserAccount...');
-    const firebaseCurrentUser = auth.currentUser;
-    if (!firebaseCurrentUser) {
-      console.error('[AuthProvider] Tentativa de exclusão sem usuário logado.');
-      toast({ title: "Erro", description: "Nenhuma sessão de usuário encontrada para exclusão.", variant: "destructive" });
-      throw new Error("Usuário não encontrado para exclusão.");
-    }
-  
+    if (!auth?.currentUser) return;
     try {
-      console.log('[AuthProvider] Obtendo ID token para a requisição de exclusão...');
-      const idToken = await firebaseCurrentUser.getIdToken(true);
-      console.log('[AuthProvider] ID token obtido. Fazendo a requisição para a API /api/account/delete...');
+      const idToken = await auth.currentUser.getIdToken(true);
       const response = await fetch('/api/account/delete', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
         },
       });
-
-      console.log(`[AuthProvider] Resposta da API recebida com status: ${response.status}`);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(`[AuthProvider] Erro da API: ${errorData.error || 'Erro desconhecido do servidor.'}`);
-        throw new Error(errorData.error || "Falha ao excluir conta no servidor.");
-      }
-  
-      console.log('[AuthProvider] Exclusão bem-sucedida no servidor. Exibindo toast de sucesso.');
-      toast({
-        title: "Conta Excluída",
-        description: "Sua conta e todos os seus dados foram excluídos com sucesso.",
-        variant: "default",
-        className: "bg-accent text-accent-foreground",
-      });
-      // onAuthStateChanged irá lidar com o logout e redirecionamento automaticamente.
-  
+      if (!response.ok) throw new Error("Falha ao excluir.");
+      toast({ title: "Conta Excluída" });
     } catch (error: any) {
-      console.error("[AuthProvider] Erro CRÍTICO durante a exclusão da conta:", error);
-      let errorMessage = "Não foi possível excluir sua conta. Tente novamente mais tarde.";
-      // A mensagem de erro da API já é bastante descritiva.
-      if (error.message) {
-        errorMessage = error.message;
-      }
-      toast({
-        title: "Falha na Exclusão da Conta",
-        description: errorMessage,
-        variant: "destructive",
-        duration: 9000
-      });
+      toast({ title: "Erro na Exclusão", variant: "destructive" });
       throw error;
     }
   };
 
   const contextValue: AuthContextType = {
-      user, loading, login, 
-      register,
-      sendPasswordReset, logout, updateUser, 
-      registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, 
-      deleteStudyLog,
-      addQuestionLog, deleteQuestionLog,
-      addRevisionSchedule, toggleRevisionReviewedStatus,
-      addNote, deleteNote,
-      cancelSubscription, startFreeTrial, changeItemForPlan,
-      setRankingParticipation, requestPlanRefund,
-      deleteUserAccount
+      user, loading, login, register, sendPasswordReset, logout, updateUser, 
+      registerForCargo, unregisterFromCargo, toggleTopicStudyStatus, addStudyLog, deleteStudyLog,
+      addQuestionLog, deleteQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
+      addNote, deleteNote, cancelSubscription, startFreeTrial, changeItemForPlan,
+      setRankingParticipation, requestPlanRefund, deleteUserAccount
   };
 
   return (
@@ -799,5 +625,3 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-    
