@@ -403,6 +403,7 @@ export default function SubjectTopicsPage() {
                         className={cn(
                             "rounded-lg border shadow-sm overflow-hidden transition-colors duration-200",
                             isRevisionDue ? "border-yellow-500 bg-yellow-50/30" : 
+                            isStudiedChecked ? "border-accent/40 bg-accent/5" :
                             isRevisionFuture ? "border-blue-400 bg-blue-50/20" : 
                             "border-border bg-card"
                         )}
