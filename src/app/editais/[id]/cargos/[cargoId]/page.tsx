@@ -34,19 +34,18 @@ export default function CargoSubjectsPage() {
     if (!user || authLoading) return;
 
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
-    let canAccess = false;
-
-    // Filtra apenas planos com status 'active'
+    
+    // O acesso só é concedido se o status do plano for explicitamente 'active'
     const activePaidPlans = user.activePlans?.filter(p => p.status === 'active') || [];
 
-    if (activePaidPlans.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
-        canAccess = true;
-    } else if (activePaidPlans.some(p => p.planId === 'plano_edital' && p.selectedEditalId === editalId)) {
-        canAccess = true;
-    } else if (activePaidPlans.some(p => p.planId === 'plano_cargo' && p.selectedCargoCompositeId === currentCargoCompositeId)) {
-        canAccess = true;
-    }
+    const canAccess = activePaidPlans.some(p => 
+        p.planId === 'plano_mensal' || 
+        p.planId === 'plano_trial' ||
+        (p.planId === 'plano_edital' && p.selectedEditalId === editalId) ||
+        (p.planId === 'plano_cargo' && p.selectedCargoCompositeId === currentCargoCompositeId)
+    );
 
+    // Considera suspenso se não tiver acesso mas tiver algum plano com status de erro de pagamento
     const suspended = !canAccess && (user.activePlans?.some(p => p.status === 'past_due' || p.status === 'unpaid') ?? false);
 
     setHasAccess(canAccess);
@@ -129,15 +128,13 @@ export default function CargoSubjectsPage() {
               )}
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button asChild size="lg" className={isSuspended ? "bg-destructive hover:bg-destructive/90" : ""}>
-                    <Link href="/perfil">
-                    {isSuspended ? "Resolver Pendência" : "Ver Minha Conta"}
+                    <Link href="/planos">
+                    {isSuspended ? "Resolver Pendência" : "Ver Planos"}
                     </Link>
                 </Button>
-                {!isSuspended && (
-                  <Button asChild variant="outline" size="lg">
-                      <Link href="/planos">Ver Planos</Link>
-                  </Button>
-                )}
+                <Button asChild variant="outline" size="lg">
+                    <Link href="/perfil">Ver Meu Perfil</Link>
+                </Button>
               </div>
             </CardContent>
           </Card>

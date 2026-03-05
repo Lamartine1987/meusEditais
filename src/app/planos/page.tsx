@@ -77,26 +77,25 @@ export default function PlanosPage() {
   const [isProcessingModalSelection, setIsProcessingModalSelection] = useState(false);
   const [isStartingTrial, setIsStartingTrial] = useState(false);
 
+  // CRÍTICO: Consideramos apenas planos com status 'active' para a lógica de bloqueio
   const currentUserPlanRank = useMemo(() => {
     if (!user || !user.activePlans || user.activePlans.length === 0) return -1;
-    // Find the highest rank among all active plans
-    return Math.max(...user.activePlans.map(p => planRank[p.planId]));
+    const activeOnly = user.activePlans.filter(p => p.status === 'active');
+    if (activeOnly.length === 0) return -1;
+    return Math.max(...activeOnly.map(p => planRank[p.planId]));
   }, [user]);
 
   useEffect(() => {
     const fetchAllEditais = async () => {
       setDataLoading(true);
-      console.log('[PlanosPage] Fetching editais from API...');
       try {
         const response = await fetch('/api/editais');
         if (!response.ok) {
           throw new Error('Falha ao buscar a lista de editais.');
         }
         const data: EditalType[] = await response.json();
-        console.log(`[PlanosPage] Successfully fetched ${data.length} editais.`);
         setAllEditaisData(data);
       } catch (error: any) {
-        console.error("[PlanosPage] Erro ao buscar dados dos editais:", error);
         toast({
           title: "Erro de Dados",
           description: "Não foi possível carregar os editais disponíveis para seleção.",
@@ -149,7 +148,7 @@ export default function PlanosPage() {
     const targetRank = planType === 'cargo' ? planRank.plano_cargo : planRank.plano_edital;
 
     if (currentUserPlanRank >= targetRank) {
-        toast({ title: "Ação Inválida", description: "Você já possui este plano ou um plano superior.", variant: "default", duration: 7000 });
+        toast({ title: "Ação Inválida", description: "Você já possui este plano ou um plano superior ativo.", variant: "default" });
         return;
     }
     
@@ -189,8 +188,8 @@ export default function PlanosPage() {
      router.push('/login?redirect=/planos');
      return;
     }
-    // Allow re-subscription if the current monthly plan is already set to be canceled
-    const hasActiveMonthlyPlan = user.activePlans?.some(p => p.planId === 'plano_mensal' && p.status !== 'canceled') ?? false;
+    
+    const hasActiveMonthlyPlan = user.activePlans?.some(p => p.planId === 'plano_mensal' && p.status === 'active') ?? false;
     if (hasActiveMonthlyPlan) {
        toast({ title: "Plano Já Ativo", description: `Você já tem uma assinatura mensal ativa.`, variant: "default" });
        return;
@@ -203,17 +202,18 @@ export default function PlanosPage() {
     try {
         await startFreeTrial();
     } catch (error: any) {
-        console.error("Error initiating free trial from PlanosPage:", error);
-        // The toast is already handled inside startFreeTrial, no need to show another one.
+        console.error("Error initiating free trial:", error);
     } finally {
         setIsStartingTrial(false);
     }
   };
 
   const canStartTrial = user && !user.hasHadFreeTrial;
-  const hasActivePaidPlan = user && user.activePlans?.some(p => p.planId !== 'plano_trial');
+  const hasActivePaidPlan = user && user.activePlans?.some(p => p.planId !== 'plano_trial' && p.status === 'active');
   const pageIsLoading = authLoading || dataLoading;
-  const hasMonthlyPlan = user?.activePlans?.some(p => p.planId === 'plano_mensal') ?? false;
+  
+  // CRÍTICO: Verificamos apenas status 'active' para o plano mensal
+  const hasMonthlyPlanActive = user?.activePlans?.some(p => p.planId === 'plano_mensal' && p.status === 'active') ?? false;
 
   // --- Button Logic ---
   const cargoButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_cargo : false);
@@ -225,9 +225,9 @@ export default function PlanosPage() {
   const editalButtonDisabled = pageIsLoading || (user ? currentUserPlanRank >= planRank.plano_edital : false);
 
   const isAnualUpgrade = user ? currentUserPlanRank > 0 && currentUserPlanRank < planRank.plano_mensal : false;
-  const anualButtonText = hasMonthlyPlan ? "Plano Máximo Ativo" : (isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Mensal");
+  const anualButtonText = hasMonthlyPlanActive ? "Plano Máximo Ativo" : (isAnualUpgrade ? "Fazer Upgrade" : "Assinar Plano Mensal");
   const anualButtonIcon = isAnualUpgrade ? <Zap className="mr-2 h-5 w-5" /> : <Gem className="mr-2 h-5 w-5" />;
-  const anualButtonDisabled = pageIsLoading || (user ? user.activePlans?.some(p => p.planId === 'plano_mensal' && p.status !== 'canceled') : false);
+  const anualButtonDisabled = pageIsLoading || (user ? hasMonthlyPlanActive : false);
 
 
   return (
@@ -580,7 +580,3 @@ export default function PlanosPage() {
     </PageWrapper>
   );
 }
-
-    
-
-    
