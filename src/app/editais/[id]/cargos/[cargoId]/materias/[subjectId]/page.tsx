@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -15,7 +16,7 @@ import {
   Loader2, ArrowLeft, BookOpen, Play, Pause, RotateCcw, Save, 
   TimerIcon, Info, AlertTriangle, CreditCard, Lock, CalendarClock, 
   FileQuestion, FileText, Trash2, History, CheckCircle2, ChevronRight,
-  CalendarDays
+  CalendarDays, Target
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -229,7 +230,7 @@ export default function SubjectTopicsPage() {
         compositeTopicId,
         totalQuestions: parseInt(questionData.total),
         correctQuestions: parseInt(questionData.correct),
-        incorrectQuestions: parseInt(questionData.total) - parseInt(questionData.correct),
+        incorrectQuestions: Math.max(0, parseInt(questionData.total) - parseInt(questionData.correct)),
         targetPercentage: parseInt(questionData.target),
       });
       toast({ title: "Questões Registradas!", variant: "default", className:"bg-accent text-accent-foreground" });
@@ -273,15 +274,21 @@ export default function SubjectTopicsPage() {
   };
 
   const getTopicData = useCallback((topicId: string) => {
-    if (!user) return { logs: [], revisions: [], notes: [], totalTime: 0 };
+    if (!user) return { logs: [], revisions: [], notes: [], questions: [], totalTime: 0, performance: 0 };
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
     
     const logs = (user.studyLogs || []).filter(l => l.compositeTopicId === compositeTopicId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const revisions = (user.revisionSchedules || []).filter(r => r.compositeTopicId === compositeTopicId);
     const notes = (user.notes || []).filter(n => n.compositeTopicId === compositeTopicId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const questions = (user.questionLogs || []).filter(q => q.compositeTopicId === compositeTopicId);
+    
     const totalTime = logs.reduce((acc, log) => acc + log.duration, 0);
+    
+    const totalQ = questions.reduce((acc, q) => acc + q.totalQuestions, 0);
+    const correctQ = questions.reduce((acc, q) => acc + q.correctQuestions, 0);
+    const performance = totalQ > 0 ? (correctQ / totalQ) * 100 : 0;
 
-    return { logs, revisions, notes, totalTime };
+    return { logs, revisions, notes, questions, totalTime, performance };
   }, [user, editalId, cargoId, subjectId]);
 
   if (loadingData || authLoading) {
@@ -365,7 +372,7 @@ export default function SubjectTopicsPage() {
                 {subject.topics.map((topic: TopicType, index) => {
                   const compositeTopicId = `${editalId}_${cargoId}_${subject.id}_${topic.id}`;
                   const isStudiedChecked = user?.studiedTopicIds?.includes(compositeTopicId) ?? false;
-                  const { logs, revisions, notes, totalTime } = getTopicData(topic.id);
+                  const { logs, revisions, notes, totalTime, performance } = getTopicData(topic.id);
                   
                   // Lógica de Revisão
                   const activeRevision = revisions.find(r => !r.isReviewed);
@@ -392,6 +399,15 @@ export default function SubjectTopicsPage() {
                                 <span className="text-base font-semibold">{topic.name}</span>
                             </div>
                             <div className="flex items-center gap-2">
+                                {performance > 0 && (
+                                    <Badge variant="outline" className={cn(
+                                        "flex items-center gap-1 font-mono",
+                                        performance >= 80 ? "text-accent border-accent/30 bg-accent/5" : "text-primary border-primary/30 bg-primary/5"
+                                    )}>
+                                        <Target className="h-3 w-3" />
+                                        {performance.toFixed(0)}%
+                                    </Badge>
+                                )}
                                 {activeRevision && (
                                     <Badge 
                                         variant={isRevisionDue ? "destructive" : "secondary"}
@@ -482,6 +498,19 @@ export default function SubjectTopicsPage() {
                                     <div className="grid gap-2">
                                         <Label>Acertos</Label>
                                         <Input type="number" value={questionData.correct} onChange={e => setQuestionLogData({...questionData, correct: e.target.value})} />
+                                    </div>
+                                    {questionData.total && questionData.correct && (
+                                        <div className="text-sm font-medium text-muted-foreground flex justify-between px-1">
+                                            <span>Erros calculados:</span>
+                                            <span className="text-destructive">{Math.max(0, parseInt(questionData.total) - parseInt(questionData.correct))}</span>
+                                        </div>
+                                    )}
+                                    <div className="grid gap-2 pt-2">
+                                        <Label className="flex justify-between items-center">
+                                            <span>Meta de Aproveitamento (%)</span>
+                                            <span className="text-xs font-normal text-muted-foreground">O padrão é 80%</span>
+                                        </Label>
+                                        <Input type="number" value={questionData.target} onChange={e => setQuestionLogData({...questionData, target: e.target.value})} />
                                     </div>
                                 </div>
                                 <DialogFooter>
