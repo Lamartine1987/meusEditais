@@ -16,7 +16,7 @@ import {
   Loader2, ArrowLeft, BookOpen, Play, Pause, RotateCcw, Save, 
   TimerIcon, Info, AlertTriangle, CreditCard, Lock, CalendarClock, 
   FileQuestion, FileText, Trash2, History, CheckCircle2, ChevronRight,
-  CalendarDays, Target
+  CalendarDays, Target, XCircle
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -53,7 +53,7 @@ export default function SubjectTopicsPage() {
 
   const { 
     user, toggleTopicStudyStatus, addStudyLog, deleteStudyLog,
-    addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
+    addQuestionLog, deleteQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
     addNote, deleteNote,
     loading: authLoading 
   } = useAuth();
@@ -295,7 +295,7 @@ export default function SubjectTopicsPage() {
     const logs = (user.studyLogs || []).filter(l => l.compositeTopicId === compositeTopicId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const revisions = (user.revisionSchedules || []).filter(r => r.compositeTopicId === compositeTopicId);
     const notes = (user.notes || []).filter(n => n.compositeTopicId === compositeTopicId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    const questions = (user.questionLogs || []).filter(q => q.compositeTopicId === compositeTopicId);
+    const questions = (user.questionLogs || []).filter(q => q.compositeTopicId === compositeTopicId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     const totalTime = logs.reduce((acc, log) => acc + log.duration, 0);
     
@@ -387,7 +387,7 @@ export default function SubjectTopicsPage() {
                 {subject.topics.map((topic: TopicType, index) => {
                   const compositeTopicId = `${editalId}_${cargoId}_${subject.id}_${topic.id}`;
                   const isStudiedChecked = user?.studiedTopicIds?.includes(compositeTopicId) ?? false;
-                  const { logs, revisions, notes, totalTime, performance } = getTopicData(topic.id);
+                  const { logs, revisions, notes, questions, totalTime, performance } = getTopicData(topic.id);
                   
                   // Lógica de Revisão
                   const activeRevision = revisions.find(r => !r.isReviewed);
@@ -509,47 +509,97 @@ export default function SubjectTopicsPage() {
                             </div>
                         </div>
 
-                        {/* Questions Button */}
-                        <Dialog 
-                          open={openQuestionsModalId === topic.id} 
-                          onOpenChange={(open) => setOpenQuestionsModalId(open ? topic.id : null)}
-                        >
-                            <DialogTrigger asChild>
-                                <Button variant="outline" className="w-full h-12 text-base border-dashed"><FileQuestion className="mr-2 h-5 w-5" /> Registrar Desempenho em Questões</Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                                <DialogHeader><DialogTitle>Registrar Questões</DialogTitle></DialogHeader>
-                                <div className="grid gap-4 py-4">
-                                    <div className="grid gap-2">
-                                        <Label>Total de Questões</Label>
-                                        <Input type="number" value={questionData.total} onChange={e => setQuestionLogData({...questionData, total: e.target.value})} />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label>Acertos</Label>
-                                        <Input type="number" value={questionData.correct} onChange={e => setQuestionLogData({...questionData, correct: e.target.value})} />
-                                    </div>
-                                    {questionData.total && questionData.correct && (
-                                        <div className="text-sm font-medium text-muted-foreground flex justify-between px-1">
-                                            <span>Erros calculados:</span>
-                                            <span className="text-destructive">{Math.max(0, parseInt(questionData.total) - parseInt(questionData.correct))}</span>
+                        {/* Questions Section */}
+                        <div className="space-y-3">
+                            <Dialog 
+                              open={openQuestionsModalId === topic.id} 
+                              onOpenChange={(open) => setOpenQuestionsModalId(open ? topic.id : null)}
+                            >
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" className="w-full h-12 text-base border-dashed"><FileQuestion className="mr-2 h-5 w-5" /> Registrar Desempenho em Questões</Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                    <DialogHeader><DialogTitle>Registrar Questões</DialogTitle></DialogHeader>
+                                    <div className="grid gap-4 py-4">
+                                        <div className="grid gap-2">
+                                            <Label>Total de Questões</Label>
+                                            <Input type="number" value={questionData.total} onChange={e => setQuestionLogData({...questionData, total: e.target.value})} />
                                         </div>
-                                    )}
-                                    <div className="grid gap-2 pt-2">
-                                        <Label className="flex justify-between items-center">
-                                            <span>Meta de Aproveitamento (%)</span>
-                                            <span className="text-xs font-normal text-muted-foreground">O padrão é 80%</span>
-                                        </Label>
-                                        <Input type="number" value={questionData.target} onChange={e => setQuestionLogData({...questionData, target: e.target.value})} />
+                                        <div className="grid gap-2">
+                                            <Label>Acertos</Label>
+                                            <Input type="number" value={questionData.correct} onChange={e => setQuestionLogData({...questionData, correct: e.target.value})} />
+                                        </div>
+                                        {questionData.total && questionData.correct && (
+                                            <div className="text-sm font-medium text-muted-foreground flex justify-between px-1">
+                                                <span>Erros calculados:</span>
+                                                <span className="text-destructive">{Math.max(0, parseInt(questionData.total) - parseInt(questionData.correct))}</span>
+                                            </div>
+                                        )}
+                                        <div className="grid gap-2 pt-2">
+                                            <Label className="flex justify-between items-center">
+                                                <span>Meta de Aproveitamento (%)</span>
+                                                <span className="text-xs font-normal text-muted-foreground">O padrão é 80%</span>
+                                            </Label>
+                                            <Input type="number" value={questionData.target} onChange={e => setQuestionLogData({...questionData, target: e.target.value})} />
+                                        </div>
                                     </div>
+                                    <DialogFooter>
+                                        <Button onClick={() => handleSaveQuestions(topic.id)} disabled={isSavingQuestions}>
+                                            {isSavingQuestions ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
+                                            Salvar Registro
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+
+                            {questions.length > 0 && (
+                                <div className="space-y-2">
+                                    <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">Histórico de Questões:</h4>
+                                    {questions.map(q => {
+                                        const perc = (q.correctQuestions / q.totalQuestions) * 100;
+                                        const isApproved = perc >= q.targetPercentage;
+                                        return (
+                                            <div key={q.id} className="p-3 bg-muted/10 border rounded-lg text-sm relative group">
+                                                <div className="flex justify-between items-start">
+                                                    <span className="text-xs font-semibold text-muted-foreground mb-1 block">
+                                                        {format(parseISO(q.date), "dd/MM/yy HH:mm")}
+                                                    </span>
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="icon" 
+                                                        className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" 
+                                                        onClick={() => deleteQuestionLog(q.id)}
+                                                    >
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </Button>
+                                                </div>
+                                                <ul className="space-y-1">
+                                                    <li className="flex items-center gap-1.5">
+                                                        <span className="text-primary">•</span>
+                                                        <span>Total: {q.totalQuestions}, Acertos: {q.correctQuestions} ({perc.toFixed(1)}%), Erros: {q.incorrectQuestions}</span>
+                                                    </li>
+                                                    <li className="flex items-center gap-1.5">
+                                                        <span className="text-primary">•</span>
+                                                        <span className="flex items-center gap-1.5 flex-wrap">
+                                                            Meta: {q.targetPercentage}% - Status: 
+                                                            {isApproved ? (
+                                                                <span className="flex items-center gap-1 text-accent font-semibold ml-1">
+                                                                    <CheckCircle2 className="h-3.5 w-3.5" /> Aprovado
+                                                                </span>
+                                                            ) : (
+                                                                <span className="flex items-center gap-1 text-destructive font-semibold ml-1">
+                                                                    <XCircle className="h-3.5 w-3.5" /> Reprovado
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        )
+                                    })}
                                 </div>
-                                <DialogFooter>
-                                    <Button onClick={() => handleSaveQuestions(topic.id)} disabled={isSavingQuestions}>
-                                        {isSavingQuestions ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
-                                        Salvar Registro
-                                    </Button>
-                                </DialogFooter>
-                            </DialogContent>
-                        </Dialog>
+                            )}
+                        </div>
 
                         {/* Progress Section (Cronômetro + PDF) */}
                         <Card className="border-primary/20 bg-primary/5">
