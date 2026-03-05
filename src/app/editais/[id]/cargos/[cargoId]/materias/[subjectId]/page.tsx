@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, ChangeEvent, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { Edital, Cargo, Subject as SubjectType, Topic as TopicType, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, NoteEntry } from '@/types';
@@ -10,38 +10,20 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2, ArrowLeft, BookOpen, AlertCircle, Play, Pause, RotateCcw, Save, ListChecks, TimerIcon, ClipboardList, CheckCircle, XCircle, TrendingUp, CalendarClock, Info, AlertTriangle, Gem, FileText, History, NotebookPen, Trash2, Trophy, CreditCard } from 'lucide-react';
+import { Loader2, ArrowLeft, BookOpen, Play, Pause, RotateCcw, Save, TimerIcon, Info, AlertTriangle, CreditCard, Lock } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { format, isToday, isPast, addDays, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { isToday, isPast, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Textarea } from '@/components/ui/textarea';
 
 const formatDuration = (totalSeconds: number): string => {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-};
-
-interface QuestionFormData {
-  totalQuestions: string;
-  correctQuestions: string;
-  incorrectQuestions: string;
-  targetPercentage: string;
-}
-
-const initialQuestionFormData: QuestionFormData = {
-  totalQuestions: '',
-  correctQuestions: '',
-  incorrectQuestions: '',
-  targetPercentage: '70',
 };
 
 export default function SubjectTopicsPage() {
@@ -51,7 +33,7 @@ export default function SubjectTopicsPage() {
   const cargoId = params.cargoId as string;
   const subjectId = params.subjectId as string;
 
-  const { user, toggleTopicStudyStatus, addStudyLog, deleteStudyLog, addQuestionLog, deleteQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus, addNote, deleteNote, loading: authLoading, setRankingParticipation } = useAuth();
+  const { user, toggleTopicStudyStatus, addStudyLog, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [edital, setEdital] = useState<Edital | null>(null);
@@ -67,31 +49,7 @@ export default function SubjectTopicsPage() {
   const activeTimerTopicIdRef = useRef<string | null>(null);
 
   const [activeAccordionItem, setActiveAccordionItem] = useState<string | null>(null);
-
-  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
-  const [currentTopicIdForModal, setCurrentTopicIdForModal] = useState<string | null>(null);
-  const [questionFormData, setQuestionFormData] = useState<QuestionFormData>(initialQuestionFormData);
-
-  const [isRevisionModalOpen, setIsRevisionModalOpen] = useState(false);
-  const [currentTopicIdForRevisionModal, setCurrentTopicIdForRevisionModal] = useState<string | null>(null);
-  const [daysToReviewInput, setDaysToReviewInput] = useState<string>('');
-  
-  const [pdfName, setPdfName] = useState('');
-  const [startPage, setStartPage] = useState('');
-  const [endPage, setEndPage] = useState('');
-  
-  const [noteText, setNoteText] = useState('');
-  const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
-  const [logToDelete, setLogToDelete] = useState<string | null>(null);
-  const [questionLogToDelete, setQuestionLogToDelete] = useState<string | null>(null);
-
-
   const [hasAccess, setHasAccess] = useState(false);
-
-  const [isRankingModalOpen, setIsRankingModalOpen] = useState(false);
-  const [pendingLogData, setPendingLogData] = useState<{ topicId: string; logData: any } | null>(null);
-  const [isSavingWithRankingChoice, setIsSavingWithRankingChoice] = useState(false);
-
 
   useEffect(() => {
     if (!user || authLoading) return;
@@ -229,80 +187,27 @@ export default function SubjectTopicsPage() {
     setTimerStates(prev => ({ ...prev, [topicId]: { time: 0, isRunning: false }, }));
   };
 
-  const saveStudyLog = async (topicId: string, logData: any) => {
-    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
-    try {
-      await addStudyLog(compositeTopicId, logData);
-      toast({ title: "Registro Salvo!", variant: "default", className:"bg-accent text-accent-foreground" });
-      handleTimerReset(topicId);
-      setPdfName(''); setStartPage(''); setEndPage('');
-    } catch (error) {
-      toast({ title: "Erro ao Salvar", variant: "destructive" });
-    }
-  }
-
   const handleSaveLog = async (topicId: string) => {
     if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
     if (timerStates[topicId]?.isRunning) handleTimerPlayPause(topicId);
     
     setTimeout(async () => {
         const durationToSave = timerStates[topicId]?.time || 0;
-        const logData = {
-          duration: durationToSave,
-          ...(pdfName.trim() && { pdfName: pdfName.trim() }),
-          ...(startPage && { startPage: parseInt(startPage, 10) }),
-          ...(endPage && { endPage: parseInt(endPage, 10) }),
-        };
-        if (user.isRankingParticipant === null && (user.studyLogs || []).length === 0) {
-          setPendingLogData({ topicId, logData });
-          setIsRankingModalOpen(true);
-        } else {
-          await saveStudyLog(topicId, logData);
+        const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+        try {
+          await addStudyLog(compositeTopicId, { duration: durationToSave });
+          toast({ title: "Registro Salvo!", variant: "default", className:"bg-accent text-accent-foreground" });
+          handleTimerReset(topicId);
+        } catch (error) {
+          toast({ title: "Erro ao Salvar", variant: "destructive" });
         }
     }, 100);
   };
   
-  const getTopicStudyLogs = useCallback((topicId: string): StudyLogEntry[] => {
-    if (!user?.studyLogs) return [];
-    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
-    return user.studyLogs.filter(log => log.compositeTopicId === compositeTopicId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [user, editalId, cargoId, subjectId]);
-
   const calculateTotalStudiedTimeForTopic = useCallback((topicId: string): number => {
     if (!user?.studyLogs) return 0;
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
     return user.studyLogs.filter(log => log.compositeTopicId === compositeTopicId).reduce((total, log) => total + log.duration, 0);
-  }, [user, editalId, cargoId, subjectId]);
-
-  const handleOpenQuestionModal = (topicId: string) => {
-    if (!hasAccess) return;
-    setCurrentTopicIdForModal(topicId);
-    setQuestionFormData(initialQuestionFormData);
-    setIsQuestionModalOpen(true);
-  };
-
-  const handleSaveQuestionLog = async () => {
-    if (!user || !currentTopicIdForModal || !hasAccess) return;
-    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${currentTopicIdForModal}`;
-    try {
-      await addQuestionLog({
-        compositeTopicId,
-        totalQuestions: parseInt(questionFormData.totalQuestions, 10),
-        correctQuestions: parseInt(questionFormData.correctQuestions, 10),
-        incorrectQuestions: parseInt(questionFormData.incorrectQuestions, 10),
-        targetPercentage: parseInt(questionFormData.targetPercentage, 10),
-      });
-      toast({ title: "Desempenho Salvo!", variant: "default", className: "bg-accent text-accent-foreground" });
-      setIsQuestionModalOpen(false);
-    } catch (error) {
-      toast({ title: "Erro ao Salvar", variant: "destructive" });
-    }
-  };
-
-  const getNotesForTopic = useCallback((topicId: string): NoteEntry[] => {
-      if (!user?.notes) return [];
-      const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
-      return user.notes.filter(note => note.compositeTopicId === compositeTopicId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [user, editalId, cargoId, subjectId]);
 
   const getRevisionSchedulesForTopic = useCallback((topicId: string): RevisionScheduleEntry[] => {
@@ -340,7 +245,7 @@ export default function SubjectTopicsPage() {
                 {isSuspended ? (
                   <AlertTriangle className="mr-3 h-6 w-6 text-destructive" />
                 ) : (
-                  <AlertTriangle className="mr-3 h-6 w-6 text-muted-foreground" />
+                  <Lock className="mr-3 h-6 w-6 text-muted-foreground" />
                 )}
                 {isSuspended ? "Assinatura Suspensa" : "Acesso Restrito"}
               </CardTitle>
@@ -423,7 +328,6 @@ export default function SubjectTopicsPage() {
                     const currentOpenTopic = activeAccordionItem;
                     if (currentOpenTopic && timerStates[currentOpenTopic]?.isRunning) handleTimerPlayPause(currentOpenTopic);
                     setActiveAccordionItem(value || null);
-                    setPdfName(''); setStartPage(''); setEndPage(''); setNoteText('');
                 }}
               >
                 {subject.topics.map((topic: TopicType) => {

@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, ArrowLeft, BookOpen, ChevronRight, AlertCircle, Gem, AlertTriangle, CreditCard } from 'lucide-react';
+import { Loader2, ArrowLeft, BookOpen, ChevronRight, AlertCircle, Gem, AlertTriangle, CreditCard, Lock } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
