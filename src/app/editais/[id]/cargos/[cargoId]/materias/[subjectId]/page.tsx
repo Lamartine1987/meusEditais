@@ -72,9 +72,11 @@ export default function SubjectTopicsPage() {
   // Estados para Questões (Modal)
   const [questionData, setQuestionLogData] = useState({ total: '', correct: '', target: '80' });
   const [isSavingQuestions, setIsSavingQuestions] = useState(false);
+  const [openQuestionsModalId, setOpenQuestionsModalId] = useState<string | null>(null);
 
   // Estados para Revisão (Modal)
   const [selectedRevisionDays, setSelectedRevisionDays] = useState('1');
+  const [openRevisionModalId, setOpenRevisionModalId] = useState<string | null>(null);
 
   // Refatoração do Timer
   const [timerStates, setTimerStates] = useState<Record<string, { time: number; isRunning: boolean }>>({});
@@ -231,6 +233,7 @@ export default function SubjectTopicsPage() {
       });
       toast({ title: "Questões Registradas!", variant: "default", className:"bg-accent text-accent-foreground" });
       setQuestionLogData({ total: '', correct: '', target: '80' });
+      setOpenQuestionsModalId(null); // Fecha o modal após o sucesso
     } catch (error) {
       toast({ title: "Erro ao registrar questões", variant: "destructive" });
     } finally {
@@ -244,6 +247,7 @@ export default function SubjectTopicsPage() {
     try {
       await addRevisionSchedule(compositeTopicId, parseInt(selectedRevisionDays));
       toast({ title: "Revisão Agendada!", variant: "default", className:"bg-accent text-accent-foreground" });
+      setOpenRevisionModalId(null); // Fecha o modal após o sucesso
     } catch (error) {
       toast({ title: "Erro ao agendar", variant: "destructive" });
     }
@@ -399,7 +403,10 @@ export default function SubjectTopicsPage() {
                                 <Label htmlFor={`check-${topic.id}`} className="font-medium">Marcar como estudado</Label>
                             </div>
                             <div className="ml-auto flex gap-2">
-                                <Dialog>
+                                <Dialog 
+                                  open={openRevisionModalId === topic.id} 
+                                  onOpenChange={(open) => setOpenRevisionModalId(open ? topic.id : null)}
+                                >
                                     <DialogTrigger asChild>
                                         <Button variant="outline" size="sm"><CalendarClock className="mr-2 h-4 w-4" /> Agendar Revisão</Button>
                                     </DialogTrigger>
@@ -426,7 +433,10 @@ export default function SubjectTopicsPage() {
                         </div>
 
                         {/* Questions Button */}
-                        <Dialog>
+                        <Dialog 
+                          open={openQuestionsModalId === topic.id} 
+                          onOpenChange={(open) => setOpenQuestionsModalId(open ? topic.id : null)}
+                        >
                             <DialogTrigger asChild>
                                 <Button variant="outline" className="w-full h-12 text-base border-dashed"><FileQuestion className="mr-2 h-5 w-5" /> Registrar Desempenho em Questões</Button>
                             </DialogTrigger>
