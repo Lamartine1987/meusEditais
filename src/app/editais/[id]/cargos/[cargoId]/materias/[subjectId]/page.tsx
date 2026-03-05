@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { Edital, Cargo, Subject as SubjectType, Topic as TopicType, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, NoteEntry } from '@/types';
@@ -11,14 +11,30 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Loader2, ArrowLeft, BookOpen, Play, Pause, RotateCcw, Save, TimerIcon, Info, AlertTriangle, CreditCard, Lock } from 'lucide-react';
+import { 
+  Loader2, ArrowLeft, BookOpen, Play, Pause, RotateCcw, Save, 
+  TimerIcon, Info, AlertTriangle, CreditCard, Lock, CalendarClock, 
+  FileQuestion, FileText, Trash2, History, CheckCircle2, ChevronRight
+} from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { isToday, isPast, parseISO } from 'date-fns';
+import { isToday, isPast, parseISO, format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const formatDuration = (totalSeconds: number): string => {
   const minutes = Math.floor(totalSeconds / 60);
@@ -33,14 +49,32 @@ export default function SubjectTopicsPage() {
   const cargoId = params.cargoId as string;
   const subjectId = params.subjectId as string;
 
-  const { user, toggleTopicStudyStatus, addStudyLog, loading: authLoading } = useAuth();
+  const { 
+    user, toggleTopicStudyStatus, addStudyLog, deleteStudyLog,
+    addQuestionLog, addRevisionSchedule, addNote, deleteNote,
+    loading: authLoading 
+  } = useAuth();
   const { toast } = useToast();
 
   const [edital, setEdital] = useState<Edital | null>(null);
   const [cargo, setCargo] = useState<Cargo | null>(null);
   const [subject, setSubject] = useState<SubjectType | null>(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [hasAccess, setHasAccess] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
+
+  // Estados locais para formulários de cada tópico
+  const [pdfInfos, setPdfInfos] = useState<Record<string, { pdfName: string; startPage: string; endPage: string }>>({});
+  const [noteTexts, setNoteTexts] = useState<Record<string, string>>({});
+  const [isSavingLog, setIsSavingLog] = useState<Record<string, boolean>>({});
+  const [isSavingNote, setIsSavingNote] = useState<Record<string, boolean>>({});
+
+  // Estados para Questões (Modal)
+  const [questionData, setQuestionLogData] = useState({ total: '', correct: '', target: '80' });
+  const [isSavingQuestions, setIsSavingQuestions] = useState(false);
+
+  // Estados para Revisão (Modal)
+  const [selectedRevisionDays, setSelectedRevisionDays] = useState('1');
 
   // Refatoração do Timer
   const [timerStates, setTimerStates] = useState<Record<string, { time: number; isRunning: boolean }>>({});
@@ -49,27 +83,18 @@ export default function SubjectTopicsPage() {
   const activeTimerTopicIdRef = useRef<string | null>(null);
 
   const [activeAccordionItem, setActiveAccordionItem] = useState<string | null>(null);
-  const [hasAccess, setHasAccess] = useState(false);
 
   useEffect(() => {
     if (!user || authLoading) return;
-
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
-    let canAccess = false;
-
-    // Filtra apenas planos com status 'active'
     const activePaidPlans = user.activePlans?.filter(p => p.status === 'active') || [];
-
-    if (activePaidPlans.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
-        canAccess = true;
-    } else if (activePaidPlans.some(p => p.planId === 'plano_edital' && p.selectedEditalId === editalId)) {
-        canAccess = true;
-    } else if (activePaidPlans.some(p => p.planId === 'plano_cargo' && p.selectedCargoCompositeId === currentCargoCompositeId)) {
-        canAccess = true;
-    }
-
+    const canAccess = activePaidPlans.some(p => 
+        p.planId === 'plano_mensal' || 
+        p.planId === 'plano_trial' ||
+        (p.planId === 'plano_edital' && p.selectedEditalId === editalId) ||
+        (p.planId === 'plano_cargo' && p.selectedCargoCompositeId === currentCargoCompositeId)
+    );
     const suspended = !canAccess && (user.activePlans?.some(p => p.status === 'past_due' || p.status === 'unpaid') ?? false);
-
     setHasAccess(canAccess);
     setIsSuspended(suspended);
   }, [user, authLoading, editalId, cargoId]);
@@ -78,9 +103,6 @@ export default function SubjectTopicsPage() {
     const fetchSubjectDetails = async () => {
       setLoadingData(true);
       try {
-        if (!editalId || !cargoId || !subjectId) {
-          return;
-        }
         const response = await fetch('/api/editais');
         if (!response.ok) throw new Error('Falha ao buscar dados.');
         const allEditais: Edital[] = await response.json();
@@ -110,53 +132,38 @@ export default function SubjectTopicsPage() {
     fetchSubjectDetails();
   }, [editalId, cargoId, subjectId, toast]);
 
-  // Efeito do Timer
   useEffect(() => {
     const activeTopicId = activeTimerTopicIdRef.current;
     if (activeTopicId && timerStates[activeTopicId]?.isRunning) {
         if (!startTimeRef.current) {
             startTimeRef.current = Date.now() - (timerStates[activeTopicId].time * 1000);
         }
-
         timerRef.current = setInterval(() => {
             if (startTimeRef.current) {
                 const elapsedTime = Date.now() - startTimeRef.current;
-                setTimerStates(prev => {
-                    if (prev[activeTopicId]?.isRunning) {
-                        return {
-                            ...prev,
-                            [activeTopicId]: { ...prev[activeTopicId], time: Math.floor(elapsedTime / 1000) }
-                        };
-                    }
-                    return prev;
-                });
+                setTimerStates(prev => ({
+                    ...prev,
+                    [activeTopicId]: { ...prev[activeTopicId], time: Math.floor(elapsedTime / 1000) }
+                }));
             }
         }, 1000);
     }
-
-    return () => {
-        if (timerRef.current) {
-            clearInterval(timerRef.current);
-            timerRef.current = null;
-        }
-    };
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [timerStates]);
 
-  const handleToggleTopicCheckbox = useCallback(async (topicId: string) => {
-    if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
+  const handleToggleTopicCheckbox = async (topicId: string) => {
+    if (!hasAccess) return;
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
-    const isCurrentlyStudied = user.studiedTopicIds?.includes(compositeTopicId);
-
+    const isCurrentlyStudied = user?.studiedTopicIds?.includes(compositeTopicId);
     try {
       await toggleTopicStudyStatus(compositeTopicId);
-      
       if (!isCurrentlyStudied) {
         await addStudyLog(compositeTopicId, { duration: 0, pdfName: "Tópico concluído (Checklist)" });
       }
     } catch (error) {
       toast({ title: "Erro ao atualizar status", variant: "destructive" });
     }
-  }, [user, editalId, cargoId, subjectId, toggleTopicStudyStatus, addStudyLog, toast, hasAccess]);
+  };
 
   const handleTimerPlayPause = (topicId: string) => {
       if (!hasAccess) return;
@@ -186,33 +193,90 @@ export default function SubjectTopicsPage() {
     setTimerStates(prev => ({ ...prev, [topicId]: { time: 0, isRunning: false }, }));
   };
 
-  const handleSaveLog = async (topicId: string) => {
-    if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
-    if (timerStates[topicId]?.isRunning) handleTimerPlayPause(topicId);
-    
-    setTimeout(async () => {
-        const durationToSave = timerStates[topicId]?.time || 0;
-        const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
-        try {
-          await addStudyLog(compositeTopicId, { duration: durationToSave });
-          toast({ title: "Registro Salvo!", variant: "default", className:"bg-accent text-accent-foreground" });
-          handleTimerReset(topicId);
-        } catch (error) {
-          toast({ title: "Erro ao Salvar", variant: "destructive" });
-        }
-    }, 100);
-  };
-  
-  const calculateTotalStudiedTimeForTopic = useCallback((topicId: string): number => {
-    if (!user?.studyLogs) return 0;
+  const handleSaveStudyLog = async (topicId: string) => {
+    if (!user || !hasAccess) return;
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
-    return user.studyLogs.filter(log => log.compositeTopicId === compositeTopicId).reduce((total, log) => total + log.duration, 0);
-  }, [user, editalId, cargoId, subjectId]);
+    const info = pdfInfos[topicId] || { pdfName: '', startPage: '', endPage: '' };
+    const duration = timerStates[topicId]?.time || 0;
 
-  const getRevisionSchedulesForTopic = useCallback((topicId: string): RevisionScheduleEntry[] => {
-    if (!user?.revisionSchedules) return [];
+    setIsSavingLog(prev => ({ ...prev, [topicId]: true }));
+    try {
+      await addStudyLog(compositeTopicId, {
+        duration,
+        pdfName: info.pdfName || undefined,
+        startPage: info.startPage ? parseInt(info.startPage) : undefined,
+        endPage: info.endPage ? parseInt(info.endPage) : undefined,
+      });
+      toast({ title: "Registro Salvo!", variant: "default", className:"bg-accent text-accent-foreground" });
+      handleTimerReset(topicId);
+      setPdfInfos(prev => ({ ...prev, [topicId]: { pdfName: '', startPage: '', endPage: '' } }));
+    } catch (error) {
+      toast({ title: "Erro ao Salvar", variant: "destructive" });
+    } finally {
+      setIsSavingLog(prev => ({ ...prev, [topicId]: false }));
+    }
+  };
+
+  const handleSaveQuestions = async (topicId: string) => {
+    if (!hasAccess) return;
     const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
-    return user.revisionSchedules.filter(rs => rs.compositeTopicId === compositeTopicId).sort((a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime());
+    setIsSavingQuestions(true);
+    try {
+      await addQuestionLog({
+        compositeTopicId,
+        totalQuestions: parseInt(questionData.total),
+        correctQuestions: parseInt(questionData.correct),
+        incorrectQuestions: parseInt(questionData.total) - parseInt(questionData.correct),
+        targetPercentage: parseInt(questionData.target),
+      });
+      toast({ title: "Questões Registradas!", variant: "default", className:"bg-accent text-accent-foreground" });
+      setQuestionLogData({ total: '', correct: '', target: '80' });
+    } catch (error) {
+      toast({ title: "Erro ao registrar questões", variant: "destructive" });
+    } finally {
+      setIsSavingQuestions(false);
+    }
+  };
+
+  const handleScheduleRevision = async (topicId: string) => {
+    if (!hasAccess) return;
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    try {
+      await addRevisionSchedule(compositeTopicId, parseInt(selectedRevisionDays));
+      toast({ title: "Revisão Agendada!", variant: "default", className:"bg-accent text-accent-foreground" });
+    } catch (error) {
+      toast({ title: "Erro ao agendar", variant: "destructive" });
+    }
+  };
+
+  const handleSaveNote = async (topicId: string) => {
+    if (!hasAccess) return;
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    const text = noteTexts[topicId];
+    if (!text?.trim()) return;
+
+    setIsSavingNote(prev => ({ ...prev, [topicId]: true }));
+    try {
+      await addNote(compositeTopicId, text);
+      toast({ title: "Anotação Salva!", variant: "default", className:"bg-accent text-accent-foreground" });
+      setNoteTexts(prev => ({ ...prev, [topicId]: '' }));
+    } catch (error) {
+      toast({ title: "Erro ao salvar anotação", variant: "destructive" });
+    } finally {
+      setIsSavingNote(prev => ({ ...prev, [topicId]: false }));
+    }
+  };
+
+  const getTopicData = useCallback((topicId: string) => {
+    if (!user) return { logs: [], revisions: [], notes: [], totalTime: 0 };
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    
+    const logs = (user.studyLogs || []).filter(l => l.compositeTopicId === compositeTopicId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const revisions = (user.revisionSchedules || []).filter(r => r.compositeTopicId === compositeTopicId);
+    const notes = (user.notes || []).filter(n => n.compositeTopicId === compositeTopicId).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const totalTime = logs.reduce((acc, log) => acc + log.duration, 0);
+
+    return { logs, revisions, notes, totalTime };
   }, [user, editalId, cargoId, subjectId]);
 
   if (loadingData || authLoading) {
@@ -228,55 +292,20 @@ export default function SubjectTopicsPage() {
   if (!hasAccess) {
     return (
       <PageWrapper>
-        <div className="container mx-auto px-0 sm:px-4 py-8">
+        <div className="container mx-auto px-4 py-8">
           <div className="mb-6">
-            <Button variant="outline" asChild>
-              <Link href={`/editais/${editalId}/cargos/${cargoId}`}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Voltar para Matérias do Cargo
-              </Link>
-            </Button>
+            <Button variant="outline" asChild><Link href={`/editais/${editalId}/cargos/${cargoId}`}><ArrowLeft className="mr-2 h-4 w-4" />Voltar</Link></Button>
           </div>
-          <PageHeader title={subject?.name ?? "Acesso Restrito"} />
           <Card className="shadow-lg rounded-xl bg-card">
             <CardHeader className="text-center">
               <CardTitle className="text-xl flex items-center justify-center">
-                {isSuspended ? (
-                  <AlertTriangle className="mr-3 h-6 w-6 text-destructive" />
-                ) : (
-                  <Lock className="mr-3 h-6 w-6 text-muted-foreground" />
-                )}
+                {isSuspended ? <AlertTriangle className="mr-3 h-6 w-6 text-destructive" /> : <Lock className="mr-3 h-6 w-6 text-muted-foreground" />}
                 {isSuspended ? "Assinatura Suspensa" : "Acesso Restrito"}
               </CardTitle>
             </CardHeader>
-            <Separator />
-            <CardContent className="pt-6">
-              {isSuspended ? (
-                <Alert variant="destructive" className="mb-6">
-                  <CreditCard className="h-4 w-4" />
-                  <AlertTitle>Bloqueio por Falta de Pagamento</AlertTitle>
-                  <AlertDescription>
-                    O acesso a este conteúdo foi interrompido porque não conseguimos processar o pagamento da sua assinatura. 
-                    Verifique seu cartão de crédito na página de perfil para restaurar o acesso.
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <p className="text-muted-foreground text-center mb-6">
-                  Para acessar os tópicos e registrar seu progresso, certifique-se de que sua assinatura está ativa.
-                </p>
-              )}
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button asChild size="lg" className={isSuspended ? "bg-destructive hover:bg-destructive/90" : ""}>
-                    <Link href="/perfil">
-                    {isSuspended ? "Resolver Pendência" : "Ver Minha Conta"}
-                    </Link>
-                </Button>
-                {!isSuspended && (
-                  <Button asChild variant="outline" size="lg">
-                      <Link href="/planos">Ver Planos</Link>
-                  </Button>
-                )}
-              </div>
+            <CardContent className="pt-6 text-center">
+              <p className="text-muted-foreground mb-6">Para acessar os tópicos e registrar seu progresso, você precisa ter uma assinatura ativa.</p>
+              <Button asChild size="lg"><Link href="/planos">Ver Planos</Link></Button>
             </CardContent>
           </Card>
         </div>
@@ -307,7 +336,7 @@ export default function SubjectTopicsPage() {
           </Button>
         </div>
 
-        <PageHeader title={subject.name} description={`Estude os tópicos de ${subject.name}.`} />
+        <PageHeader title={subject.name} description={`Estude e gerencie seu progresso em ${subject.name}.`} />
 
         <Card className="shadow-lg rounded-xl bg-card">
           <CardHeader>
@@ -316,87 +345,254 @@ export default function SubjectTopicsPage() {
               Tópicos da Matéria
             </CardTitle>
           </CardHeader>
-          <Separator className="mb-1" />
+          <Separator />
           <CardContent className="pt-6">
             {subject.topics && subject.topics.length > 0 ? (
               <Accordion 
                 type="single" 
                 collapsible 
-                className="w-full space-y-3"
+                className="w-full space-y-4"
                 onValueChange={(value) => {
-                    const currentOpenTopic = activeAccordionItem;
-                    if (currentOpenTopic && timerStates[currentOpenTopic]?.isRunning) handleTimerPlayPause(currentOpenTopic);
+                    if (activeAccordionItem && timerStates[activeAccordionItem]?.isRunning) handleTimerPlayPause(activeAccordionItem);
                     setActiveAccordionItem(value || null);
                 }}
               >
-                {subject.topics.map((topic: TopicType) => {
+                {subject.topics.map((topic: TopicType, index) => {
                   const compositeTopicId = `${editalId}_${cargoId}_${subject.id}_${topic.id}`;
                   const isStudiedChecked = user?.studiedTopicIds?.includes(compositeTopicId) ?? false;
-                  const currentTimerState = timerStates[topic.id] || { time: 0, isRunning: false };
-                  const totalStudiedSeconds = calculateTotalStudiedTimeForTopic(topic.id);
-                  const revisionSchedules = getRevisionSchedulesForTopic(topic.id);
-                  const isRevisionDue = revisionSchedules.some(r => !r.isReviewed && (isToday(parseISO(r.scheduledDate)) || isPast(parseISO(r.scheduledDate))));
+                  const { logs, revisions, notes, totalTime } = getTopicData(topic.id);
+                  const isRevisionDue = revisions.some(r => !r.isReviewed && (isToday(parseISO(r.scheduledDate)) || isPast(parseISO(r.scheduledDate))));
+                  const currentTimer = timerStates[topic.id] || { time: 0, isRunning: false };
 
                   return (
                     <AccordionItem 
                         value={topic.id} 
                         key={topic.id} 
                         className={cn(
-                            "rounded-lg shadow-sm border overflow-hidden transition-colors duration-300",
-                            isRevisionDue ? "bg-yellow-100 dark:bg-yellow-800/20 border-yellow-500/50" :
-                            isStudiedChecked ? "bg-accent/20 border-accent/30" : "bg-card border-border"
+                            "rounded-lg border shadow-sm overflow-hidden",
+                            isRevisionDue ? "border-yellow-500 bg-yellow-50/30" : "border-border bg-card"
                         )}
                     >
-                      <AccordionTrigger className="py-4 px-3 hover:bg-muted/50 w-full text-left">
-                        <div className="flex items-center justify-between w-full">
-                            <span className="text-base text-foreground/90 font-medium">{topic.name}</span>
-                            <div className="flex items-center">
-                                {isRevisionDue && <Badge variant="outline" className="text-xs font-normal ml-2 border-yellow-600 text-yellow-700 bg-yellow-50"><Info className="h-3 w-3 mr-1"/>Revisão Pendente</Badge>}
-                                {totalStudiedSeconds > 0 && (
-                                    <Badge variant="outline" className="text-xs font-normal ml-2">
-                                    <TimerIcon className="h-3 w-3 mr-1" />
-                                    {formatDuration(totalStudiedSeconds)}
-                                    </Badge>
-                                )}
+                      <AccordionTrigger className="py-4 px-4 hover:no-underline hover:bg-muted/30">
+                        <div className="flex items-center justify-between w-full pr-4">
+                            <div className="flex items-center text-left">
+                                <span className="text-sm text-muted-foreground mr-3 font-mono">{index + 1}.</span>
+                                <span className="text-base font-semibold">{topic.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {isRevisionDue && <Badge variant="destructive" className="animate-pulse">Revisão Pendente</Badge>}
+                                {totalTime > 0 && <Badge variant="outline" className="font-mono">{formatDuration(totalTime)}</Badge>}
+                                {isStudiedChecked && <CheckCircle2 className="h-5 w-5 text-accent" />}
                             </div>
                         </div>
                       </AccordionTrigger>
-                      <AccordionContent className="pt-2 pb-4 px-3 space-y-4 bg-muted/20">
-                        <div className="flex items-center space-x-2 p-3 border rounded-md bg-background/50">
-                            <Checkbox
-                                id={`topic-${topic.id}`}
-                                checked={isStudiedChecked}
-                                onCheckedChange={() => handleToggleTopicCheckbox(topic.id)}
-                                className="h-5 w-5"
-                            />
-                            <Label htmlFor={`topic-${topic.id}`} className="text-sm font-medium">Marcar como estudado</Label>
+                      <AccordionContent className="px-4 pb-6 pt-2 space-y-6">
+                        
+                        {/* Top Action Bar */}
+                        <div className="flex flex-wrap items-center gap-4 p-4 border rounded-lg bg-muted/20">
+                            <div className="flex items-center space-x-2">
+                                <Checkbox 
+                                    id={`check-${topic.id}`} 
+                                    checked={isStudiedChecked} 
+                                    onCheckedChange={() => handleToggleTopicCheckbox(topic.id)}
+                                />
+                                <Label htmlFor={`check-${topic.id}`} className="font-medium">Marcar como estudado</Label>
+                            </div>
+                            <div className="ml-auto flex gap-2">
+                                <Dialog>
+                                    <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm"><CalendarClock className="mr-2 h-4 w-4" /> Agendar Revisão</Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>Agendar Revisão</DialogTitle>
+                                            <DialogDescription>Escolha em quantos dias deseja revisar este tópico novamente.</DialogDescription>
+                                        </DialogHeader>
+                                        <div className="py-4">
+                                            <Input 
+                                                type="number" 
+                                                value={selectedRevisionDays} 
+                                                onChange={(e) => setSelectedRevisionDays(e.target.value)}
+                                                className="w-full"
+                                                placeholder="Dias (ex: 1, 7, 30)"
+                                            />
+                                        </div>
+                                        <DialogFooter>
+                                            <Button onClick={() => handleScheduleRevision(topic.id)}>Confirmar Agendamento</Button>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
+                            </div>
                         </div>
 
-                        <div className="p-4 border rounded-lg bg-background shadow-sm space-y-4">
-                            <h4 className="text-base font-semibold text-foreground flex items-center">
-                                <TimerIcon className="mr-2 h-5 w-5 text-primary" />
-                                Registrar Progresso
-                            </h4>
-                            <div className="flex items-center justify-between p-3 border rounded-md bg-muted/30">
-                                <div className="text-3xl font-mono text-primary">{formatDuration(currentTimerState.time)}</div>
-                                <div className="flex gap-2">
-                                    <Button variant="outline" size="icon" onClick={() => handleTimerPlayPause(topic.id)}>
-                                      {currentTimerState.isRunning ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-                                    </Button>
-                                    <Button variant="outline" size="icon" onClick={() => handleTimerReset(topic.id)}><RotateCcw className="h-5 w-5" /></Button>
+                        {/* Questions Button */}
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" className="w-full h-12 text-base border-dashed"><FileQuestion className="mr-2 h-5 w-5" /> Registrar Desempenho em Questões</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader><DialogTitle>Registrar Questões</DialogTitle></DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                    <div className="grid gap-2">
+                                        <Label>Total de Questões</Label>
+                                        <Input type="number" value={questionData.total} onChange={e => setQuestionLogData({...questionData, total: e.target.value})} />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label>Acertos</Label>
+                                        <Input type="number" value={questionData.correct} onChange={e => setQuestionLogData({...questionData, correct: e.target.value})} />
+                                    </div>
                                 </div>
-                            </div>
-                            <Button variant="default" className="w-full h-11" onClick={() => handleSaveLog(topic.id)}>
-                              <Save className="mr-2 h-5 w-5" /> Salvar Progresso
-                            </Button>
+                                <DialogFooter>
+                                    <Button onClick={() => handleSaveQuestions(topic.id)} disabled={isSavingQuestions}>
+                                        {isSavingQuestions ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
+                                        Salvar Registro
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+
+                        {/* Progress Section (Cronômetro + PDF) */}
+                        <Card className="border-primary/20 bg-primary/5">
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-bold flex items-center text-primary uppercase tracking-wider">
+                                    <TimerIcon className="mr-2 h-4 w-4" /> Registrar Progresso
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                <div className="p-4 bg-background border rounded-lg flex items-center justify-between shadow-sm">
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-semibold text-muted-foreground uppercase">Cronômetro de Estudo</p>
+                                        <div className="text-4xl font-mono font-black text-primary tracking-tighter">{formatDuration(currentTimer.time)}</div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button variant="secondary" size="icon" className="h-12 w-12 rounded-full shadow-md" onClick={() => handleTimerPlayPause(topic.id)}>
+                                            {currentTimer.isRunning ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 ml-1" />}
+                                        </Button>
+                                        <Button variant="outline" size="icon" className="h-12 w-12 rounded-full" onClick={() => handleTimerReset(topic.id)}>
+                                            <RotateCcw className="h-5 w-5" />
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4 pt-2">
+                                    <p className="text-xs font-bold flex items-center text-muted-foreground uppercase tracking-widest"><FileText className="mr-2 h-4 w-4" /> Registro de Leitura (Opcional)</p>
+                                    <div className="grid gap-4">
+                                        <div className="grid gap-1.5">
+                                            <Label className="text-xs font-semibold">Nome do PDF/Material</Label>
+                                            <Input 
+                                                placeholder="Ex: Aula 01 - Direito Const.pdf" 
+                                                className="bg-background"
+                                                value={pdfInfos[topic.id]?.pdfName || ''}
+                                                onChange={e => setPdfInfos({...pdfInfos, [topic.id]: { ...pdfInfos[topic.id], pdfName: e.target.value }})}
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid gap-1.5">
+                                                <Label className="text-xs font-semibold">Página Inicial</Label>
+                                                <Input 
+                                                    type="number" placeholder="Ex: 1" className="bg-background" 
+                                                    value={pdfInfos[topic.id]?.startPage || ''}
+                                                    onChange={e => setPdfInfos({...pdfInfos, [topic.id]: { ...pdfInfos[topic.id], startPage: e.target.value }})}
+                                                />
+                                            </div>
+                                            <div className="grid gap-1.5">
+                                                <Label className="text-xs font-semibold">Página Final</Label>
+                                                <Input 
+                                                    type="number" placeholder="Ex: 15" className="bg-background" 
+                                                    value={pdfInfos[topic.id]?.endPage || ''}
+                                                    onChange={e => setPdfInfos({...pdfInfos, [topic.id]: { ...pdfInfos[topic.id], endPage: e.target.value }})}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <Button className="w-full h-11" onClick={() => handleSaveStudyLog(topic.id)} disabled={isSavingLog[topic.id]}>
+                                    {isSavingLog[topic.id] ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
+                                    Salvar Progresso
+                                </Button>
+                            </CardContent>
+                        </Card>
+
+                        {/* Notes Section */}
+                        <Card className="border-accent/20 bg-accent/5">
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-sm font-bold flex items-center text-accent uppercase tracking-wider">
+                                    <FileText className="mr-2 h-4 w-4" /> Minhas Anotações
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <Textarea 
+                                    placeholder="Digite suas observações importantes aqui..." 
+                                    className="bg-background min-h-[100px] text-sm"
+                                    value={noteTexts[topic.id] || ''}
+                                    onChange={e => setNoteTexts({...noteTexts, [topic.id]: e.target.value})}
+                                />
+                                <Button variant="accent" className="w-full h-10" onClick={() => handleSaveNote(topic.id)} disabled={isSavingNote[topic.id]}>
+                                    {isSavingNote[topic.id] ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
+                                    Salvar Anotação
+                                </Button>
+
+                                {notes.length > 0 && (
+                                    <div className="pt-2 space-y-2">
+                                        {notes.map(note => (
+                                            <div key={note.id} className="p-3 bg-background border rounded-md text-sm relative group">
+                                                <p className="pr-8 whitespace-pre-wrap">{note.text}</p>
+                                                <div className="flex items-center justify-between mt-2">
+                                                    <span className="text-[10px] text-muted-foreground">{format(parseISO(note.date), "dd/MM/yy 'às' HH:mm")}</span>
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteNote(note.id)}>
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* History / Logs Section */}
+                        <div className="pt-4 border-t border-border/50">
+                            <h4 className="text-xs font-bold text-muted-foreground uppercase flex items-center mb-4 tracking-widest">
+                                <History className="mr-2 h-4 w-4" /> Histórico de Atividade
+                            </h4>
+                            {logs.length > 0 ? (
+                                <div className="space-y-2">
+                                    {logs.map(log => (
+                                        <div key={log.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/10 text-sm hover:bg-muted/20 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="bg-primary/10 p-2 rounded-full">
+                                                    <TimerIcon className="h-4 w-4 text-primary" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-foreground">{log.pdfName || "Estudo Cronometrado"}</p>
+                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                                                        <span>{format(parseISO(log.date), "dd/MM/yy 'às' HH:mm")}</span>
+                                                        {log.startPage && <span>• pág. {log.startPage}-{log.endPage}</span>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <span className="font-mono font-bold text-primary">{formatDuration(log.duration)}</span>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => deleteStudyLog(log.id)}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-center text-xs text-muted-foreground py-4 italic">Nenhum registro de estudo salvo para este tópico ainda.</p>
+                            )}
                         </div>
+
                       </AccordionContent>
                     </AccordionItem>
                   );
                 })}
               </Accordion>
             ) : (
-              <p className="text-center py-10 text-muted-foreground">Nenhum tópico cadastrado.</p>
+              <p className="text-center py-10 text-muted-foreground">Nenhum tópico cadastrado para esta matéria.</p>
             )}
           </CardContent>
         </Card>
