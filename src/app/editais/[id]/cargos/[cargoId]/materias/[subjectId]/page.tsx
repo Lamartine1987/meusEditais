@@ -53,7 +53,8 @@ export default function SubjectTopicsPage() {
 
   const { 
     user, toggleTopicStudyStatus, addStudyLog, deleteStudyLog,
-    addQuestionLog, addRevisionSchedule, addNote, deleteNote,
+    addQuestionLog, addRevisionSchedule, toggleRevisionReviewedStatus,
+    addNote, deleteNote,
     loading: authLoading 
   } = useAuth();
   const { toast } = useToast();
@@ -91,14 +92,18 @@ export default function SubjectTopicsPage() {
   useEffect(() => {
     if (!user || authLoading) return;
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
+    
     const activePaidPlans = user.activePlans?.filter(p => p.status === 'active') || [];
+    
     const canAccess = activePaidPlans.some(p => 
         p.planId === 'plano_mensal' || 
         p.planId === 'plano_trial' ||
         (p.planId === 'plano_edital' && p.selectedEditalId === editalId) ||
         (p.planId === 'plano_cargo' && p.selectedCargoCompositeId === currentCargoCompositeId)
     );
+    
     const suspended = !canAccess && (user.activePlans?.some(p => p.status === 'past_due' || p.status === 'unpaid') ?? false);
+    
     setHasAccess(canAccess);
     setIsSuspended(suspended);
   }, [user, authLoading, editalId, cargoId]);
@@ -252,6 +257,16 @@ export default function SubjectTopicsPage() {
       setOpenRevisionModalId(null);
     } catch (error) {
       toast({ title: "Erro ao agendar", variant: "destructive" });
+    }
+  };
+
+  const handleCompleteRevision = async (revisionId: string) => {
+    if (!hasAccess) return;
+    try {
+      await toggleRevisionReviewedStatus(revisionId, true);
+      toast({ title: "Revisão Concluída!", variant: "default", className: "bg-accent text-accent-foreground" });
+    } catch (error) {
+      toast({ title: "Erro ao concluir revisão", variant: "destructive" });
     }
   };
 
@@ -427,16 +442,30 @@ export default function SubjectTopicsPage() {
                         {/* Alerta de Revisão Agendada */}
                         {activeRevision && (
                             <Alert className={cn(
+                                "flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4",
                                 isRevisionDue ? "border-yellow-500 bg-yellow-100/50" : "border-blue-400 bg-blue-100/30"
                             )}>
-                                <CalendarClock className={cn("h-4 w-4", isRevisionDue ? "text-yellow-600" : "text-blue-600")} />
-                                <AlertTitle className="font-bold">
-                                    {isRevisionDue ? "Atenção: Revisão Pendente!" : "Revisão Agendada"}
-                                </AlertTitle>
-                                <AlertDescription className="text-sm">
-                                    Este tópico tem uma revisão prevista para o dia <strong>{format(parseISO(activeRevision.scheduledDate), "dd 'de' MMMM", {locale: ptBR})}</strong>. 
-                                    {isRevisionDue ? " Complete o estudo hoje para manter o conhecimento fresco!" : " Prepare-se para revisá-lo em breve."}
-                                </AlertDescription>
+                                <div className="flex gap-3">
+                                    <CalendarClock className={cn("h-4 w-4 mt-1", isRevisionDue ? "text-yellow-600" : "text-blue-600")} />
+                                    <div>
+                                        <AlertTitle className="font-bold">
+                                            {isRevisionDue ? "Atenção: Revisão Pendente!" : "Revisão Agendada"}
+                                        </AlertTitle>
+                                        <AlertDescription className="text-sm">
+                                            Este tópico tem uma revisão prevista para o dia <strong>{format(parseISO(activeRevision.scheduledDate), "dd 'de' MMMM", {locale: ptBR})}</strong>. 
+                                            {isRevisionDue ? " Complete o estudo hoje para manter o conhecimento fresco!" : " Prepare-se para revisá-lo em breve."}
+                                        </AlertDescription>
+                                    </div>
+                                </div>
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="bg-background/50 hover:bg-background shrink-0"
+                                    onClick={() => handleCompleteRevision(activeRevision.id)}
+                                >
+                                    <CheckCircle2 className="mr-2 h-4 w-4 text-accent" />
+                                    Marcar como Revisado
+                                </Button>
                             </Alert>
                         )}
 
