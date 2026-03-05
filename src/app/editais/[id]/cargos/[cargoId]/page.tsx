@@ -10,10 +10,11 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, ArrowLeft, BookOpen, ChevronRight, AlertCircle, Gem, AlertTriangle } from 'lucide-react';
+import { Loader2, ArrowLeft, BookOpen, ChevronRight, AlertCircle, Gem, AlertTriangle, CreditCard } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function CargoDetailPage() {
   const params = useParams();
@@ -28,6 +29,7 @@ export default function CargoDetailPage() {
   const [cargo, setCargo] = useState<Cargo | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
+  const [isSuspended, setIsSuspended] = useState(false);
 
   useEffect(() => {
     if (!user || authLoading) return;
@@ -35,8 +37,8 @@ export default function CargoDetailPage() {
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
     let canAccess = false;
 
-    // Verifica apenas planos com status 'active'
-    const activePaidPlans = user.activePlans?.filter(p => p.status === 'active' || p.planId === 'plano_trial') || [];
+    // Filtra apenas planos com status 'active'
+    const activePaidPlans = user.activePlans?.filter(p => p.status === 'active') || [];
 
     if (activePaidPlans.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
         canAccess = true;
@@ -46,7 +48,11 @@ export default function CargoDetailPage() {
         canAccess = true;
     }
     
+    // Verifica se há planos suspensos para feedback específico
+    const suspended = !canAccess && (user.activePlans?.some(p => p.status === 'past_due' || p.status === 'unpaid') ?? false);
+
     setHasAccess(canAccess);
+    setIsSuspended(suspended);
   }, [user, authLoading, editalId, cargoId]);
 
   useEffect(() => {
@@ -55,34 +61,16 @@ export default function CargoDetailPage() {
         setLoadingData(true);
         try {
           const response = await fetch('/api/editais');
-          if (!response.ok) {
-            throw new Error('Falha ao buscar dados dos editais.');
-          }
+          if (!response.ok) throw new Error('Falha ao buscar dados.');
           const allEditais: Edital[] = await response.json();
-
           const foundEdital = allEditais.find(e => e.id === editalId);
           if (foundEdital) {
+            setEdital(foundEdital);
             const foundCargo = foundEdital.cargos?.find(c => c.id === cargoId);
-            if (foundCargo) {
-              setEdital(foundEdital);
-              setCargo(foundCargo);
-            } else {
-              setEdital(foundEdital);
-              setCargo(null);
-            }
-          } else {
-            setEdital(null);
-            setCargo(null);
+            setCargo(foundCargo || null);
           }
         } catch (error: any) {
-          console.error("[CargoDetailPage] Error fetching data:", error);
-          toast({
-            title: "Erro ao Carregar Dados",
-            description: "Não foi possível buscar as matérias do cargo.",
-            variant: "destructive"
-          });
-          setEdital(null);
-          setCargo(null);
+          toast({ title: "Erro ao Carregar Dados", variant: "destructive" });
         } finally {
           setLoadingData(false);
         }
@@ -92,9 +80,7 @@ export default function CargoDetailPage() {
   }, [editalId, cargoId, toast]);
 
   const calculateProgress = useCallback((subject: SubjectType): number => {
-    if (!user || !subject.topics || subject.topics.length === 0) {
-      return 0;
-    }
+    if (!user || !subject.topics || subject.topics.length === 0) return 0;
     const studiedTopicsCount = subject.topics.filter(topic => {
       const compositeTopicId = `${editalId}_${cargoId}_${subject.id}_${topic.id}`;
       return user.studiedTopicIds?.includes(compositeTopicId);
@@ -129,30 +115,49 @@ export default function CargoDetailPage() {
             title={cargo?.name ?? "Acesso Restrito"}
             description={cargo ? `Conteúdo programático do cargo ${cargo.name}.` : 'Este conteúdo não está disponível para seu plano atual.'}
           />
-          <Card className="shadow-lg rounded-xl bg-card text-center">
-            <CardHeader>
+          <Card className="shadow-lg rounded-xl bg-card">
+            <CardHeader className="text-center">
               <CardTitle className="text-xl flex items-center justify-center">
-                <AlertTriangle className="mr-3 h-6 w-6 text-destructive" />
-                Acesso Restrito ao Conteúdo
+                {isSuspended ? (
+                  <AlertTriangle className="mr-3 h-6 w-6 text-destructive" />
+                ) : (
+                  <Lock className="mr-3 h-6 w-6 text-muted-foreground" />
+                )}
+                {isSuspended ? "Assinatura Suspensa" : "Acesso Restrito ao Conteúdo"}
               </CardTitle>
             </CardHeader>
             <Separator />
             <CardContent className="pt-6">
-              <p className="text-muted-foreground mb-4">
-                Seu plano atual não está ativo ou não concede acesso às matérias deste cargo. Verifique se há pagamentos pendentes ou faça um upgrade.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
-                <Button asChild size="lg">
-                    <Link href="/planos">
-                    <Gem className="mr-2 h-4 w-4" />
-                    Ver Planos Disponíveis
-                    </Link>
-                </Button>
-                <Button asChild variant="outline" size="lg">
+              {isSuspended ? (
+                <Alert variant="destructive" className="mb-6">
+                  <CreditCard className="h-4 w-4" />
+                  <AlertTitle>Falha no Pagamento Detectada</AlertTitle>
+                  <AlertDescription>
+                    Seu acesso foi suspenso automaticamente porque o Stripe não conseguiu processar a última cobrança da sua assinatura. 
+                    Por favor, atualize seus dados de pagamento para reativar o acesso.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <p className="text-muted-foreground text-center mb-6">
+                  Seu plano atual não está ativo ou não concede acesso às matérias deste cargo. 
+                  Verifique se sua assinatura está em dia ou considere fazer um upgrade.
+                </p>
+              )}
+              
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button asChild size="lg" className={isSuspended ? "bg-destructive hover:bg-destructive/90" : ""}>
                     <Link href="/perfil">
-                    Gerenciar Minha Assinatura
+                    {isSuspended ? "Resolver Pendência no Perfil" : "Gerenciar Assinatura"}
                     </Link>
                 </Button>
+                {!isSuspended && (
+                  <Button asChild variant="outline" size="lg">
+                      <Link href="/planos">
+                      <Gem className="mr-2 h-4 w-4" />
+                      Ver Planos Disponíveis
+                      </Link>
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -160,7 +165,6 @@ export default function CargoDetailPage() {
       </PageWrapper>
     );
   }
-
 
   if (!edital || !cargo) {
     return (
@@ -239,7 +243,6 @@ export default function CargoDetailPage() {
               <div className="text-center py-10">
                 <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-lg text-muted-foreground">Nenhuma matéria cadastrada para este cargo.</p>
-                <p className="text-sm text-muted-foreground mt-1">Verifique o edital completo para mais informações.</p>
               </div>
             </CardContent>
           </Card>
