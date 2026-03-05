@@ -57,7 +57,7 @@ export default function SubjectTopicsPage() {
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
     let canAccess = false;
 
-    // Filtra apenas planos com status 'active' (Segurança máxima contra falta de pagamento)
+    // Filtra apenas planos com status 'active'
     const activePaidPlans = user.activePlans?.filter(p => p.status === 'active') || [];
 
     if (activePaidPlans.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
@@ -68,7 +68,6 @@ export default function SubjectTopicsPage() {
         canAccess = true;
     }
 
-    // Se não tem acesso, verifica se existe algum plano que está especificamente suspenso
     const suspended = !canAccess && (user.activePlans?.some(p => p.status === 'past_due' || p.status === 'unpaid') ?? false);
 
     setHasAccess(canAccess);
@@ -77,34 +76,35 @@ export default function SubjectTopicsPage() {
 
   useEffect(() => {
     const fetchSubjectDetails = async () => {
-      if (editalId && cargoId && subjectId) {
-        setLoadingData(true);
-        try {
-          const response = await fetch('/api/editais');
-          if (!response.ok) throw new Error('Falha ao buscar dados.');
-          const allEditais: Edital[] = await response.json();
-          const foundEdital = allEditais.find(e => e.id === editalId);
-          if (foundEdital) {
-            setEdital(foundEdital);
-            const foundCargo = foundEdital.cargos?.find(c => c.id === cargoId);
-            if (foundCargo) {
-              setCargo(foundCargo);
-              const foundSubject = foundCargo.subjects?.find(s => s.id === subjectId);
-              if (foundSubject) {
-                setSubject(foundSubject);
-                const initialTimerStates: Record<string, { time: number; isRunning: boolean }> = {};
-                foundSubject.topics?.forEach(topic => {
-                  initialTimerStates[topic.id] = { time: 0, isRunning: false };
-                });
-                setTimerStates(initialTimerStates);
-              }
+      setLoadingData(true);
+      try {
+        if (!editalId || !cargoId || !subjectId) {
+          return;
+        }
+        const response = await fetch('/api/editais');
+        if (!response.ok) throw new Error('Falha ao buscar dados.');
+        const allEditais: Edital[] = await response.json();
+        const foundEdital = allEditais.find(e => e.id === editalId);
+        if (foundEdital) {
+          setEdital(foundEdital);
+          const foundCargo = foundEdital.cargos?.find(c => c.id === cargoId);
+          if (foundCargo) {
+            setCargo(foundCargo);
+            const foundSubject = foundCargo.subjects?.find(s => s.id === subjectId);
+            if (foundSubject) {
+              setSubject(foundSubject);
+              const initialTimerStates: Record<string, { time: number; isRunning: boolean }> = {};
+              foundSubject.topics?.forEach(topic => {
+                initialTimerStates[topic.id] = { time: 0, isRunning: false };
+              });
+              setTimerStates(initialTimerStates);
             }
           }
-        } catch (error: any) {
-          toast({ title: "Erro ao Carregar Dados", variant: "destructive" });
-        } finally {
-          setLoadingData(false);
         }
+      } catch (error: any) {
+        toast({ title: "Erro ao Carregar Dados", variant: "destructive" });
+      } finally {
+        setLoadingData(false);
       }
     };
     fetchSubjectDetails();
@@ -150,7 +150,6 @@ export default function SubjectTopicsPage() {
     try {
       await toggleTopicStudyStatus(compositeTopicId);
       
-      // Registro de atividade para consistência
       if (!isCurrentlyStudied) {
         await addStudyLog(compositeTopicId, { duration: 0, pdfName: "Tópico concluído (Checklist)" });
       }
@@ -226,7 +225,7 @@ export default function SubjectTopicsPage() {
     );
   }
 
-  if (!authLoading && !loadingData && !hasAccess) {
+  if (!hasAccess) {
     return (
       <PageWrapper>
         <div className="container mx-auto px-0 sm:px-4 py-8">
