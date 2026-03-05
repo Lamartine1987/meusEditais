@@ -509,7 +509,7 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         // --- 6) Atualiza a assinatura (se tivermos subscription) ---
         if (subscription) {
           try {
-            await handleSubscriptionCreatedOrUpdated(subscription);
+            await handleSubscriptionCreatedOrUpdated(subscription, { userId, planId });
           } catch (err: any) {
             console.error(  
               `[Webhook] ERRO ao atualizar assinatura após invoice.payment_succeeded (${subscriptionId}):`,
@@ -530,7 +530,17 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             console.warn(`[Webhook] AVISO: Pagamento da fatura falhou para a assinatura ${subscriptionId}. Marcando plano como 'past_due'.`);
             const stripe = await getStripeClient();
             const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-            await handleSubscriptionCreatedOrUpdated(subscription);
+            
+            // Tenta encontrar o userId para passar como fallback
+            let userId: string | undefined;
+            if (subscription.metadata?.userId) userId = subscription.metadata.userId;
+            if (!userId) {
+                const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id;
+                const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer;
+                userId = customer.metadata?.firebaseUID;
+            }
+
+            await handleSubscriptionCreatedOrUpdated(subscription, { userId });
         }
         break;
       }
@@ -556,7 +566,3 @@ function getPlanDisplayName(planId: "plano_mensal" | "plano_cargo" | "plano_edit
         default: return 'Plano';
     }
 }
-
-    
-
-    
