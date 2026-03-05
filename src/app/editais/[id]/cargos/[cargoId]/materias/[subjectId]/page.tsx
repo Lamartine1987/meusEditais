@@ -319,10 +319,11 @@ export default function SubjectTopicsPage() {
   if (!hasAccess) {
     return (
       <PageWrapper>
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-0 sm:px-4 py-8">
           <div className="mb-6">
             <Button variant="outline" asChild><Link href={`/editais/${editalId}/cargos/${cargoId}`}><ArrowLeft className="mr-2 h-4 w-4" />Voltar</Link></Button>
           </div>
+          <PageHeader title={subject?.name ?? "Acesso Restrito"} />
           <Card className="shadow-lg rounded-xl bg-card">
             <CardHeader className="text-center">
               <CardTitle className="text-xl flex items-center justify-center">
@@ -330,9 +331,34 @@ export default function SubjectTopicsPage() {
                 {isSuspended ? "Assinatura Suspensa" : "Acesso Restrito"}
               </CardTitle>
             </CardHeader>
-            <CardContent className="pt-6 text-center">
-              <p className="text-muted-foreground mb-6">Para acessar os tópicos e registrar seu progresso, você precisa ter uma assinatura ativa.</p>
-              <Button asChild size="lg"><Link href="/planos">Ver Planos</Link></Button>
+            <Separator />
+            <CardContent className="pt-6">
+              {isSuspended ? (
+                <Alert variant="destructive" className="mb-6">
+                  <CreditCard className="h-4 w-4" />
+                  <AlertTitle>Bloqueio por Falta de Pagamento</AlertTitle>
+                  <AlertDescription>
+                    O acesso a este conteúdo foi interrompido porque não conseguimos processar o pagamento da sua assinatura. 
+                    Verifique seu cartão de crédito na página de perfil para restaurar o acesso.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <p className="text-muted-foreground text-center mb-6">
+                  Para acessar os tópicos e registrar seu progresso, você precisa ter uma assinatura ativa para este cargo ou edital.
+                </p>
+              )}
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button asChild size="lg" className={isSuspended ? "bg-destructive hover:bg-destructive/90" : ""}>
+                    <Link href="/perfil">
+                    {isSuspended ? "Resolver Pendência" : "Ver Minha Conta"}
+                    </Link>
+                </Button>
+                {!isSuspended && (
+                  <Button asChild variant="outline" size="lg">
+                      <Link href="/planos">Ver Planos</Link>
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>

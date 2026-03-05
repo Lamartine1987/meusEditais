@@ -53,10 +53,10 @@ const planRank: Record<PlanId, number> = {
   plano_mensal: 3,
 };
 
-const getPlanStatusText = (status?: PlanDetails['status']): { text: string; variant: "destructive" | "secondary" | "default" | "outline" } => {
+const getPlanStatusText = (status?: PlanDetails['status']): { text: string; variant: "destructive" | "secondary" | "default" | "outline" | "accent" } => {
     switch (status) {
-        case 'active': return { text: 'Ativo', variant: 'default' };
-        case 'past_due': return { text: 'Pag. Pendente', variant: 'destructive' };
+        case 'active': return { text: 'Ativo', variant: 'accent' };
+        case 'past_due': return { text: 'Pagamento Pendente', variant: 'destructive' };
         case 'unpaid': return { text: 'Não Pago', variant: 'destructive' };
         case 'canceled': return { text: 'Cancelado', variant: 'secondary' };
         case 'incomplete': return { text: 'Incompleto', variant: 'destructive' };
@@ -473,6 +473,7 @@ export default function ProfilePage() {
                     const isPlanCancelling = plan.stripeSubscriptionId ? isCancellingSubscription === plan.stripeSubscriptionId : false;
                     const canRequestRefund = isWithinGracePeriod(plan.startDate, 7);
                     const canChangeItem = (plan.planId === 'plano_cargo' || plan.planId === 'plano_edital') && isWithinGracePeriod(plan.startDate, 7);
+                    const statusInfo = getPlanStatusText(plan.status);
 
                     return (
                         <li key={plan.stripePaymentIntentId || plan.stripeSubscriptionId || index} className="p-4 border rounded-lg bg-muted/50">
@@ -481,8 +482,11 @@ export default function ProfilePage() {
                                 <h3 className="text-lg font-semibold text-foreground flex items-center">
                                   <Package className="mr-2 h-5 w-5" />
                                   {getPlanDisplayName(plan.planId)}
-                                   {plan.status === 'refundRequested' && <Badge variant="destructive" className="ml-2 animate-pulse"><Clock className="mr-1.5 h-3 w-3" /> Reembolso em Processamento</Badge>}
-                                   {plan.status === 'past_due' && <Badge variant="destructive" className="ml-2 animate-pulse"><Clock className="mr-1.5 h-3 w-3" /> Pagamento Pendente</Badge>}
+                                   {plan.status !== 'active' && plan.status !== 'canceled' && (
+                                      <Badge variant={statusInfo.variant} className="ml-2">
+                                        <Clock className="mr-1.5 h-3 w-3" /> {statusInfo.text}
+                                      </Badge>
+                                   )}
                                 </h3>
                                 <p className="text-sm text-muted-foreground mt-1 pl-7">
                                   {getPlanDetailsDescription(plan)}
@@ -494,10 +498,14 @@ export default function ProfilePage() {
                                     </p>
                                 )}
                             </div>
-                             {plan.status === 'canceled' && plan.expiryDate ? (
-                                <Badge variant="secondary">Cancelado. Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>
-                             ) : plan.expiryDate && (
+                             {plan.status === 'active' && plan.expiryDate ? (
                                 <Badge variant={plan.planId === 'plano_trial' ? 'outline' : 'default'}>Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>
+                             ) : plan.status === 'canceled' && plan.expiryDate ? (
+                                <Badge variant="secondary">Acesso até: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>
+                             ) : (plan.status === 'past_due' || plan.status === 'unpaid' || plan.status === 'incomplete') ? (
+                                <Badge variant="destructive">Acesso Suspenso</Badge>
+                             ) : plan.expiryDate && (
+                                <Badge variant="outline">Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>
                              )}
                           </div>
                           <div className="mt-4 pt-4 border-t border-muted-foreground/10 flex flex-col sm:flex-row justify-end gap-2">
@@ -726,7 +734,7 @@ export default function ProfilePage() {
             {planToChange?.planId === 'plano_edital' && (
                 <div className="py-2 space-y-2">
                     <Label htmlFor="edital-search-input-change" className="block text-sm font-medium text-muted-foreground">Busque e Selecione o Novo Edital:</Label>
-                    <div className="relative"><SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input id="edital-search-input-change" type="search" placeholder="Buscar edital..." value={editalSearchTerm} onChange={(e) => setEditalSearchTerm(e.target.value)} className="pl-8"/></div>
+                    <div className="relative"><SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input id="edital-search-input-change" type="search" placeholder="Buscar edital..." value={editalSearchTerm} onChange={(e) => setOriginalEditalSearchTerm(e.target.value)} className="pl-8"/></div>
                     {filteredEditaisForModal.length > 0 ? (
                         <ScrollArea className="h-[300px] mt-2 pr-3 border rounded-md">
                             <RadioGroup value={selectedItemInModal || ''} onValueChange={setSelectedItemInModal} className="space-y-2 p-2">
