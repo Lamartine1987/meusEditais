@@ -391,6 +391,7 @@ export default function SubjectTopicsPage() {
                   
                   // Lógica de Revisão
                   const activeRevision = revisions.find(r => !r.isReviewed);
+                  const completedRevisions = revisions.filter(r => r.isReviewed).sort((a,b) => new Date(b.reviewedDate || '').getTime() - new Date(a.reviewedDate || '').getTime());
                   const isRevisionDue = activeRevision && (isToday(parseISO(activeRevision.scheduledDate)) || isPast(parseISO(activeRevision.scheduledDate)));
                   const isRevisionFuture = activeRevision && isAfter(parseISO(activeRevision.scheduledDate), new Date()) && !isToday(parseISO(activeRevision.scheduledDate));
                   
@@ -701,6 +702,33 @@ export default function SubjectTopicsPage() {
                                 )}
                             </CardContent>
                         </Card>
+
+                        {/* Revision History Section */}
+                        {completedRevisions.length > 0 && (
+                            <div className="pt-4 border-t border-border/50">
+                                <h4 className="text-xs font-bold text-muted-foreground uppercase flex items-center mb-4 tracking-widest">
+                                    <History className="mr-2 h-4 w-4" /> Histórico de Revisões
+                                </h4>
+                                <div className="space-y-2">
+                                    {completedRevisions.map(rev => (
+                                        <div key={rev.id} className="flex items-center justify-between p-3 rounded-lg border bg-accent/5 text-sm hover:bg-accent/10 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="bg-accent/10 p-2 rounded-full">
+                                                    <CheckCircle2 className="h-4 w-4 text-accent" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-foreground">Revisão Concluída</p>
+                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                                                        <span>Realizada em: {rev.reviewedDate ? format(parseISO(rev.reviewedDate), "dd/MM/yy 'às' HH:mm", {locale: ptBR}) : 'Data não registrada'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <Badge variant="outline" className="text-accent border-accent/30 bg-accent/5">Sucesso</Badge>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* History / Logs Section */}
                         <div className="pt-4 border-t border-border/50">
