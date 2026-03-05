@@ -63,7 +63,8 @@ function CheckoutPageContent() {
 
   const isUpgrade = useMemo(() => {
     if (!user || !selectedPlanDetails) return false;
-    return selectedPlanDetails.id === 'plano_mensal' && (user.activePlans?.length ?? 0) > 0;
+    // Considera upgrade se o usuário já tem algum plano ATIVO
+    return selectedPlanDetails.id === 'plano_mensal' && (user.activePlans?.some(p => p.status === 'active') ?? false);
   }, [user, selectedPlanDetails]);
 
 
@@ -72,11 +73,10 @@ function CheckoutPageContent() {
       const planDetails = planDisplayMap[planIdParam as PlanId];
       setSelectedPlanDetails(planDetails);
       setIsValidPlan(true);
-      console.log(`[CheckoutPage] searchParams recebidos:`, searchParams.toString());
     } else {
       setIsValidPlan(false);
     }
-  }, [planIdParam, searchParams]);
+  }, [planIdParam]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -116,19 +116,21 @@ function CheckoutPageContent() {
         specificCheckoutDetails.selectedEditalId = editalId;
     }
 
-    if (user.activePlans?.some(p => p.planId === 'plano_mensal')) {
-        toast({ title: "Plano Máximo Ativo", description: "Você já possui o Plano Mensal, que dá acesso a tudo.", variant: "default" });
+    // CRÍTICO: Só bloqueia se o usuário tiver um plano mensal ATIVO. 
+    // Se estiver past_due ou canceled, permite a compra para regularizar ou renovar.
+    if (user.activePlans?.some(p => p.planId === 'plano_mensal' && p.status === 'active')) {
+        toast({ title: "Plano Máximo Ativo", description: "Você já possui o Plano Mensal ativo, que dá acesso a tudo.", variant: "default" });
         router.push('/perfil');
         return;
     }
 
-    if (selectedPlanDetails.id === 'plano_cargo' && user.activePlans?.some(p => p.selectedCargoCompositeId === specificCheckoutDetails.selectedCargoCompositeId)) {
+    if (selectedPlanDetails.id === 'plano_cargo' && user.activePlans?.some(p => p.selectedCargoCompositeId === specificCheckoutDetails.selectedCargoCompositeId && p.status === 'active')) {
         toast({ title: "Cargo já Adquirido", description: "Você já possui um plano ativo para este cargo específico.", variant: "default" });
         router.push('/perfil');
         return;
     }
 
-    if (selectedPlanDetails.id === 'plano_edital' && user.activePlans?.some(p => p.selectedEditalId === specificCheckoutDetails.selectedEditalId)) {
+    if (selectedPlanDetails.id === 'plano_edital' && user.activePlans?.some(p => p.selectedEditalId === specificCheckoutDetails.selectedEditalId && p.status === 'active')) {
         toast({ title: "Edital já Adquirido", description: "Você já possui um plano ativo para este edital específico.", variant: "default" });
         router.push('/perfil');
         return;
