@@ -57,7 +57,7 @@ export default function SubjectTopicsPage() {
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
     let canAccess = false;
 
-    // Filtra apenas planos com status 'active' (Segurança máxima contra falta de pagamento)
+    // Filtra apenas planos com status 'active' (Unifica lógica para Trial e Pagos)
     const activePaidPlans = user.activePlans?.filter(p => p.status === 'active') || [];
 
     if (activePaidPlans.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
