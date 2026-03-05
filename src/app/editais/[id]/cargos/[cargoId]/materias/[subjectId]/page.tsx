@@ -57,7 +57,7 @@ export default function SubjectTopicsPage() {
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
     let canAccess = false;
 
-    // Filtra apenas planos com status 'active'
+    // Filtra apenas planos com status 'active' (Segurança máxima contra falta de pagamento)
     const activePaidPlans = user.activePlans?.filter(p => p.status === 'active') || [];
 
     if (activePaidPlans.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
@@ -68,6 +68,7 @@ export default function SubjectTopicsPage() {
         canAccess = true;
     }
 
+    // Se não tem acesso, verifica se existe algum plano que está especificamente suspenso
     const suspended = !canAccess && (user.activePlans?.some(p => p.status === 'past_due' || p.status === 'unpaid') ?? false);
 
     setHasAccess(canAccess);
@@ -149,8 +150,7 @@ export default function SubjectTopicsPage() {
     try {
       await toggleTopicStudyStatus(compositeTopicId);
       
-      // Se estiver marcando como estudado (e não desmarcando), cria um log de 0 duração
-      // para registrar a atividade de hoje nas estatísticas de consistência.
+      // Registro de atividade para consistência
       if (!isCurrentlyStudied) {
         await addStudyLog(compositeTopicId, { duration: 0, pdfName: "Tópico concluído (Checklist)" });
       }

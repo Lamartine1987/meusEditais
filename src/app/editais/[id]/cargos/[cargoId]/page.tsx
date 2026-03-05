@@ -1,35 +1,55 @@
-
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import type { Edital, Cargo, Subject as SubjectType } from '@/types';
+import type { Edital, Cargo, Subject as SubjectType, Topic as TopicType, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, NoteEntry } from '@/types';
 import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Loader2, ArrowLeft, BookOpen, ChevronRight, AlertCircle, Gem, AlertTriangle, CreditCard, Lock } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Loader2, ArrowLeft, BookOpen, Play, Pause, RotateCcw, Save, TimerIcon, Info, AlertTriangle, CreditCard, Lock } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { Separator } from '@/components/ui/separator';
+import { isToday, isPast, parseISO } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-export default function CargoDetailPage() {
+const formatDuration = (totalSeconds: number): string => {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
+
+export default function SubjectTopicsPage() {
   const params = useParams();
   const router = useRouter();
   const editalId = params.id as string;
   const cargoId = params.cargoId as string;
+  const subjectId = params.subjectId as string;
 
-  const { user, loading: authLoading } = useAuth();
+  const { user, toggleTopicStudyStatus, addStudyLog, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [edital, setEdital] = useState<Edital | null>(null);
   const [cargo, setCargo] = useState<Cargo | null>(null);
+  const [subject, setSubject] = useState<SubjectType | null>(null);
   const [loadingData, setLoadingData] = useState(true);
-  const [hasAccess, setHasAccess] = useState(false);
   const [isSuspended, setIsSuspended] = useState(false);
+
+  // Refatoração do Timer
+  const [timerStates, setTimerStates] = useState<Record<string, { time: number; isRunning: boolean }>>({});
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  const activeTimerTopicIdRef = useRef<string | null>(null);
+
+  const [activeAccordionItem, setActiveAccordionItem] = useState<string | null>(null);
+  const [hasAccess, setHasAccess] = useState(false);
 
   useEffect(() => {
     if (!user || authLoading) return;
@@ -37,7 +57,7 @@ export default function CargoDetailPage() {
     const currentCargoCompositeId = `${editalId}_${cargoId}`;
     let canAccess = false;
 
-    // Filtra apenas planos com status 'active'
+    // Filtra apenas planos com status 'active' (Segurança máxima contra falta de pagamento)
     const activePaidPlans = user.activePlans?.filter(p => p.status === 'active') || [];
 
     if (activePaidPlans.some(p => p.planId === 'plano_mensal' || p.planId === 'plano_trial')) {
@@ -47,8 +67,8 @@ export default function CargoDetailPage() {
     } else if (activePaidPlans.some(p => p.planId === 'plano_cargo' && p.selectedCargoCompositeId === currentCargoCompositeId)) {
         canAccess = true;
     }
-    
-    // Verifica se há planos suspensos para feedback específico
+
+    // Se não tem acesso, verifica se existe algum plano que está especificamente suspenso
     const suspended = !canAccess && (user.activePlans?.some(p => p.status === 'past_due' || p.status === 'unpaid') ?? false);
 
     setHasAccess(canAccess);
@@ -56,8 +76,8 @@ export default function CargoDetailPage() {
   }, [user, authLoading, editalId, cargoId]);
 
   useEffect(() => {
-    const fetchCargoDetails = async () => {
-      if (editalId && cargoId) {
+    const fetchSubjectDetails = async () => {
+      if (editalId && cargoId && subjectId) {
         setLoadingData(true);
         try {
           const response = await fetch('/api/editais');
@@ -67,7 +87,18 @@ export default function CargoDetailPage() {
           if (foundEdital) {
             setEdital(foundEdital);
             const foundCargo = foundEdital.cargos?.find(c => c.id === cargoId);
-            setCargo(foundCargo || null);
+            if (foundCargo) {
+              setCargo(foundCargo);
+              const foundSubject = foundCargo.subjects?.find(s => s.id === subjectId);
+              if (foundSubject) {
+                setSubject(foundSubject);
+                const initialTimerStates: Record<string, { time: number; isRunning: boolean }> = {};
+                foundSubject.topics?.forEach(topic => {
+                  initialTimerStates[topic.id] = { time: 0, isRunning: false };
+                });
+                setTimerStates(initialTimerStates);
+              }
+            }
           }
         } catch (error: any) {
           toast({ title: "Erro ao Carregar Dados", variant: "destructive" });
@@ -76,18 +107,114 @@ export default function CargoDetailPage() {
         }
       }
     };
-    fetchCargoDetails();
-  }, [editalId, cargoId, toast]);
+    fetchSubjectDetails();
+  }, [editalId, cargoId, subjectId, toast]);
 
-  const calculateProgress = useCallback((subject: SubjectType): number => {
-    if (!user || !subject.topics || subject.topics.length === 0) return 0;
-    const studiedTopicsCount = subject.topics.filter(topic => {
-      const compositeTopicId = `${editalId}_${cargoId}_${subject.id}_${topic.id}`;
-      return user.studiedTopicIds?.includes(compositeTopicId);
-    }).length;
-    return (studiedTopicsCount / subject.topics.length) * 100;
-  }, [user, editalId, cargoId]);
+  // Efeito do Timer
+  useEffect(() => {
+    const activeTopicId = activeTimerTopicIdRef.current;
+    if (activeTopicId && timerStates[activeTopicId]?.isRunning) {
+        if (!startTimeRef.current) {
+            startTimeRef.current = Date.now() - (timerStates[activeTopicId].time * 1000);
+        }
 
+        timerRef.current = setInterval(() => {
+            if (startTimeRef.current) {
+                const elapsedTime = Date.now() - startTimeRef.current;
+                setTimerStates(prev => {
+                    if (prev[activeTopicId]?.isRunning) {
+                        return {
+                            ...prev,
+                            [activeTopicId]: { ...prev[activeTopicId], time: Math.floor(elapsedTime / 1000) }
+                        };
+                    }
+                    return prev;
+                });
+            }
+        }, 1000);
+    }
+
+    return () => {
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+    };
+  }, [timerStates]);
+
+  const handleToggleTopicCheckbox = useCallback(async (topicId: string) => {
+    if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    const isCurrentlyStudied = user.studiedTopicIds?.includes(compositeTopicId);
+
+    try {
+      await toggleTopicStudyStatus(compositeTopicId);
+      
+      // Registro de atividade para consistência
+      if (!isCurrentlyStudied) {
+        await addStudyLog(compositeTopicId, { duration: 0, pdfName: "Tópico concluído (Checklist)" });
+      }
+    } catch (error) {
+      toast({ title: "Erro ao atualizar status", variant: "destructive" });
+    }
+  }, [user, editalId, cargoId, subjectId, toggleTopicStudyStatus, addStudyLog, toast, hasAccess]);
+
+  const handleTimerPlayPause = (topicId: string) => {
+      if (!hasAccess) return;
+      if (activeTimerTopicIdRef.current && activeTimerTopicIdRef.current !== topicId && timerStates[activeTimerTopicIdRef.current]?.isRunning) {
+          setTimerStates(prev => ({ ...prev, [activeTimerTopicIdRef.current!]: { ...prev[activeTimerTopicIdRef.current!], isRunning: false } }));
+      }
+      const isCurrentlyRunning = timerStates[topicId]?.isRunning;
+      if (isCurrentlyRunning) { 
+          if (timerRef.current) clearInterval(timerRef.current);
+          timerRef.current = null;
+          startTimeRef.current = null;
+      } else { 
+          activeTimerTopicIdRef.current = topicId;
+          startTimeRef.current = Date.now() - (timerStates[topicId].time * 1000);
+      }
+      setTimerStates(prev => ({ ...prev, [topicId]: { ...prev[topicId], isRunning: !isCurrentlyRunning } }));
+  };
+
+  const handleTimerReset = (topicId: string) => {
+    if(!hasAccess) return;
+    if (timerRef.current && activeTimerTopicIdRef.current === topicId) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+    }
+    startTimeRef.current = null;
+    if (activeTimerTopicIdRef.current === topicId) activeTimerTopicIdRef.current = null;
+    setTimerStates(prev => ({ ...prev, [topicId]: { time: 0, isRunning: false }, }));
+  };
+
+  const handleSaveLog = async (topicId: string) => {
+    if (!user || !editalId || !cargoId || !subjectId || !hasAccess) return;
+    if (timerStates[topicId]?.isRunning) handleTimerPlayPause(topicId);
+    
+    setTimeout(async () => {
+        const durationToSave = timerStates[topicId]?.time || 0;
+        const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+        try {
+          await addStudyLog(compositeTopicId, { duration: durationToSave });
+          toast({ title: "Registro Salvo!", variant: "default", className:"bg-accent text-accent-foreground" });
+          handleTimerReset(topicId);
+        } catch (error) {
+          toast({ title: "Erro ao Salvar", variant: "destructive" });
+        }
+    }, 100);
+  };
+  
+  const calculateTotalStudiedTimeForTopic = useCallback((topicId: string): number => {
+    if (!user?.studyLogs) return 0;
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    return user.studyLogs.filter(log => log.compositeTopicId === compositeTopicId).reduce((total, log) => total + log.duration, 0);
+  }, [user, editalId, cargoId, subjectId]);
+
+  const getRevisionSchedulesForTopic = useCallback((topicId: string): RevisionScheduleEntry[] => {
+    if (!user?.revisionSchedules) return [];
+    const compositeTopicId = `${editalId}_${cargoId}_${subjectId}_${topicId}`;
+    return user.revisionSchedules.filter(rs => rs.compositeTopicId === compositeTopicId).sort((a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime());
+  }, [user, editalId, cargoId, subjectId]);
 
   if (loadingData || authLoading) {
     return (
@@ -98,23 +225,20 @@ export default function CargoDetailPage() {
       </PageWrapper>
     );
   }
-  
+
   if (!authLoading && !loadingData && !hasAccess) {
     return (
       <PageWrapper>
         <div className="container mx-auto px-0 sm:px-4 py-8">
           <div className="mb-6">
             <Button variant="outline" asChild>
-              <Link href={`/editais/${editalId}`}>
+              <Link href={`/editais/${editalId}/cargos/${cargoId}`}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Voltar para Detalhes do Edital
+                Voltar para Matérias do Cargo
               </Link>
             </Button>
           </div>
-          <PageHeader 
-            title={cargo?.name ?? "Acesso Restrito"}
-            description={cargo ? `Conteúdo programático do cargo ${cargo.name}.` : 'Este conteúdo não está disponível para seu plano atual.'}
-          />
+          <PageHeader title={subject?.name ?? "Acesso Restrito"} />
           <Card className="shadow-lg rounded-xl bg-card">
             <CardHeader className="text-center">
               <CardTitle className="text-xl flex items-center justify-center">
@@ -123,7 +247,7 @@ export default function CargoDetailPage() {
                 ) : (
                   <Lock className="mr-3 h-6 w-6 text-muted-foreground" />
                 )}
-                {isSuspended ? "Assinatura Suspensa" : "Acesso Restrito ao Conteúdo"}
+                {isSuspended ? "Assinatura Suspensa" : "Acesso Restrito"}
               </CardTitle>
             </CardHeader>
             <Separator />
@@ -131,31 +255,26 @@ export default function CargoDetailPage() {
               {isSuspended ? (
                 <Alert variant="destructive" className="mb-6">
                   <CreditCard className="h-4 w-4" />
-                  <AlertTitle>Falha no Pagamento Detectada</AlertTitle>
+                  <AlertTitle>Bloqueio por Falta de Pagamento</AlertTitle>
                   <AlertDescription>
-                    Seu acesso foi suspenso automaticamente porque o Stripe não conseguiu processar a última cobrança da sua assinatura. 
-                    Por favor, atualize seus dados de pagamento para reativar o acesso.
+                    O acesso a este conteúdo foi interrompido porque não conseguimos processar o pagamento da sua assinatura. 
+                    Verifique seu cartão de crédito na página de perfil para restaurar o acesso.
                   </AlertDescription>
                 </Alert>
               ) : (
                 <p className="text-muted-foreground text-center mb-6">
-                  Seu plano atual não está ativo ou não concede acesso às matérias deste cargo. 
-                  Verifique se sua assinatura está em dia ou considere fazer um upgrade.
+                  Para acessar os tópicos e registrar seu progresso, certifique-se de que sua assinatura está ativa.
                 </p>
               )}
-              
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button asChild size="lg" className={isSuspended ? "bg-destructive hover:bg-destructive/90" : ""}>
                     <Link href="/perfil">
-                    {isSuspended ? "Resolver Pendência no Perfil" : "Gerenciar Assinatura"}
+                    {isSuspended ? "Resolver Pendência" : "Ver Minha Conta"}
                     </Link>
                 </Button>
                 {!isSuspended && (
                   <Button asChild variant="outline" size="lg">
-                      <Link href="/planos">
-                      <Gem className="mr-2 h-4 w-4" />
-                      Ver Planos Disponíveis
-                      </Link>
+                      <Link href="/planos">Ver Planos</Link>
                   </Button>
                 )}
               </div>
@@ -166,87 +285,122 @@ export default function CargoDetailPage() {
     );
   }
 
-  if (!edital || !cargo) {
+  if (!edital || !cargo || !subject) {
     return (
       <PageWrapper>
         <div className="container mx-auto px-4 py-8 text-center">
-          <PageHeader title="Informação Não Encontrada" />
-          <p className="mb-4">O edital ou cargo que você está procurando não foi encontrado.</p>
-          <Button onClick={() => router.back()} variant="outline">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar
-          </Button>
+          <PageHeader title="Não Encontrado" />
+          <Button onClick={() => router.back()} variant="outline">Voltar</Button>
         </div>
       </PageWrapper>
     );
   }
-  
+
   return (
     <PageWrapper>
       <div className="container mx-auto px-0 sm:px-4 py-8">
         <div className="mb-6">
           <Button variant="outline" asChild>
-            <Link href={`/editais/${editalId}`}>
+            <Link href={`/editais/${editalId}/cargos/${cargoId}`}>
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Voltar para Detalhes do Edital
+              Voltar para Matérias
             </Link>
           </Button>
         </div>
 
-        <PageHeader 
-          title={`Matérias para: ${cargo.name}`}
-          description={`Conteúdo programático do cargo ${cargo.name} no edital ${edital.title}.`}
-        />
+        <PageHeader title={subject.name} description={`Estude os tópicos de ${subject.name}.`} />
 
-        {cargo.subjects && cargo.subjects.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {cargo.subjects.map((subject: SubjectType) => {
-              const progressValue = calculateProgress(subject);
-              const subjectKey = `${editalId}_${cargoId}_${subject.id}`;
-              return (
-                <Link key={subjectKey} href={`/editais/${editalId}/cargos/${cargoId}/materias/${subject.id}`} passHref>
-                  <Card className="shadow-md hover:shadow-lg transition-shadow duration-300 rounded-xl flex flex-col h-full bg-card cursor-pointer group">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg font-semibold text-primary group-hover:underline flex justify-between items-center">
-                        {subject.name}
-                        <ChevronRight className="h-5 w-5 text-muted-foreground transition-transform group-hover:translate-x-1" />
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-grow pt-1">
-                      <p className="text-xs text-muted-foreground mb-2">
-                        {subject.topics?.length || 0} tópico(s) no total.
-                      </p>
-                    </CardContent>
-                    <CardFooter className="pt-3 border-t">
-                      <div className="flex items-center w-full">
-                        <Progress value={progressValue} className="h-2.5 flex-grow" aria-label={`Progresso em ${subject.name}`} />
-                        <span className="text-xs font-medium text-muted-foreground ml-2 w-10 text-right">
-                          {Math.round(progressValue)}%
-                        </span>
-                      </div>
-                    </CardFooter>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <Card className="shadow-lg rounded-xl bg-card">
-            <CardHeader>
-              <CardTitle className="text-xl flex items-center">
-                <BookOpen className="mr-3 h-6 w-6 text-primary" />
-                Conteúdo Programático
-              </CardTitle>
-            </CardHeader>
-            <Separator className="my-4" />
-            <CardContent>
-              <div className="text-center py-10">
-                <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-lg text-muted-foreground">Nenhuma matéria cadastrada para este cargo.</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <Card className="shadow-lg rounded-xl bg-card">
+          <CardHeader>
+            <CardTitle className="text-xl flex items-center">
+              <BookOpen className="mr-3 h-6 w-6 text-primary" />
+              Tópicos da Matéria
+            </CardTitle>
+          </CardHeader>
+          <Separator className="mb-1" />
+          <CardContent className="pt-6">
+            {subject.topics && subject.topics.length > 0 ? (
+              <Accordion 
+                type="single" 
+                collapsible 
+                className="w-full space-y-3"
+                onValueChange={(value) => {
+                    const currentOpenTopic = activeAccordionItem;
+                    if (currentOpenTopic && timerStates[currentOpenTopic]?.isRunning) handleTimerPlayPause(currentOpenTopic);
+                    setActiveAccordionItem(value || null);
+                }}
+              >
+                {subject.topics.map((topic: TopicType) => {
+                  const compositeTopicId = `${editalId}_${cargoId}_${subject.id}_${topic.id}`;
+                  const isStudiedChecked = user?.studiedTopicIds?.includes(compositeTopicId) ?? false;
+                  const currentTimerState = timerStates[topic.id] || { time: 0, isRunning: false };
+                  const totalStudiedSeconds = calculateTotalStudiedTimeForTopic(topic.id);
+                  const revisionSchedules = getRevisionSchedulesForTopic(topic.id);
+                  const isRevisionDue = revisionSchedules.some(r => !r.isReviewed && (isToday(parseISO(r.scheduledDate)) || isPast(parseISO(r.scheduledDate))));
+
+                  return (
+                    <AccordionItem 
+                        value={topic.id} 
+                        key={topic.id} 
+                        className={cn(
+                            "rounded-lg shadow-sm border overflow-hidden transition-colors duration-300",
+                            isRevisionDue ? "bg-yellow-100 dark:bg-yellow-800/20 border-yellow-500/50" :
+                            isStudiedChecked ? "bg-accent/20 border-accent/30" : "bg-card border-border"
+                        )}
+                    >
+                      <AccordionTrigger className="py-4 px-3 hover:bg-muted/50 w-full text-left">
+                        <div className="flex items-center justify-between w-full">
+                            <span className="text-base text-foreground/90 font-medium">{topic.name}</span>
+                            <div className="flex items-center">
+                                {isRevisionDue && <Badge variant="outline" className="text-xs font-normal ml-2 border-yellow-600 text-yellow-700 bg-yellow-50"><Info className="h-3 w-3 mr-1"/>Revisão Pendente</Badge>}
+                                {totalStudiedSeconds > 0 && (
+                                    <Badge variant="outline" className="text-xs font-normal ml-2">
+                                    <TimerIcon className="h-3 w-3 mr-1" />
+                                    {formatDuration(totalStudiedSeconds)}
+                                    </Badge>
+                                )}
+                            </div>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-2 pb-4 px-3 space-y-4 bg-muted/20">
+                        <div className="flex items-center space-x-2 p-3 border rounded-md bg-background/50">
+                            <Checkbox
+                                id={`topic-${topic.id}`}
+                                checked={isStudiedChecked}
+                                onCheckedChange={() => handleToggleTopicCheckbox(topic.id)}
+                                className="h-5 w-5"
+                            />
+                            <Label htmlFor={`topic-${topic.id}`} className="text-sm font-medium">Marcar como estudado</Label>
+                        </div>
+
+                        <div className="p-4 border rounded-lg bg-background shadow-sm space-y-4">
+                            <h4 className="text-base font-semibold text-foreground flex items-center">
+                                <TimerIcon className="mr-2 h-5 w-5 text-primary" />
+                                Registrar Progresso
+                            </h4>
+                            <div className="flex items-center justify-between p-3 border rounded-md bg-muted/30">
+                                <div className="text-3xl font-mono text-primary">{formatDuration(currentTimerState.time)}</div>
+                                <div className="flex gap-2">
+                                    <Button variant="outline" size="icon" onClick={() => handleTimerPlayPause(topic.id)}>
+                                      {currentTimerState.isRunning ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                                    </Button>
+                                    <Button variant="outline" size="icon" onClick={() => handleTimerReset(topic.id)}><RotateCcw className="h-5 w-5" /></Button>
+                                </div>
+                            </div>
+                            <Button variant="default" className="w-full h-11" onClick={() => handleSaveLog(topic.id)}>
+                              <Save className="mr-2 h-5 w-5" /> Salvar Progresso
+                            </Button>
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                })}
+              </Accordion>
+            ) : (
+              <p className="text-center py-10 text-muted-foreground">Nenhum tópico cadastrado.</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </PageWrapper>
   );
