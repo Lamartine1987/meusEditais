@@ -14,12 +14,13 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { 
   Loader2, ArrowLeft, BookOpen, Play, Pause, RotateCcw, Save, 
   TimerIcon, Info, AlertTriangle, CreditCard, Lock, CalendarClock, 
-  FileQuestion, FileText, Trash2, History, CheckCircle2, ChevronRight
+  FileQuestion, FileText, Trash2, History, CheckCircle2, ChevronRight,
+  CalendarDays
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
-import { isToday, isPast, parseISO, format } from 'date-fns';
+import { isToday, isPast, parseISO, format, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -233,7 +234,7 @@ export default function SubjectTopicsPage() {
       });
       toast({ title: "Questões Registradas!", variant: "default", className:"bg-accent text-accent-foreground" });
       setQuestionLogData({ total: '', correct: '', target: '80' });
-      setOpenQuestionsModalId(null); // Fecha o modal após o sucesso
+      setOpenQuestionsModalId(null);
     } catch (error) {
       toast({ title: "Erro ao registrar questões", variant: "destructive" });
     } finally {
@@ -247,7 +248,7 @@ export default function SubjectTopicsPage() {
     try {
       await addRevisionSchedule(compositeTopicId, parseInt(selectedRevisionDays));
       toast({ title: "Revisão Agendada!", variant: "default", className:"bg-accent text-accent-foreground" });
-      setOpenRevisionModalId(null); // Fecha o modal após o sucesso
+      setOpenRevisionModalId(null);
     } catch (error) {
       toast({ title: "Erro ao agendar", variant: "destructive" });
     }
@@ -365,7 +366,12 @@ export default function SubjectTopicsPage() {
                   const compositeTopicId = `${editalId}_${cargoId}_${subject.id}_${topic.id}`;
                   const isStudiedChecked = user?.studiedTopicIds?.includes(compositeTopicId) ?? false;
                   const { logs, revisions, notes, totalTime } = getTopicData(topic.id);
-                  const isRevisionDue = revisions.some(r => !r.isReviewed && (isToday(parseISO(r.scheduledDate)) || isPast(parseISO(r.scheduledDate))));
+                  
+                  // Lógica de Revisão
+                  const activeRevision = revisions.find(r => !r.isReviewed);
+                  const isRevisionDue = activeRevision && (isToday(parseISO(activeRevision.scheduledDate)) || isPast(parseISO(activeRevision.scheduledDate)));
+                  const isRevisionFuture = activeRevision && isAfter(parseISO(activeRevision.scheduledDate), new Date()) && !isToday(parseISO(activeRevision.scheduledDate));
+                  
                   const currentTimer = timerStates[topic.id] || { time: 0, isRunning: false };
 
                   return (
@@ -373,8 +379,10 @@ export default function SubjectTopicsPage() {
                         value={topic.id} 
                         key={topic.id} 
                         className={cn(
-                            "rounded-lg border shadow-sm overflow-hidden",
-                            isRevisionDue ? "border-yellow-500 bg-yellow-50/30" : "border-border bg-card"
+                            "rounded-lg border shadow-sm overflow-hidden transition-colors duration-200",
+                            isRevisionDue ? "border-yellow-500 bg-yellow-50/30" : 
+                            isRevisionFuture ? "border-blue-400 bg-blue-50/20" : 
+                            "border-border bg-card"
                         )}
                     >
                       <AccordionTrigger className="py-4 px-4 hover:no-underline hover:bg-muted/30">
@@ -384,7 +392,15 @@ export default function SubjectTopicsPage() {
                                 <span className="text-base font-semibold">{topic.name}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                {isRevisionDue && <Badge variant="destructive" className="animate-pulse">Revisão Pendente</Badge>}
+                                {activeRevision && (
+                                    <Badge 
+                                        variant={isRevisionDue ? "destructive" : "secondary"}
+                                        className={cn(isRevisionDue && "animate-pulse", "flex items-center gap-1.5")}
+                                    >
+                                        <CalendarDays className="h-3 w-3" />
+                                        {isRevisionDue ? "Revisar Agora" : `Revisão: ${format(parseISO(activeRevision.scheduledDate), 'dd/MM')}`}
+                                    </Badge>
+                                )}
                                 {totalTime > 0 && <Badge variant="outline" className="font-mono">{formatDuration(totalTime)}</Badge>}
                                 {isStudiedChecked && <CheckCircle2 className="h-5 w-5 text-accent" />}
                             </div>
@@ -392,6 +408,22 @@ export default function SubjectTopicsPage() {
                       </AccordionTrigger>
                       <AccordionContent className="px-4 pb-6 pt-2 space-y-6">
                         
+                        {/* Alerta de Revisão Agendada */}
+                        {activeRevision && (
+                            <Alert className={cn(
+                                isRevisionDue ? "border-yellow-500 bg-yellow-100/50" : "border-blue-400 bg-blue-100/30"
+                            )}>
+                                <CalendarClock className={cn("h-4 w-4", isRevisionDue ? "text-yellow-600" : "text-blue-600")} />
+                                <AlertTitle className="font-bold">
+                                    {isRevisionDue ? "Atenção: Revisão Pendente!" : "Revisão Agendada"}
+                                </AlertTitle>
+                                <AlertDescription className="text-sm">
+                                    Este tópico tem uma revisão prevista para o dia <strong>{format(parseISO(activeRevision.scheduledDate), "dd 'de' MMMM", {locale: ptBR})}</strong>. 
+                                    {isRevisionDue ? " Complete o estudo hoje para manter o conhecimento fresco!" : " Prepare-se para revisá-lo em breve."}
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
                         {/* Top Action Bar */}
                         <div className="flex flex-wrap items-center gap-4 p-4 border rounded-lg bg-muted/20">
                             <div className="flex items-center space-x-2">
