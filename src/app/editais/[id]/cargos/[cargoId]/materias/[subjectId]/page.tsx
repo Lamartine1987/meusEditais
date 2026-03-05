@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
@@ -349,15 +348,13 @@ export default function SubjectTopicsPage() {
               )}
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <Button asChild size="lg" className={isSuspended ? "bg-destructive hover:bg-destructive/90" : ""}>
-                    <Link href="/perfil">
-                    {isSuspended ? "Resolver Pendência" : "Ver Minha Conta"}
+                    <Link href="/planos">
+                    {isSuspended ? "Resolver Pendência" : "Ver Planos"}
                     </Link>
                 </Button>
-                {!isSuspended && (
-                  <Button asChild variant="outline" size="lg">
-                      <Link href="/planos">Ver Planos</Link>
-                  </Button>
-                )}
+                <Button asChild variant="outline" size="lg">
+                    <Link href="/perfil">Ver Meu Perfil</Link>
+                </Button>
               </div>
             </CardContent>
           </Card>

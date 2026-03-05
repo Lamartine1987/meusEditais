@@ -497,7 +497,7 @@ export default function ProfilePage() {
                                     </p>
                                 )}
                             </div>
-                             {plan.status === 'active' && plan.expiryDate ? (
+                             {(plan.status === 'active' || plan.status === 'refundRequested') && plan.expiryDate ? (
                                 <Badge variant={plan.planId === 'plano_trial' ? 'outline' : 'default'}>Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>
                              ) : plan.status === 'canceled' && plan.expiryDate ? (
                                 <Badge variant="secondary">Acesso até: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>
@@ -540,7 +540,7 @@ export default function ProfilePage() {
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                Tem certeza de que deseja cancelar sua assinatura mensal? Seu acesso continuará ativo até the final do período já pago ({new Date(plan.expiryDate).toLocaleDateString('pt-BR')}), e você não será cobrado novamente.
+                                                Tem certeza de que deseja cancelar sua assinatura mensal? Seu acesso continuará ativo até o final do período já pago ({plan.expiryDate ? new Date(plan.expiryDate).toLocaleDateString('pt-BR') : 'N/A'}), e você não será cobrado novamente.
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
