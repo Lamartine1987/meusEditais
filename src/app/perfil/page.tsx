@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
@@ -541,7 +540,7 @@ export default function ProfilePage() {
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Confirmar Cancelamento</AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                Tem certeza de que deseja cancelar sua assinatura mensal? Seu acesso continuará ativo até o final do período já pago ({new Date(plan.expiryDate).toLocaleDateString('pt-BR')}), e você não será cobrado novamente.
+                                                Tem certeza de que deseja cancelar sua assinatura mensal? Seu acesso continuará ativo até the final do período já pago ({new Date(plan.expiryDate).toLocaleDateString('pt-BR')}), e você não será cobrado novamente.
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
@@ -734,7 +733,7 @@ export default function ProfilePage() {
             {planToChange?.planId === 'plano_edital' && (
                 <div className="py-2 space-y-2">
                     <Label htmlFor="edital-search-input-change" className="block text-sm font-medium text-muted-foreground">Busque e Selecione o Novo Edital:</Label>
-                    <div className="relative"><SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input id="edital-search-input-change" type="search" placeholder="Buscar edital..." value={editalSearchTerm} onChange={(e) => setOriginalEditalSearchTerm(e.target.value)} className="pl-8"/></div>
+                    <div className="relative"><SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input id="edital-search-input-change" type="search" placeholder="Buscar edital..." value={editalSearchTerm} onChange={(e) => setEditalSearchTerm(e.target.value)} className="pl-8"/></div>
                     {filteredEditaisForModal.length > 0 ? (
                         <ScrollArea className="h-[300px] mt-2 pr-3 border rounded-md">
                             <RadioGroup value={selectedItemInModal || ''} onValueChange={setSelectedItemInModal} className="space-y-2 p-2">
