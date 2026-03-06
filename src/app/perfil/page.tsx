@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
@@ -13,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Users, RotateCcw, Info, Zap, History, Trophy, Package, DollarSign, Clock, Trash2, Repeat, Search as SearchIcon, CalendarPlus, BadgeInfo } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, ShieldCheck, Gem, Edit3, KeyRound, ExternalLink, XCircle, Trophy, Package, DollarSign, Clock, Trash2, Repeat, Search as SearchIcon, CalendarPlus, History } from 'lucide-react';
 import Link from 'next/link';
 import { Separator } from '@/components/ui/separator';
 import type { PlanId, Edital as EditalType, Cargo as CargoType, PlanDetails, PaymentRecord } from '@/types';
@@ -32,7 +33,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from '@/components/ui/switch';
 import { isWithinGracePeriod } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -77,7 +77,6 @@ export default function ProfilePage() {
   const [allEditaisData, setAllEditaisData] = useState<EditalType[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   
-  // State for the item change modal
   const [isChangeModalOpen, setIsChangeModalOpen] = useState(false);
   const [planToChange, setPlanToChange] = useState<PlanDetails | null>(null);
   const [selectedEditalIdInCargoModal, setSelectedEditalIdInCargoModal] = useState<string | null>(null);
@@ -117,7 +116,6 @@ export default function ProfilePage() {
             setDataLoading(false);
         }
     };
-    
     fetchAllEditais();
   }, []);
 
@@ -170,9 +168,7 @@ export default function ProfilePage() {
         await changeItemForPlan(planToChange.stripePaymentIntentId!, selectedItemInModal);
         setIsChangeModalOpen(false);
         setPlanToChange(null);
-    } catch(e) {
-        // Toast is handled in auth provider
-    } finally {
+    } catch(e) {} finally {
         setIsProcessingChange(false);
     }
   };
@@ -271,7 +267,6 @@ export default function ProfilePage() {
     try {
       await cancelSubscription(subscriptionId);
     } catch (error) {
-      // Error already handled in cancelSubscription
     } finally {
       setIsCancellingSubscription(null);
     }
@@ -304,11 +299,29 @@ export default function ProfilePage() {
     try {
         await deleteUserAccount();
     } catch (error) {
-        // Toast is handled in auth-provider
     } finally {
         setIsDeletingAccount(false);
     }
   };
+
+  const sortedActivePlans = useMemo(() => {
+    if (!user?.activePlans) return [];
+    
+    // Limpeza rigorosa: se existir um plano 'active', removemos os redundantes 'past_due' do mesmo tipo para visualização
+    const trulyActive = user.activePlans.filter(p => p.status === 'active');
+    const filteredPlans = user.activePlans.filter(p => {
+        if (p.status === 'active') return true;
+        // Se já existe um plano ATIVO do mesmo tipo, este (que não é active) deve ir para o histórico
+        const hasActiveBetter = trulyActive.some(ta => ta.planId === p.planId);
+        return !hasActiveBetter;
+    });
+
+    return [...filteredPlans].sort((a, b) => {
+        if (a.status === 'active' && b.status !== 'active') return -1;
+        if (a.status !== 'active' && b.status === 'active') return 1;
+        return 0;
+    });
+  }, [user?.activePlans]);
 
 
   if (authLoading || dataLoading) { 
@@ -465,9 +478,9 @@ export default function ProfilePage() {
           </CardHeader>
           <Separator />
            <CardContent className="pt-6 space-y-4">
-              {(user.activePlans && user.activePlans.length > 0) ? (
+              {(sortedActivePlans.length > 0) ? (
                 <ul className="space-y-4">
-                  {user.activePlans.map((plan, index) => {
+                  {sortedActivePlans.map((plan, index) => {
                     const isPlanRefunding = plan.stripePaymentIntentId ? isRequestingRefund === plan.stripePaymentIntentId : false;
                     const isPlanCancelling = plan.stripeSubscriptionId ? isCancellingSubscription === plan.stripeSubscriptionId : false;
                     const canRequestRefund = isWithinGracePeriod(plan.startDate, 7);
@@ -487,9 +500,9 @@ export default function ProfilePage() {
                                       </Badge>
                                    )}
                                 </h3>
-                                <p className="text-sm text-muted-foreground mt-1 pl-7">
+                                <div className="text-sm text-muted-foreground mt-1 pl-7">
                                   {getPlanDetailsDescription(plan)}
-                                </p>
+                                </div>
                                 {plan.startDate && (
                                     <p className="text-xs text-muted-foreground mt-2 pl-7 flex items-center">
                                         <CalendarPlus className="mr-1.5 h-3 w-3" />
@@ -499,10 +512,10 @@ export default function ProfilePage() {
                             </div>
                              {(plan.status === 'active' || plan.status === 'refundRequested') && plan.expiryDate ? (
                                 <Badge variant={plan.planId === 'plano_trial' ? 'outline' : 'default'}>Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>
-                             ) : plan.status === 'canceled' && plan.expiryDate ? (
-                                <Badge variant="secondary">Acesso até: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>
                              ) : (plan.status === 'past_due' || plan.status === 'unpaid' || plan.status === 'incomplete') ? (
                                 <Badge variant="destructive">Acesso Suspenso</Badge>
+                             ) : plan.status === 'canceled' && plan.expiryDate ? (
+                                <Badge variant="secondary">Acesso até: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>
                              ) : plan.expiryDate && (
                                 <Badge variant="outline">Expira em: {new Date(plan.expiryDate).toLocaleDateString('pt-BR')}</Badge>
                              )}
@@ -516,16 +529,10 @@ export default function ProfilePage() {
                               )}
 
                               {plan.planId !== 'plano_trial' && plan.status === 'active' && canRequestRefund && (
-                                <TooltipProvider>
-                                  <Tooltip delayDuration={0}>
-                                    <TooltipTrigger asChild><span tabIndex={0}>
-                                      <Button variant="destructive" size="sm" onClick={() => handleRequestRefund(plan)} disabled={isPlanRefunding || !plan.stripePaymentIntentId}>
-                                        {isPlanRefunding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        Solicitar Reembolso
-                                      </Button>
-                                    </span></TooltipTrigger>
-                                  </Tooltip>
-                                </TooltipProvider>
+                                <Button variant="destructive" size="sm" onClick={() => handleRequestRefund(plan)} disabled={isPlanRefunding || !plan.stripePaymentIntentId}>
+                                  {isPlanRefunding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                  Solicitar Reembolso
+                                </Button>
                               )}
                               
                               {plan.planId === 'plano_mensal' && plan.status === 'active' && plan.stripeSubscriptionId && (
@@ -600,7 +607,7 @@ export default function ProfilePage() {
                                         {statusInfo.text}
                                       </Badge>
                                     </div>
-                                    <p className="text-xs text-muted-foreground mt-1">{getPlanDetailsDescription(plan)}</p>
+                                    <div className="text-xs text-muted-foreground mt-1">{getPlanDetailsDescription(plan)}</div>
                                     {plan.startDate && (
                                         <p className="text-xs text-muted-foreground mt-1">
                                             Período: {new Date(plan.startDate).toLocaleDateString('pt-BR')}
@@ -691,7 +698,6 @@ export default function ProfilePage() {
 
       </div>
 
-      {/* Item Change Modal */}
       <AlertDialog open={isChangeModalOpen} onOpenChange={setIsChangeModalOpen}>
         <AlertDialogContent className="max-w-lg w-full">
             <AlertDialogHeader>

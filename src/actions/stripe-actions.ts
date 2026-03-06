@@ -1,3 +1,4 @@
+
 'use server';
 
 import { getStripeClient } from '@/lib/stripe';
@@ -31,7 +32,6 @@ async function mapPriceToPlan(priceId: string | null | undefined): Promise<PlanI
   return entry?.[0];
 }
 
-// Auxiliar para extrair Subscription ID de um Invoice de forma robusta
 function getSubscriptionIdFromInvoice(invoice: Stripe.Invoice): string | null {
   if (typeof invoice.subscription === 'string') return invoice.subscription;
   if (invoice.subscription && typeof (invoice.subscription as any).id === 'string') return (invoice.subscription as any).id;
@@ -44,24 +44,17 @@ function getSubscriptionIdFromInvoice(invoice: Stripe.Invoice): string | null {
   return fromLine || fromParentSub || null;
 }
 
-// Auxiliar para encontrar o userId de forma resiliente
 async function getUserIdFromInvoiceOrSubscription(
   stripe: Stripe,
   invoice: Stripe.Invoice,
   subscription?: Stripe.Subscription | null
 ): Promise<string | undefined> {
-  // 1. Metadata da Assinatura
   if (subscription?.metadata?.userId) return subscription.metadata.userId;
-
-  // 2. Metadata no Parent do Invoice
   const parent: any = (invoice as any).parent;
   if (parent?.subscription_details?.metadata?.userId) return parent.subscription_details.metadata.userId;
-
-  // 3. Metadata nas Linhas do Invoice
   const firstLine: any = invoice.lines?.data?.[0] ?? null;
   if (firstLine?.metadata?.userId) return firstLine.metadata.userId;
 
-  // 4. Metadata do Cliente Stripe (Fallback crucial para renovações)
   if (typeof invoice.customer === 'string') {
     try {
       const customer = await stripe.customers.retrieve(invoice.customer);
@@ -71,7 +64,6 @@ async function getUserIdFromInvoiceOrSubscription(
     } catch (e) {}
   }
 
-  // 5. Sessão de Checkout (Último recurso)
   const subId = subscription?.id || getSubscriptionIdFromInvoice(invoice);
   if (subId) {
     try {
@@ -85,7 +77,6 @@ async function getUserIdFromInvoiceOrSubscription(
 
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
     if (session.mode === 'subscription') {
-    console.log(`[handleCheckoutSessionCompleted] Sessão de assinatura (ID: ${session.id}) detectada.`);
     try {
       const stripe = await getStripeClient();
       if (session.subscription) {
@@ -138,6 +129,20 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     };
 
     let finalActivePlans = toArray<PlanDetails>(currentUserData.activePlans);
+    let finalPlanHistory = toArray<PlanDetails>(currentUserData.planHistory);
+
+    // --- LÓGICA DE LIMPEZA DE DUPLICIDADE ---
+    const plansToArchive = finalActivePlans.filter(p => 
+        p.planId === planId && 
+        p.status !== 'active' && 
+        p.stripePaymentIntentId !== newPlan.stripePaymentIntentId
+    );
+
+    if (plansToArchive.length > 0) {
+        finalActivePlans = finalActivePlans.filter(p => !plansToArchive.includes(p));
+        finalPlanHistory = [...plansToArchive.map(p => ({...p, status: 'canceled' as const})), ...finalPlanHistory];
+    }
+
     finalActivePlans.push(newPlan);
 
     const highestPlan = [...finalActivePlans]
@@ -149,6 +154,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     const updatePayload: any = {
       activePlan: highestPlan?.planId ?? null,
       activePlans: finalActivePlans,
+      planHistory: finalPlanHistory,
       paymentHistory: finalPaymentHistory,
       stripeCustomerId: newPlan.stripeCustomerId,
       hasHadFreeTrial: true,
@@ -186,10 +192,7 @@ async function handleSubscriptionCreatedOrUpdated(
       userId = checkoutSession?.metadata?.userId;
     }
 
-    if (!userId || !planId) {
-      console.error(`[handleSubscriptionUpdate] Erro: userId ou planId não encontrados para ${subscription.id}`);
-      return;
-    }
+    if (!userId || !planId) return;
 
     const userFirebaseRef = adminDb.ref(`users/${userId}`);
     const userSnapshot = await userFirebaseRef.get();
@@ -228,7 +231,20 @@ async function handleSubscriptionCreatedOrUpdated(
     };
 
     let finalActivePlans = toArray<PlanDetails>(currentUserData.activePlans).filter(p => p.stripeSubscriptionId !== subscription.id);
-    let finalPlanHistory = toArray<PlanDetails>(currentUserData.planHistory).filter(p => p.stripeSubscriptionId !== subscription.id);
+    let finalPlanHistory = toArray<PlanDetails>(currentUserData.planHistory);
+
+    // --- LÓGICA DE LIMPEZA DE DUPLICIDADE PARA ASSINATURAS ---
+    if (effectiveStatus === 'active') {
+        const replacedPlans = finalActivePlans.filter(p => 
+            p.planId === planId && 
+            p.status !== 'active' && 
+            p.stripeSubscriptionId !== subscription.id
+        );
+        if (replacedPlans.length > 0) {
+            finalActivePlans = finalActivePlans.filter(p => !replacedPlans.includes(p));
+            finalPlanHistory = [...replacedPlans.map(p => ({...p, status: 'canceled' as const})), ...finalPlanHistory];
+        }
+    }
 
     const isTrulyInactive = ['canceled', 'unpaid', 'incomplete_expired'].includes(subscription.status);
 
@@ -251,7 +267,6 @@ async function handleSubscriptionCreatedOrUpdated(
     };
 
     await userFirebaseRef.update(updatePayload);
-    console.log(`[handleSubscriptionUpdate] SUCESSO: Usuário ${userId} atualizado no DB. Status: ${effectiveStatus}`);
   } catch (err: any) {
     console.error(`[handleSubscriptionUpdate] ERRO ao processar assinatura ${subscription.id}:`, err?.message);
     throw err;
@@ -289,8 +304,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
       
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object as Stripe.Invoice;
-
-        // --- 1) Descobrir subscriptionId com todos os fallbacks possíveis ---
         let subscriptionId: string | null = null;
 
         if (typeof invoice.subscription === 'string') {
@@ -301,79 +314,46 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         ) {
           subscriptionId = (invoice.subscription as any).id;
         } else {
-          // Fallbacks usando os campos que aparecem no JSON
           const firstLine: any = invoice.lines?.data?.[0] ?? null;
           const fromLine =
             firstLine?.parent?.subscription_item_details?.subscription ?? null;
-
           const fromParent: any = (invoice as any).parent ?? null;
           const fromParentSub =
             fromParent?.subscription_details?.subscription ?? null;
-
           subscriptionId = fromLine || fromParentSub || null;
         }
 
-        console.log(
-          `[Webhook] LOG: invoice.payment_succeeded. invoice.id=${invoice.id}, subscriptionId=${subscriptionId}, billing_reason=${invoice.billing_reason}, amount_paid=${invoice.amount_paid}`
-        );
-
-        // --- 2) Tentar recuperar a subscription (se tivermos ID) ---
         let subscription: Stripe.Subscription | null = null;
         if (subscriptionId) {
           subscription = await stripe.subscriptions.retrieve(subscriptionId);
         }
 
-        // --- 3) Descobrir userId com várias fontes ---
         let userId: string | undefined =
           (subscription?.metadata?.userId as string | undefined) ?? undefined;
 
         if (!userId) {
-          // parent.subscription_details.metadata.userId
           const parent: any = (invoice as any).parent;
-          userId = parent?.subscription_details?.metadata?.userId as
-            | string
-            | undefined;
-
-          // lines[0].metadata.userId
+          userId = parent?.subscription_details?.metadata?.userId as string | undefined;
           if (!userId) {
             const firstLine: any = invoice.lines?.data?.[0] ?? null;
             userId = firstLine?.metadata?.userId as string | undefined;
           }
         }
 
-        // Fallback extra: procurar checkout.session se ainda não tiver userId e tivermos subscriptionId
         if (!userId && subscriptionId) {
           try {
-            console.log(
-              `[invoice.payment_succeeded] LOG: userId ausente em invoice/subscription. Buscando checkout.session para ${subscriptionId}...`
-            );
             const sessions = await stripe.checkout.sessions.list({
               subscription: subscriptionId,
               limit: 1,
             });
             if (sessions.data.length > 0) {
-              const cs = sessions.data[0];
-              userId = cs.metadata?.userId as string | undefined;
-              console.log(
-                `[invoice.payment_succeeded] LOG: userId recuperado da checkout.session ${cs.id}: ${userId}`
-              );
+              userId = sessions.data[0].metadata?.userId as string | undefined;
             }
-          } catch (e: any) {
-            console.error(
-              `[invoice.payment_succeeded] ERRO ao buscar checkout.session para recuperar userId:`,
-              e.message
-            );
-          }
+          } catch (e: any) {}
         }
 
-        if (!userId) {
-          console.warn(
-            `[invoice.payment_succeeded] AVISO: 'userId' não encontrado em lugar nenhum para invoice ${invoice.id}. Histórico de faturamento NÃO será atualizado.`
-          );
-          break;
-        }
+        if (!userId) break;
 
-        // --- 4) Descobrir planId (subscription.metadata, invoice.parent, line.metadata, price) ---
         let planId: PlanId =
           ((subscription?.metadata?.planId as PlanId | undefined) ??
             ((invoice as any).parent?.subscription_details?.metadata?.planId as
@@ -387,11 +367,6 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
             )) as PlanId | undefined) ??
             'plano_mensal') as PlanId;
 
-        console.log(
-          `[Webhook] LOG: Registrando pagamento para userId=${userId}, planId=${planId}.`
-        );
-
-        // --- 5) Monta descrição amigável ---
         let description: string;
         if (invoice.billing_reason === 'subscription_create') {
           description = `Assinatura ${getPlanDisplayName(planId)}`;
@@ -421,24 +396,14 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
 
         const currentPaymentHistory = toArray<PaymentRecord>(userData.paymentHistory);
         if (!currentPaymentHistory.some((p) => p.id === newPaymentRecord.id)) {
-          console.log(
-            `[Webhook] LOG: Adicionando novo registro de pagamento ao histórico.`
-          );
           await userRef.update({ paymentHistory: [newPaymentRecord, ...currentPaymentHistory] });
         }
 
-        // --- 6) Atualiza a assinatura (se tivermos subscription) ---
         if (subscription) {
           try {
             await handleSubscriptionCreatedOrUpdated(subscription);
-          } catch (err: any) {
-            console.error(
-              `[Webhook] ERRO ao atualizar assinatura após invoice.payment_succeeded (${subscriptionId}):`,
-              err?.message
-            );
-          }
+          } catch (err: any) {}
         }
-
         break;
       }
 
@@ -446,18 +411,14 @@ export async function handleStripeWebhook(req: Request): Promise<Response> {
         const invoice = event.data.object as Stripe.Invoice;
         const subscriptionId = getSubscriptionIdFromInvoice(invoice);
         if (!subscriptionId) break;
-
-        console.warn(`[Webhook] Pagamento falhou para a assinatura ${subscriptionId}.`);
         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
         const userId = await getUserIdFromInvoiceOrSubscription(stripe, invoice, subscription);
-
-        // Atualiza o status da assinatura no DB para suspender o acesso
         await handleSubscriptionCreatedOrUpdated(subscription, { userId });
         break;
       }
 
       default:
-        console.log(`[handleStripeWebhook] Evento não tratado: ${event.type}.`);
+        break;
     }
   } catch (err: any) {
       console.error(`[handleStripeWebhook] ERRO CRÍTICO:`, err);
