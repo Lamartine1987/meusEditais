@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -85,7 +86,7 @@ export default function LoginPage() {
                   />
                 </div>
                 <div className="flex justify-end pr-1">
-                   <Link href="/forgot-password" size="sm" className="text-xs text-primary hover:underline font-medium">
+                   <Link href="/forgot-password" className="text-xs text-primary hover:underline font-medium">
                     Esqueceu sua senha?
                   </Link>
                 </div>
