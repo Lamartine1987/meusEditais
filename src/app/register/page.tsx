@@ -109,12 +109,6 @@ export default function RegisterPage() {
               </div>
               <span className="text-lg font-semibold">Teste grátis por 7 dias</span>
             </div>
-            <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
-              <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                <ShieldCheck className="h-6 w-6 text-white" />
-              </div>
-              <span className="text-lg font-semibold">Dados protegidos pela LGPD</span>
-            </div>
           </div>
         </div>
       </div>
