@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AppLogo } from '@/components/layout/app-logo';
-import { Loader2, CheckCircle2, Zap, ShieldCheck, Sparkles, User, Mail, CreditCard, Lock } from 'lucide-react';
+import { Loader2, CheckCircle2, Zap, Sparkles, User, Mail, CreditCard, Lock, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { registerUser } from '@/actions/auth-actions';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -102,6 +102,12 @@ export default function RegisterPage() {
                 <CheckCircle2 className="h-6 w-6 text-white" />
               </div>
               <span className="text-lg font-semibold">Acesso imediato aos editais</span>
+            </div>
+            <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
+              <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <BarChart3 className="h-6 w-6 text-white" />
+              </div>
+              <span className="text-lg font-semibold">Gestão de revisões e progresso</span>
             </div>
             <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
               <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
