@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -66,18 +65,18 @@ export default function ForgotPasswordPage() {
                   required 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="h-11 pl-10"
+                  className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950"
                   autoComplete="email"
                 />
               </div>
             </div>
 
-            <Button type="submit" className="w-full h-11 text-base font-semibold shadow-lg shadow-primary/20" disabled={isSubmitting || authLoading}>
+            <Button type="submit" className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20" disabled={isSubmitting || authLoading}>
               {(isSubmitting || authLoading) ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
               Enviar Link de Recuperação
             </Button>
 
-            <Button variant="ghost" className="w-full h-11 text-muted-foreground hover:text-primary" asChild>
+            <Button variant="ghost" className="w-full h-12 text-muted-foreground hover:text-primary" asChild>
               <Link href="/login">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Voltar para o login

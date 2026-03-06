@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -8,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AppLogo } from '@/components/layout/app-logo';
-import { Loader2, CheckCircle2, Zap, Trophy, ShieldCheck, Sparkles } from 'lucide-react';
+import { Loader2, CheckCircle2, Zap, ShieldCheck, Sparkles, User, Mail, CreditCard, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { registerUser } from '@/actions/auth-actions';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -79,7 +78,7 @@ export default function RegisterPage() {
 
   return (
     <div className="flex min-h-screen w-full flex-col lg:flex-row bg-background">
-      {/* Lado Direito: Marketing (Invertido em relação ao login para variação) */}
+      {/* Lado Direito: Marketing */}
       <div className="hidden lg:flex flex-1 bg-gradient-to-bl from-accent via-emerald-600 to-teal-900 p-12 text-white items-center justify-center relative overflow-hidden">
         <div className="absolute top-0 left-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -ml-48 -mt-48 animate-pulse" />
         
@@ -135,26 +134,79 @@ export default function RegisterPage() {
             <div className="grid gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Nome Completo</Label>
-                <Input id="name" placeholder="Como quer ser chamado?" required value={name} onChange={(e) => setName(e.target.value)} className="h-11" />
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    id="name" 
+                    placeholder="Como quer ser chamado?" 
+                    required 
+                    value={name} 
+                    onChange={(e) => setName(e.target.value)} 
+                    className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950" 
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">E-mail</Label>
-                  <Input id="email" type="email" placeholder="seu@email.com" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      placeholder="seu@email.com" 
+                      required 
+                      value={email} 
+                      onChange={(e) => setEmail(e.target.value)} 
+                      className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950" 
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="cpf">CPF</Label>
-                  <Input id="cpf" placeholder="000.000.000-00" required value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} className="h-11" />
+                  <div className="relative">
+                    <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      id="cpf" 
+                      placeholder="000.000.000-00" 
+                      required 
+                      value={cpf} 
+                      onChange={(e) => setCpf(formatCpf(e.target.value))} 
+                      className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950" 
+                    />
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="password">Senha</Label>
-                  <Input id="password" type="password" placeholder="Mín. 6 caracteres" required value={password} onChange={(e) => setPassword(e.target.value)} className="h-11" />
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      id="password" 
+                      type="password" 
+                      placeholder="Mín. 6 caracteres" 
+                      required 
+                      value={password} 
+                      onChange={(e) => setPassword(e.target.value)} 
+                      className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950" 
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirmar Senha</Label>
-                  <Input id="confirmPassword" type="password" placeholder="Repita a senha" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="h-11" />
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      id="confirmPassword" 
+                      type="password" 
+                      placeholder="Repita a senha" 
+                      required 
+                      value={confirmPassword} 
+                      onChange={(e) => setConfirmPassword(e.target.value)} 
+                      className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950" 
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -168,7 +220,7 @@ export default function RegisterPage() {
               </Label>
             </div>
 
-            <Button type="submit" className="w-full h-11 text-base font-semibold shadow-lg shadow-primary/20" disabled={isSubmitting || !termsAccepted}>
+            <Button type="submit" className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20" disabled={isSubmitting || !termsAccepted}>
               {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
               Cadastrar Agora
             </Button>

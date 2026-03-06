@@ -1,17 +1,16 @@
-
 "use client";
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from '@/hooks/use-auth';
 import { AppLogo } from '@/components/layout/app-logo';
-import { Loader2, CheckCircle2, BarChart3, Clock, BookOpen, Sparkles } from 'lucide-react';
+import { Loader2, BookOpen, BarChart3, Clock, Sparkles, Mail, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from "@/components/ui/badge";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -54,34 +53,37 @@ export default function LoginPage() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="exemplo@email.com" 
-                  required 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="h-11"
-                  autoComplete="email"
-                />
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    placeholder="exemplo@email.com" 
+                    required 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950"
+                    autoComplete="email"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Senha</Label>
-                  <Link href="/forgot-password" hidden className="text-sm text-primary hover:underline">
-                    Esqueceu a senha?
-                  </Link>
                 </div>
-                <Input 
-                  id="password" 
-                  type="password" 
-                  placeholder="••••••••" 
-                  required 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-11"
-                  autoComplete="current-password"
-                />
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    id="password" 
+                    type="password" 
+                    placeholder="••••••••" 
+                    required 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950"
+                    autoComplete="current-password"
+                  />
+                </div>
                 <div className="flex justify-end">
                    <Link href="/forgot-password" size="sm" className="text-xs text-primary hover:underline font-medium">
                     Esqueceu sua senha?
@@ -90,7 +92,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full h-11 text-base font-semibold shadow-lg shadow-primary/20" disabled={isSubmitting || authLoading}>
+            <Button type="submit" className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20" disabled={isSubmitting || authLoading}>
               {(isSubmitting || authLoading) ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
               Acessar Plataforma
             </Button>
@@ -107,7 +109,6 @@ export default function LoginPage() {
 
       {/* Lado Direito: Área de Marketing */}
       <div className="hidden lg:flex flex-1 bg-gradient-to-br from-primary via-purple-600 to-indigo-900 p-12 text-white items-center justify-center relative overflow-hidden">
-        {/* Elementos Decorativos */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-48 -mt-48 animate-pulse" />
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent/20 rounded-full blur-3xl -ml-48 -mb-48" />
         
@@ -156,30 +157,8 @@ export default function LoginPage() {
               </div>
             </div>
           </div>
-
-          <div className="pt-8 border-t border-white/10">
-            <div className="flex items-center gap-4 text-white/60 text-sm">
-              <div className="flex -space-x-2">
-                {[1,2,3,4].map(i => (
-                  <div key={i} className="h-8 w-8 rounded-full border-2 border-primary bg-white/20 flex items-center justify-center text-[10px] font-bold text-white">
-                    {String.fromCharCode(64 + i)}
-                  </div>
-                ))}
-              </div>
-              <span>Junte-se a centenas de concurseiros focados na aprovação.</span>
-            </div>
-          </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-// Auxiliar Badge interno para evitar conflito de importação
-function Badge({ children, className, variant }: any) {
-  return (
-    <div className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${className}`}>
-      {children}
     </div>
   );
 }
