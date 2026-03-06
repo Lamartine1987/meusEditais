@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { Edital, Cargo, Subject as SubjectType, Topic as TopicType, StudyLogEntry, QuestionLogEntry, RevisionScheduleEntry, NoteEntry } from '@/types';
@@ -80,7 +80,7 @@ export default function SubjectTopicsPage() {
   const [selectedRevisionDays, setSelectedRevisionDays] = useState('1');
   const [openRevisionModalId, setOpenRevisionModalId] = useState<string | null>(null);
 
-  // Refatoração do Timer
+  // Timer
   const [timerStates, setTimerStates] = useState<Record<string, { time: number; isRunning: boolean }>>({});
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
@@ -338,7 +338,7 @@ export default function SubjectTopicsPage() {
                   <AlertTitle>Bloqueio por Falta de Pagamento</AlertTitle>
                   <AlertDescription>
                     O acesso a este conteúdo foi interrompido porque não conseguimos processar o pagamento da sua assinatura. 
-                    Verifique seu cartão de crédito na página de perfil para restaurar o acesso.
+                    Escolha um plano para regularizar sua situação.
                   </AlertDescription>
                 </Alert>
               ) : (
