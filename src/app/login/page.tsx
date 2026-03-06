@@ -52,9 +52,9 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Label htmlFor="email" className="text-sm font-semibold ml-1">E-mail</Label>
+                <div className="relative group">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                   <Input 
                     id="email" 
                     type="email" 
@@ -62,17 +62,17 @@ export default function LoginPage() {
                     required 
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950"
+                    className="h-12 pl-10 border-muted-foreground/20 bg-muted/20 focus:bg-background focus:ring-4 focus:ring-primary/10 transition-all rounded-xl shadow-sm"
                     autoComplete="email"
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Senha</Label>
+                <div className="flex items-center justify-between ml-1">
+                  <Label htmlFor="password" title="Senha" className="text-sm font-semibold">Senha</Label>
                 </div>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <div className="relative group">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                   <Input 
                     id="password" 
                     type="password" 
@@ -80,11 +80,11 @@ export default function LoginPage() {
                     required 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950"
+                    className="h-12 pl-10 border-muted-foreground/20 bg-muted/20 focus:bg-background focus:ring-4 focus:ring-primary/10 transition-all rounded-xl shadow-sm"
                     autoComplete="current-password"
                   />
                 </div>
-                <div className="flex justify-end">
+                <div className="flex justify-end pr-1">
                    <Link href="/forgot-password" size="sm" className="text-xs text-primary hover:underline font-medium">
                     Esqueceu sua senha?
                   </Link>
@@ -92,7 +92,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20" disabled={isSubmitting || authLoading}>
+            <Button type="submit" className="w-full h-12 text-base font-bold shadow-lg shadow-primary/20 rounded-xl" disabled={isSubmitting || authLoading}>
               {(isSubmitting || authLoading) ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
               Acessar Plataforma
             </Button>

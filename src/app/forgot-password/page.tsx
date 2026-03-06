@@ -55,9 +55,9 @@ export default function ForgotPasswordPage() {
 
           <form onSubmit={handlePasswordReset} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email">Seu E-mail</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="email" className="text-sm font-semibold ml-1">Seu E-mail</Label>
+              <div className="relative group">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                 <Input 
                   id="email" 
                   type="email" 
@@ -65,18 +65,18 @@ export default function ForgotPasswordPage() {
                   required 
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950"
+                  className="h-12 pl-10 border-muted-foreground/20 bg-muted/20 focus:bg-background focus:ring-4 focus:ring-primary/10 transition-all rounded-xl shadow-sm"
                   autoComplete="email"
                 />
               </div>
             </div>
 
-            <Button type="submit" className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20" disabled={isSubmitting || authLoading}>
+            <Button type="submit" className="w-full h-12 text-base font-bold shadow-lg shadow-primary/20 rounded-xl" disabled={isSubmitting || authLoading}>
               {(isSubmitting || authLoading) ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
               Enviar Link de Recuperação
             </Button>
 
-            <Button variant="ghost" className="w-full h-12 text-muted-foreground hover:text-primary" asChild>
+            <Button variant="ghost" className="w-full h-12 text-muted-foreground hover:text-primary rounded-xl" asChild>
               <Link href="/login">
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Voltar para o login

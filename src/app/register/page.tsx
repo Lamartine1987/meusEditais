@@ -133,24 +133,24 @@ export default function RegisterPage() {
           <form onSubmit={handleRegister} className="space-y-5">
             <div className="grid gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Nome Completo</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Label htmlFor="name" className="text-sm font-semibold ml-1">Nome Completo</Label>
+                <div className="relative group">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                   <Input 
                     id="name" 
                     placeholder="Como quer ser chamado?" 
                     required 
                     value={name} 
                     onChange={(e) => setName(e.target.value)} 
-                    className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950" 
+                    className="h-12 pl-10 border-muted-foreground/20 bg-muted/20 focus:bg-background focus:ring-4 focus:ring-primary/10 transition-all rounded-xl shadow-sm" 
                   />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="email" className="text-sm font-semibold ml-1">E-mail</Label>
+                  <div className="relative group">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                     <Input 
                       id="email" 
                       type="email" 
@@ -158,30 +158,30 @@ export default function RegisterPage() {
                       required 
                       value={email} 
                       onChange={(e) => setEmail(e.target.value)} 
-                      className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950" 
+                      className="h-12 pl-10 border-muted-foreground/20 bg-muted/20 focus:bg-background focus:ring-4 focus:ring-primary/10 transition-all rounded-xl shadow-sm" 
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="cpf">CPF</Label>
-                  <div className="relative">
-                    <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="cpf" className="text-sm font-semibold ml-1">CPF</Label>
+                  <div className="relative group">
+                    <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                     <Input 
                       id="cpf" 
                       placeholder="000.000.000-00" 
                       required 
                       value={cpf} 
                       onChange={(e) => setCpf(formatCpf(e.target.value))} 
-                      className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950" 
+                      className="h-12 pl-10 border-muted-foreground/20 bg-muted/20 focus:bg-background focus:ring-4 focus:ring-primary/10 transition-all rounded-xl shadow-sm" 
                     />
                   </div>
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="password" title="Senha" className="text-sm font-semibold ml-1">Senha</Label>
+                  <div className="relative group">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                     <Input 
                       id="password" 
                       type="password" 
@@ -189,14 +189,14 @@ export default function RegisterPage() {
                       required 
                       value={password} 
                       onChange={(e) => setPassword(e.target.value)} 
-                      className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950" 
+                      className="h-12 pl-10 border-muted-foreground/20 bg-muted/20 focus:bg-background focus:ring-4 focus:ring-primary/10 transition-all rounded-xl shadow-sm" 
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirmar Senha</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="confirmPassword" title="Confirmar Senha" className="text-sm font-semibold ml-1">Confirmar Senha</Label>
+                  <div className="relative group">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors group-focus-within:text-primary" />
                     <Input 
                       id="confirmPassword" 
                       type="password" 
@@ -204,14 +204,14 @@ export default function RegisterPage() {
                       required 
                       value={confirmPassword} 
                       onChange={(e) => setConfirmPassword(e.target.value)} 
-                      className="h-12 pl-10 border-muted-foreground/30 focus:border-primary shadow-sm bg-white dark:bg-slate-950" 
+                      className="h-12 pl-10 border-muted-foreground/20 bg-muted/20 focus:bg-background focus:ring-4 focus:ring-primary/10 transition-all rounded-xl shadow-sm" 
                     />
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-start space-x-2 pt-2">
+            <div className="flex items-start space-x-2 pt-2 px-1">
               <Checkbox id="terms" checked={termsAccepted} onCheckedChange={(checked) => setTermsAccepted(checked as boolean)} />
               <Label htmlFor="terms" className="text-xs leading-snug text-muted-foreground cursor-pointer">
                 Eu li e concordo com os{' '}
@@ -220,7 +220,7 @@ export default function RegisterPage() {
               </Label>
             </div>
 
-            <Button type="submit" className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20" disabled={isSubmitting || !termsAccepted}>
+            <Button type="submit" className="w-full h-12 text-base font-bold shadow-lg shadow-primary/20 rounded-xl" disabled={isSubmitting || !termsAccepted}>
               {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
               Cadastrar Agora
             </Button>
