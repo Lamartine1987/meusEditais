@@ -8,12 +8,13 @@ import { PageWrapper } from '@/components/layout/page-wrapper';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Loader2, ArrowLeft, BookOpen, Lock, AlertTriangle, CreditCard, ChevronRight, CheckCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, BookOpen, Lock, AlertTriangle, CreditCard, ChevronRight, CheckCircle2, LayoutGrid } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
 
 export default function CargoSubjectsPage() {
   const params = useParams();
@@ -99,41 +100,33 @@ export default function CargoSubjectsPage() {
             </Button>
           </div>
           <PageHeader title={cargo?.name ?? "Acesso Restrito"} />
-          <Card className="shadow-lg rounded-xl bg-card">
-            <CardHeader className="text-center">
-              <CardTitle className="text-xl flex items-center justify-center">
+          <Card className="shadow-lg rounded-xl bg-card border-muted-foreground/10 overflow-hidden">
+            <CardHeader className="text-center bg-muted/30 pb-8 pt-10">
+              <div className="mx-auto bg-background rounded-full p-4 w-fit shadow-sm mb-4">
                 {isSuspended ? (
-                  <AlertTriangle className="mr-3 h-6 w-6 text-destructive" />
+                  <AlertTriangle className="h-10 w-10 text-destructive" />
                 ) : (
-                  <Lock className="mr-3 h-6 w-6 text-muted-foreground" />
+                  <Lock className="h-10 w-10 text-muted-foreground" />
                 )}
-                {isSuspended ? "Assinatura Suspensa" : "Acesso Restrito"}
+              </div>
+              <CardTitle className="text-2xl font-bold tracking-tight">
+                {isSuspended ? "Sua assinatura está suspensa" : "Conteúdo Restrito"}
               </CardTitle>
+              <CardDescription className="text-base max-w-md mx-auto">
+                {isSuspended 
+                  ? "Não conseguimos processar o pagamento da sua assinatura. Regularize para continuar seus estudos."
+                  : "Este cargo não está incluído no seu plano atual. Escolha um plano para desbloquear."}
+              </CardDescription>
             </CardHeader>
-            <Separator />
-            <CardContent className="pt-6">
-              {isSuspended ? (
-                <Alert variant="destructive" className="mb-6">
-                  <CreditCard className="h-4 w-4" />
-                  <AlertTitle>Bloqueio por Falta de Pagamento</AlertTitle>
-                  <AlertDescription>
-                    O acesso a este conteúdo foi interrompido porque não conseguimos processar o pagamento da sua assinatura. 
-                    Verifique seu cartão de crédito na página de perfil para restaurar o acesso.
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <p className="text-muted-foreground text-center mb-6">
-                  Para acessar as matérias e registrar seu progresso, você precisa ter uma assinatura ativa para este cargo ou edital.
-                </p>
-              )}
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button asChild size="lg" className={isSuspended ? "bg-destructive hover:bg-destructive/90" : ""}>
+            <CardContent className="pt-8 pb-10">
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button asChild size="lg" className={cn("min-w-[200px] h-12 text-base", isSuspended ? "bg-destructive hover:bg-destructive/90 shadow-destructive/20" : "shadow-primary/20")}>
                     <Link href="/planos">
-                    {isSuspended ? "Resolver Pendência" : "Ver Planos"}
+                    {isSuspended ? "Resolver Pendência" : "Ver Planos de Acesso"}
                     </Link>
                 </Button>
-                <Button asChild variant="outline" size="lg">
-                    <Link href="/perfil">Ver Meu Perfil</Link>
+                <Button asChild variant="outline" size="lg" className="min-w-[200px] h-12 text-base">
+                    <Link href="/perfil">Ir para Meu Perfil</Link>
                 </Button>
               </div>
             </CardContent>
@@ -158,7 +151,7 @@ export default function CargoSubjectsPage() {
     <PageWrapper>
       <div className="container mx-auto px-0 sm:px-4 py-8">
         <div className="mb-6">
-          <Button variant="outline" asChild>
+          <Button variant="ghost" asChild className="-ml-2 text-muted-foreground hover:text-primary">
             <Link href={`/editais/${editalId}`}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Voltar para o Edital
@@ -166,10 +159,13 @@ export default function CargoSubjectsPage() {
           </Button>
         </div>
 
-        <PageHeader 
-          title={cargo.name} 
-          description={`Edital: ${edital.title}`}
-        />
+        <div className="mb-10">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">{cargo.name}</h1>
+          <p className="text-muted-foreground mt-2 flex items-center gap-2">
+            <LayoutGrid className="h-4 w-4" />
+            Edital: <span className="font-semibold text-foreground">{edital.title}</span>
+          </p>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {cargo.subjects && cargo.subjects.length > 0 ? (
@@ -181,34 +177,51 @@ export default function CargoSubjectsPage() {
               const progress = totalTopics > 0 ? (studiedTopics / totalTopics) * 100 : 0;
 
               return (
-                <Card key={subject.id} className="shadow-md hover:shadow-lg transition-all duration-300 rounded-xl overflow-hidden group border-muted-foreground/10">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-xl flex items-start justify-between gap-2">
-                      <span className="group-hover:text-primary transition-colors">{subject.name}</span>
-                      <BookOpen className="h-5 w-5 text-primary/40 shrink-0" />
+                <Card key={subject.id} className="flex flex-col h-full shadow-sm hover:shadow-xl transition-all duration-300 rounded-2xl overflow-hidden group border-muted-foreground/10 bg-card">
+                  <CardHeader className="pb-4 relative">
+                    {/* Decorative Background Icon */}
+                    <div className="absolute top-4 right-4 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity duration-500">
+                      <BookOpen className="h-20 w-20 text-primary" />
+                    </div>
+                    
+                    <CardTitle className="text-xl font-bold leading-tight min-h-[3rem] flex items-start pr-8">
+                      <span className="group-hover:text-primary transition-colors duration-300">
+                        {subject.name}
+                      </span>
                     </CardTitle>
-                    <CardDescription>
+                    <CardDescription className="flex items-center gap-1.5 text-sm font-medium">
+                      <BookOpen className="h-3.5 w-3.5 text-primary/60" />
                       {totalTopics} {totalTopics === 1 ? 'tópico' : 'tópicos'} cadastrados
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs font-medium">
-                        <span className="text-muted-foreground">Progresso</span>
-                        <span className="text-primary">{Math.round(progress)}%</span>
+                  
+                  <CardContent className="space-y-5 flex-grow">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-end">
+                        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Progresso</span>
+                        <span className="text-sm font-black text-primary font-mono">{Math.round(progress)}%</span>
                       </div>
-                      <Progress value={progress} className="h-2" />
+                      <Progress value={progress} className="h-2.5 bg-muted rounded-full overflow-hidden" />
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <CheckCircle className="h-3.5 w-3.5 text-accent" />
-                      <span>{studiedTopics} de {totalTopics} concluídos</span>
+                    
+                    <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/30 border border-muted-foreground/5 transition-colors group-hover:bg-muted/50">
+                      <div className={cn(
+                        "rounded-full p-1.5",
+                        progress === 100 ? "bg-accent/10 text-accent" : "bg-primary/10 text-primary"
+                      )}>
+                        <CheckCircle2 className="h-4 w-4" />
+                      </div>
+                      <span className="text-xs font-semibold text-foreground/80">
+                        {studiedTopics} de {totalTopics} concluídos
+                      </span>
                     </div>
                   </CardContent>
-                  <CardFooter className="pt-0">
-                    <Button asChild className="w-full" variant="outline">
+                  
+                  <CardFooter className="pt-4 pb-6 mt-auto">
+                    <Button asChild className="w-full h-11 text-sm font-bold shadow-sm transition-all group-hover:translate-y-[-2px]" variant="outline">
                       <Link href={`/editais/${editalId}/cargos/${cargoId}/materias/${subject.id}`}>
                         Estudar Matéria
-                        <ChevronRight className="ml-2 h-4 w-4" />
+                        <ChevronRight className="ml-1.5 h-4 w-4 transition-transform group-hover:translate-x-1" />
                       </Link>
                     </Button>
                   </CardFooter>
@@ -217,9 +230,13 @@ export default function CargoSubjectsPage() {
             })
           ) : (
             <div className="col-span-full">
-              <Card className="text-center py-12">
-                <CardContent>
-                  <p className="text-muted-foreground">Nenhuma matéria cadastrada para este cargo.</p>
+              <Card className="text-center py-16 bg-muted/20 border-dashed">
+                <CardContent className="flex flex-col items-center">
+                  <div className="bg-background rounded-full p-4 mb-4 shadow-sm">
+                    <BookOpen className="h-10 w-10 text-muted-foreground/40" />
+                  </div>
+                  <p className="text-xl font-semibold text-muted-foreground">Nenhuma matéria cadastrada para este cargo.</p>
+                  <p className="text-sm text-muted-foreground/60 mt-1">Verifique novamente mais tarde ou entre em contato com o suporte.</p>
                 </CardContent>
               </Card>
             </div>
